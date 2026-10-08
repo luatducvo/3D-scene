@@ -6,14 +6,13 @@ import re
 import time
 import uuid
 from collections.abc import Iterator
-from contextlib import nullcontext
 from typing import Any
 
 import numpy as np
 from pydantic import ValidationError
 
 from s3d_app.gpu import GPU, InsufficientGpuMemory
-from s3d_app.llm import LlmRouter
+from s3d_app.llm import LlmRouter, model_session
 from s3d_app.pipeline import artifact_dir
 from s3d_app.retrieval import normalize_nouns, similarities
 from s3d_app.scene_graph import Relation, serialize_node
@@ -188,17 +187,9 @@ def generate_program(question: str, labels: list[str], router: LlmRouter) -> tup
     raw = ""
     for retry in range(2):
         try:
-            if not router.managed:
+            with model_session(router, "qwen3-vl-4b-text", 3200, GPU):
                 response = router.chat("qwen3-vl-4b-text", messages,
                                        response_format, max_tokens=400)
-            else:
-                with GPU.reserve(0):
-                    if "qwen3-vl-4b-text" not in router.loaded():
-                        router.unload_all()
-                        GPU.wait_for_memory(3200)
-                        router.load("qwen3-vl-4b-text")
-                    response = router.chat("qwen3-vl-4b-text", messages,
-                                           response_format, max_tokens=400)
             raw = response["choices"][0]["message"]["content"]
             return Program.model_validate_json(raw), retry
         except (ValueError, KeyError, TypeError, ValidationError) as exc:
@@ -262,15 +253,8 @@ def apply_explicit_viewpoint(program: Program, text: str, records: list[dict]) -
 
 
 def language_reply(router: LlmRouter, messages: list[dict]) -> str:
-    if not router.managed:
+    with model_session(router, "qwen3-vl-4b-text", 3200, GPU):
         response = router.chat("qwen3-vl-4b-text", messages)
-    else:
-        with GPU.reserve(0):
-            if "qwen3-vl-4b-text" not in router.loaded():
-                router.unload_all()
-                GPU.wait_for_memory(3200)
-                router.load("qwen3-vl-4b-text")
-            response = router.chat("qwen3-vl-4b-text", messages)
     return response["choices"][0]["message"]["content"].strip()
 
 
@@ -279,11 +263,7 @@ def stream_verified_wording(router: LlmRouter, fact: str, identifiers: set[int],
     messages = [{"role": "system", "content":
         "Rephrase this verified Solver fact in one short natural sentence. Keep its exact count and "
         "Object IDs. Add no facts or quantities. Fact: " + fact}]
-    with GPU.reserve(0) if router.managed else nullcontext():
-        if router.managed and "qwen3-vl-4b-text" not in router.loaded():
-            router.unload_all()
-            GPU.wait_for_memory(3200)
-            router.load("qwen3-vl-4b-text")
+    with model_session(router, "qwen3-vl-4b-text", 3200, GPU):
         buffered = ""
         accepted = ""
         for chunk in router.stream_chat("qwen3-vl-4b-text", messages):
@@ -398,9 +378,17 @@ def _answer_events(scene_id: str, body: dict[str, Any],
         if program.intent == "open":
             relations = [Relation(**item) for item in (graph or {}).get("relations", [])
                          if item["predicate"] != "FAR"]
+            words = set(re.findall(r"[a-z]+", text.lower()))
+            relevant = [item for item in objects if words.intersection(item["label"].lower().split())]
+            if relevant:
+                relevant_ids = {str(item["id"]) for item in relevant}
+                neighbor_ids = {edge.anchor for edge in relations if edge.subject in relevant_ids}
+                context_objects = [item for item in objects if str(item["id"]) in relevant_ids | neighbor_ids]
+            else:
+                context_objects = objects
             summary = "Room → floor/walls → Objects\n" + "\n".join(
                 serialize_node(_node(item), relations) for item in sorted(
-                    objects, key=lambda item: item.get("vertices", 0), reverse=True))
+                    context_objects, key=lambda item: item.get("vertices", 0), reverse=True))
             summary = summary[:9000]
             if not active_router.managed:
                 summary = "Available labels: " + ", ".join(sorted({item["label"] for item in records}))
@@ -422,7 +410,9 @@ def _answer_events(scene_id: str, body: dict[str, Any],
                 yield "token", {"text": word + " "}
             yield "final", payload
             return
-        result = solve(program, [_node(item) for item in records], viewpoint, graph)
+        semantic = {variable: similarities(scene_id, phrase) for variable, phrase in program.vars.items()
+                    if phrase not in {"object", "thing", "any", "wall", "floor", "room"}}
+        result = solve(program, [_node(item) for item in records], viewpoint, graph, semantic)
         used_viewpoint = result.viewpoint
         if had_reference and reference_id in by_id and program.vars[program.target] == by_id[reference_id]["label"]:
             result.solutions = [solution for solution in result.solutions

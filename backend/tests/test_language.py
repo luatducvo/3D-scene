@@ -34,6 +34,12 @@ def test_wording_rejects_invented_ids_and_counts():
     assert verified_wording("I found seven chairs.", fallback, {1, 2}, {2}) == fallback
 
 
+@pytest.mark.parametrize("proposed", ["2.2 chairs", "one hundred chairs", "thirty chairs",
+                                       "Object 2 has 2 legs"])
+def test_wording_validates_complete_quantities(proposed):
+    assert verified_wording(proposed, "fallback", {2}, set()) == "fallback"
+
+
 def test_stream_never_emits_an_unverified_quantity():
     class FakeRouter:
         managed = False

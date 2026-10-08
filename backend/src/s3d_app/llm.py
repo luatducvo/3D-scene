@@ -5,6 +5,21 @@ import os
 import time
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
+
+
+@contextmanager
+def model_session(router, preset: str, minimum_free_mb: int, gpu):
+    """Hold the shared admission lock throughout local inference."""
+    if not router.managed:
+        yield
+        return
+    with gpu.reserve(0):
+        if preset not in router.loaded():
+            router.unload_all()
+            gpu.wait_for_memory(minimum_free_mb)
+            router.load(preset)
+        yield
 
 
 class LlmRouter:

@@ -36,3 +36,16 @@ def test_gpu_waits_for_unload_and_reports_missing_vram() -> None:
         3500, timeout=0
     ):
         pass
+
+
+def test_stage_does_not_ignore_unload_failure(monkeypatch):
+    import urllib.error
+
+    from s3d_app.pipeline import unload_llm
+
+    def fail(self):
+        raise urllib.error.URLError("unreachable")
+
+    monkeypatch.setattr("s3d_app.llm.LlmRouter.unload_all", fail)
+    with pytest.raises(RuntimeError, match="Cannot confirm LLM unloading"):
+        unload_llm()

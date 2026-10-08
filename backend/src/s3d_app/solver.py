@@ -227,7 +227,8 @@ def _select(solutions: list[dict[str, NodeId]], program: Program,
 
 
 def solve(program: Program, nodes: list[ObjectNode],
-          viewpoint: Viewpoint | None = None, graph: dict | None = None) -> SolveResult:
+          viewpoint: Viewpoint | None = None, graph: dict | None = None,
+          semantic_scores: dict[str, dict[int, float]] | None = None) -> SolveResult:
     if program.viewpoint is not None:
         viewpoint = Viewpoint(program.viewpoint[:3], program.viewpoint[3:])
     deadline = time.monotonic() + 2.0
@@ -245,6 +246,16 @@ def solve(program: Program, nodes: list[ObjectNode],
         structural = [node for node in primary if isinstance(node.id, str)]
         candidates[variable] = (structural if label in {"wall", "floor", "room"} and structural
                                 else primary or [node for node in nodes if _label_matches(label, node)])
+        # Preserve precise labels; semantic retrieval grounds functional descriptions
+        # only when labels and strong alternatives cannot ground the variable.
+        if not candidates[variable] and semantic_scores:
+            scores = semantic_scores.get(variable, {})
+            ranked = sorted((node for node in nodes if scores.get(node.id, 0) > 0.15),
+                            key=lambda node: scores.get(node.id, 0), reverse=True)
+            if ranked:
+                gaps = [scores[ranked[i].id] - scores[ranked[i + 1].id] for i in range(len(ranked) - 1)]
+                count = max(range(len(gaps)), key=gaps.__getitem__) + 1 if gaps else 1
+                candidates[variable] = ranked[:count]
     edges = {(item["predicate"], str(item["subject"]), str(item["anchor"]))
              for item in (graph or {}).get("relations", [])}
     stored_predicates = {"ON", "UNDER", "SUPPORTS", "IN", "CONTAINS", "NEAR", "FAR",

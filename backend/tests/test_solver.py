@@ -4,6 +4,14 @@ from pydantic import ValidationError
 from s3d_app.solver import ObjectNode, Program, Viewpoint, solve
 
 
+def test_solver_grounds_functional_description_with_image_embedding_scores():
+    nodes = [ObjectNode(1, "chair", .9, (0, 0, .5), (.5, .5, 1)),
+             ObjectNode(2, "cabinet", .9, (2, 0, .5), (.5, .5, 1))]
+    program = Program(intent="ground", vars={"t": "something to sit on"}, target="t")
+    result = solve(program, nodes, semantic_scores={"t": {1: .7, 2: .2}})
+    assert [solution["t"] for solution in result.solutions] == [1]
+
+
 def test_program_rejects_undeclared_variable() -> None:
     with pytest.raises(ValidationError, match="Undeclared anchor"):
         Program(intent="ground", vars={"t": "chair"}, constraints=[["NEAR", "t", "a"]],

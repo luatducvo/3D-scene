@@ -26,3 +26,9 @@ def test_structure_finder_recognizes_floor_and_wall() -> None:
     found = floor_and_walls(np.concatenate((floor, wall)))
     assert found[0]["kind"] == "floor"
     assert any(item["kind"] == "wall" for item in found)
+
+
+def test_floor_consensus_resists_low_outliers():
+    floor = np.array([[x, y, 0] for x in range(25) for y in range(25)], dtype=float)
+    outliers = np.array([[0, 0, -10]] * 100, dtype=float)
+    assert abs(floor_and_walls(np.concatenate((floor, outliers)))[0]["offset"]) < 0.01

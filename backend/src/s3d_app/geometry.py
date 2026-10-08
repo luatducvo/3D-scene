@@ -15,7 +15,15 @@ def floor_and_walls(points: np.ndarray, *, seed: int = 0) -> list[dict]:
     """Find a horizontal floor and up to four vertical planes without labels."""
     if len(points) < 3:
         return []
-    floor_z = float(np.quantile(points[:, 2], 0.05))
+    rng = np.random.default_rng(seed)
+    sample = points[rng.choice(len(points), min(len(points), 5000), replace=False)]
+    heights = sample[:, 2]
+    # Axis-constrained RANSAC: sample horizontal planes in the lower room band,
+    # select their consensus, then refine with the median of the inliers.
+    lower_band = heights[heights <= np.quantile(heights, 0.3)]
+    hypotheses = rng.choice(lower_band, min(len(lower_band), 250), replace=False)
+    best_height = max(hypotheses, key=lambda height: int((np.abs(heights - height) < 0.07).sum()))
+    floor_z = float(np.median(heights[np.abs(heights - best_height) < 0.07]))
     floor_mask = np.abs(points[:, 2] - floor_z) < 0.07
     structures = []
     if floor_mask.sum() >= 3:
@@ -24,7 +32,6 @@ def floor_and_walls(points: np.ndarray, *, seed: int = 0) -> list[dict]:
     candidates = points[points[:, 2] > floor_z + 0.2]
     if len(candidates) < 100:
         return structures
-    rng = np.random.default_rng(seed)
     remaining = candidates.copy()
     for number in range(4):
         if len(remaining) < 100:

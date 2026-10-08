@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from s3d_app.gpu import GPU
-from s3d_app.llm import LlmRouter
+from s3d_app.llm import LlmRouter, model_session
 from s3d_app.pipeline import artifact_dir
 from s3d_app.semantics import project
 from s3d_app.storage import database
@@ -65,15 +65,8 @@ def annotated_frames(scene_id: str, objects: list[dict], targets: list[int]) -> 
 def chat_with_images(router: LlmRouter, question: str, images: list[str]) -> str:
     content = [{"type": "text", "text": question}]
     content += [{"type": "image_url", "image_url": {"url": url}} for url in images[:2]]
-    if not router.managed:
+    with model_session(router, "qwen3-vl-4b-vision", 4200, GPU):
         response = router.chat("qwen3-vl-4b-vision", [{"role": "user", "content": content}])
-    else:
-        with GPU.reserve(0):
-            if "qwen3-vl-4b-vision" not in router.loaded():
-                router.unload_all()
-                GPU.wait_for_memory(4200)
-                router.load("qwen3-vl-4b-vision")
-            response = router.chat("qwen3-vl-4b-vision", [{"role": "user", "content": content}])
     return response["choices"][0]["message"]["content"].strip()
 
 

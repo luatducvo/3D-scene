@@ -29,7 +29,7 @@ STOP = threading.Event()
 
 def artifact_dir(scene_id: str, stage: str) -> Path:
     voxel = os.getenv("S3D_MASK3D_VOXEL", "0.03")
-    configurations = {"S2": "geometry:cuda-v2", "S3": f"mask3d:scannet200-val:{voxel}:xyz-v3",
+    configurations = {"S2": "geometry:cuda-v3", "S3": f"mask3d:scannet200-val:{voxel}:xyz-v3",
                       "S4": f"yoloe26:mobileclip2:v2:{voxel}",
                       "S5": f"graph:v3:{voxel}", "S6": f"mesh:v3:{voxel}"}
     config_hash = (hashlib.sha256(configurations[stage].encode()).hexdigest()[:12]
