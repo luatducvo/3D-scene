@@ -1,41 +1,86 @@
-# S3D
+# S3D — Explore and Query 3D Scenes
 
-S3D imports prepared ScanNet scenes, segments and labels Objects, and answers
-English questions about their geometry and appearance. A local web viewer shows
-Instance masks, bboxes, relations, and real Keyframe evidence. Lookup uses CPU
-MobileCLIP2; spatial questions use a validated Program and deterministic Solver.
+S3D runs locally on your machine, accepts preprocessed ScanNet data, and creates 3D
+Scenes to explore, select objects, and ask questions about their locations, counts, or
+attributes. Results are highlighted on the 3D model and accompanied by real keyframe
+photographs from the scan.
+
+**The web interface and questions are in English.**
+
+## Architecture
+
+```text
+External preprocessing
+  dataset/scans → prep script → dataset/preprocessing/*.s3dpkg
+                                         │
+                                    user upload
+                                         ↓
+S3D system
+  Web → API → validate Package → analyze Scene → persist data
+   ↑                                                │
+   └────────── 3D model, objects, and evidence ─────┘
+
+  Question → object retrieval / spatial solver → answer + highlights
+```
+
+| Component | Role |
+| --- | --- |
+| Preprocessing script | Runs on CPU, aligns mesh and camera poses, packages `.s3dpkg`. Runs independently of S3D. |
+| Web UI | Displays the 3D Scene, object list, and chat interface; served directly by the API. |
+| API & Pipeline | Validates files, manages job progress; extracts geometry, predicts labels with YOLOE, generates embeddings with MobileCLIP2, and builds spatial scene graphs. |
+| Mask3D | Dedicated GPU service segmenting the 3D mesh into distinct object instances. |
+| LLM & Solver | LLM interprets questions; deterministic Solver computes spatial queries and counts. Vision model uses real keyframes to tiebreak candidates or describe objects. |
+
+Docker Compose runs three services: `api`, `mask3d`, and `llm`. GPU workloads are
+orchestrated to share VRAM safely. By default, data and models stay local; the
+web interface binds only to localhost.
 
 ## Prerequisites
 
-- Docker Desktop with WSL2 GPU support and an NVIDIA driver
-- For native development: Python 3.12 through `uv`, Node.js 24, and npm
-- Licensed local ScanNet data for Package preparation
+- Docker Desktop with WSL2 and NVIDIA GPU support; NVIDIA driver installed.
+- `uv` to run the preprocessing script if starting from raw ScanNet scans.
+- Licensed ScanNet data, or prepared `.s3dpkg` v2 package files.
+- Internet access for the initial build and model downloads; operates offline with downloaded models afterward.
 
-## Prepare a Package
+The verified baseline hardware is an NVIDIA RTX 3050 6 GiB Laptop GPU. The Mask3D
+image is currently built for SM 8.6 GPU architecture; for other GPUs, see
+[GPU notes](docs/adr/0008-mask3d-spike-results.md) and
+[development guide](docs/development.md).
 
-Preprocessing is a standalone CPU utility, outside the running S3D system. It needs
-`uv` and licensed raw scans; it does not need the API, Docker, GPU or model files.
-It applies source `axisAlignment` to the mesh, normals and camera poses and saves
-an aligned `s3dpkg/2` Package. From the repository root:
+The commands below are run from the repository root using PowerShell.
+
+## 1. Prepare Data
+
+If you already have `.s3dpkg` v2 files, proceed to step 2.
+
+Place each raw scan in `dataset/scans/<scan_id>/`. For example:
+
+```text
+dataset/scans/scene0000_00/
+  scene0000_00.sens
+  scene0000_00_vh_clean_2.ply
+  scene0000_00_vh_clean_2.0.010000.segs.json
+  scene0000_00.txt                         # contains axisAlignment
+```
+
+Preprocess and verify the output:
 
 ```powershell
 uv run tools/scannet_prep.py pack dataset/scans/scene0000_00 --out dataset/preprocessing
-uv run tools/scannet_prep.py pack dataset/scans/scene0000_01 --out dataset/preprocessing
 uv run tools/scannet_prep.py verify dataset/preprocessing/scene0000_00.s3dpkg
-# For a list of scan IDs, one per line:
-uv run tools/scannet_prep.py batch dataset/scans --list scenes.txt --out dataset/preprocessing --workers 2
-uv run tools/test_scannet_prep.py
 ```
 
-`pack` writes a `.partial` file, verifies it, then renames it to `.s3dpkg`.
-The [Package contract](docs/s3dpkg-spec.md) is the only contract between prep
-and import. Packages contain no ground-truth labels. Missing or invalid
-`axisAlignment` stops prep with an error; no new complete Package is produced.
-The output directory is separate from the application's storage and ignored by
-Git and Docker builds. Old `s3dpkg/1` files must be prepared again from raw scans;
-moving or renaming them does not convert them to v2.
+The file to upload is **`dataset/preprocessing/scene0000_00.s3dpkg`**. Replace the scan ID
+in the command to process other scans. For processing multiple scans at once, see the `batch` command in the
+[script guide](docs/operations.md#chuẩn-hoá-nhiều-scan).
 
-## Run with Compose
+The script applies all alignment transformations and leaves the raw data intact. A missing or invalid
+`axisAlignment` halts with an error. The system only accepts `s3dpkg/2` Packages;
+v1 files must be regenerated from raw scans using this script.
+
+## 2. Start the System
+
+Initial startup:
 
 ```powershell
 docker compose build
@@ -43,154 +88,68 @@ docker compose run --rm --no-deps api s3d models pull
 docker compose up -d
 ```
 
-Open [S3D](http://127.0.0.1:8000), select or drop an aligned `.s3dpkg` from
-`dataset/preprocessing/`,
-then open its Scene when processing finishes. Try `stools`, `something to sit on`,
-`How many stools?`, or `the stool closest to the desk`. Follow-up `it` uses the
-last single Target or the Object clicked in the viewer. Clarify buttons resolve
-ambiguous Programs. The API, web, `mask3d`, and `llm` share the local
-Compose network; the host binds the web port to loopback. Upload is the sole input:
-S3D receives no raw scan directory, `.sens` file or inbox mount. It verifies and
-copies the uploaded Package into its own storage, leaving your preprocessing file
-untouched. S1 extracts the already aligned data and never applies the source matrix
-again. Existing processed Scenes remain usable; reloading their v1 source requires
-a newly prepared v2 upload. The app stores Scene data and models in separate named volumes.
-Model sources and hashes are pinned in `models.lock`; `models pull` skips files
-whose SHA-256 already matches and rejects corrupt existing files. After pulling,
-the model files do not need network access.
+The first build may take some time as GPU libraries are compiled.
+Once completed, open [S3D in your browser](http://127.0.0.1:8000).
 
-The first build compiles MinkowskiEngine and pointnet2 for the RTX 3050's SM 8.6.
-It can take several minutes. S3 defaults to 3 cm voxels; the measured device-memory
-increase was about 3.2 GiB on the two supplied scans. The service retries OOM in a
-new process with 4 cm voxels. GPU stages unload the LLM first and use the same
-admission lock. Insufficient VRAM, failed stages, and corrupt Packages appear in
-the web UI. Optional captions for the N largest Objects are enabled with
-`S3D_CAPTIONS_TOP_N=N` (default 0, maximum 20).
+For subsequent runs, simply execute `docker compose up -d`. Stop the system with
+`docker compose down`; all data persists in the Docker volumes.
 
-To preserve the compiled image after a successful build:
+## 3. Upload and Open a Scene
 
-```powershell
-New-Item -ItemType Directory -Force .backups | Out-Null
-docker save s3d-mask3d:1 -o .backups/s3d-mask3d.tar
-# Restore with: docker load -i .backups/s3d-mask3d.tar
-```
+1. Under **Import a Package**, select or drag and drop a file from `dataset/preprocessing/`.
+2. Monitor pipeline progress. Once the Scene reaches **ready** status, click **Open mesh**.
+3. Orbit, pan, and zoom the 3D model; select objects directly or from the
+   **Objects** list to inspect labels, colors, and spatial relationships.
 
-## Native development
+Uploading creates an application-owned copy in storage, leaving the preprocessing file untouched.
+The application consumes pre-aligned data and does not re-apply any alignment transformations.
 
-```powershell
-uv sync --project backend --extra dev --frozen
-npm ci --prefix frontend
-npm run build --prefix frontend
-$env:S3D_DATA_DIR = Join-Path (Resolve-Path .).Path '.local-data'
-$env:S3D_MODEL_DIR = Join-Path (Resolve-Path .).Path 'models'
-$env:S3D_LLM_BASE_URL = 'http://127.0.0.1:8080'
-$env:S3D_MASK3D_URL = 'http://127.0.0.1:9000'
-uv run --project backend --frozen s3d models pull
-docker compose -f compose.yaml -f compose.dev.yaml up -d llm mask3d
-uv run --project backend --frozen s3d serve
-```
+If a scan ID already exists with a different Package, the UI prompts to **Replace**. Confirming
+replaces the old Scene and restarts processing. **Reprocess** restarts the pipeline from a selected stage;
+**Delete** removes the Scene, with an option to also purge the stored Package copy.
 
-`s3d serve` binds `127.0.0.1:8000`. For hot reload, run `npm run dev` in
-`frontend/` with `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000` and set
-`S3D_DEV=1` on the API to allow the two localhost dev origins. The dev Compose
-file binds `.local-data` and `models` to the GPU services; Windows paths sent to
-Mask3D are translated to that shared `/data` directory. Production uses relative
-API URLs and does not enable CORS.
+## 4. Ask Questions
 
-## LLM configuration
+In **Ask about this Scene**, enter questions in English, for example:
 
-The default is the pinned local llama.cpp router. To select an OpenAI-compatible
-endpoint, set these environment variables before recreating `api`:
+| Intent | Example |
+| --- | --- |
+| Locate objects | `chairs` or `something to sit on` |
+| Count | `How many stools?` |
+| Spatial relations | `the stool closest to the desk` |
+| Follow-up on selected object | `What color is it?` |
 
-```powershell
-$env:S3D_LLM_BASE_URL = 'https://your-endpoint.example/v1'
-$env:S3D_LLM_MANAGED = '0'
-$env:S3D_LLM_MODEL = 'your-model-name'
-$env:S3D_LLM_API_KEY = 'your-key'
-docker compose up -d api
-```
+Results are highlighted in the viewer. If multiple candidates exist, select an object using the
+clarification buttons; photographic keyframe evidence appears when available. The pronoun `it` refers
+to the currently selected object or the preceding single result. Egocentric directions (left/right/front/back)
+default to the current viewer camera orientation, so rotating the camera may alter the answer.
 
-Cloud mode calls chat completions directly and does not call local model-management
-endpoints or take the GPU lock. It sends the question, label/context text, and real
-Keyframes for vision requests. Solver results are worded locally in cloud mode;
-Object IDs, counts, geometry and graph relations are not sent for rephrasing.
-Packages and full meshes stay local. Debug Program
-input is enabled with `S3D_DEBUG_PROGRAM=1`; it is off by default. Captions are lazy
-and cached in SQLite.
+## Where Is Data Stored?
 
-## Verification
+| Data | Default Location |
+| --- | --- |
+| Raw scans | `dataset/scans/` — external to the system |
+| Prepared files for upload | `dataset/preprocessing/` — external to the system |
+| Imported Packages, Scenes, query history, and pipeline artifacts | Docker volume `s3d-data`, at `/data` inside containers |
+| Downloaded model weights | Docker volume `s3d-models`, at `/models` inside containers |
 
-```powershell
-cd backend
-uv run --frozen pytest
-uv run --frozen ruff check . ../tools ../mask3d
-uv run --frozen python -m s3d_app.export_openapi --check
-cd ../frontend
-npm run types:api
-npm run typecheck
-npm test
-npm run build
-cd ..
-uv run tools/test_scannet_prep.py
-# Local models and a processed Scene are required for this optional evaluation:
-# Enable S3D_DEBUG_PROGRAM=1 on api, then:
-uv run --project backend python tools/query_eval.py
-```
+Actual volume names are prefixed by the Compose project name. Data and models are not committed
+to the repository. Review [backup and restore](docs/operations.md#sao-lưu-và-khôi-phục)
+before transferring machines or deleting volumes.
 
-The committed OpenAPI schema and generated TypeScript types must be updated
-together when the API changes. Export with `uv run --project backend python -m
-s3d_app.export_openapi`, then run `npm run types:api --prefix frontend`. The web
-build checks hashes of the OpenAPI contract and API source; stale types fail the
-build. CI runs CPU tests, standalone prep tests, lint, contract checks, and web
-tests/build.
+## Troubleshooting
 
-Both supplied scans completed S1–S6 with real Mask3D, YOLOE, and MobileCLIP2 on
-2026-10-08. Cold-stage timing and sampled GPU usage are recorded in
-`docs/spikes/stage-runs.json`. GPU feasibility is documented in
-[ADR 0007](docs/adr/0007-llm-spike-results.md) and
-[ADR 0008](docs/adr/0008-mask3d-spike-results.md). The local question comparison is
-in `docs/spikes/query-eval.json`; it compares the model with hand-authored Programs
-on measured Objects and is not a ground-truth ScanRefer benchmark. Vision Tiebreak
-and caption cache timings are in `docs/spikes/vision-validation.json`.
+| Issue | Resolution |
+| --- | --- |
+| API unavailable / web UI does not open | Run `docker compose ps` and check logs with `docker compose logs --tail 100 api mask3d llm`. |
+| Legacy v1 file or alignment error | Re-run the preprocessing script on raw scans containing a valid `axisAlignment` matrix. |
+| Scene fails due to out-of-memory (VRAM) | Close other GPU-intensive applications, then choose **Reprocess** from the failed stage. |
+| Legacy Scene cannot be reprocessed from S1 | Prepare an `s3dpkg/2` package, upload it, and choose **Replace**. |
 
-## Back up and restore Scene data
+## Further Documentation
 
-Stop the API before backing up SQLite and the Package/artifact files together.
-These PowerShell commands were tested with the default Compose project name
-`3d-scene`. If your checkout has a different name, substitute the data volume
-shown by `docker volume ls`.
-
-```powershell
-$backupDir = Join-Path (Resolve-Path .).Path '.backups'
-New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-docker compose stop api
-docker run --rm --mount 'type=volume,src=3d-scene_s3d-data,dst=/data,readonly' --mount "type=bind,src=$backupDir,dst=/backup" alpine:3.22 tar -C /data -czf /backup/s3d-final-backup.tar.gz .
-docker compose up -d api
-```
-
-Restore into an empty data volume while the API is stopped. Keep a copy of the
-archive outside the volume. The following replaces the default data volume:
-
-```powershell
-$backupDir = Join-Path (Resolve-Path .).Path '.backups'
-docker compose down
-docker volume rm 3d-scene_s3d-data
-docker volume create 3d-scene_s3d-data
-docker run --rm --mount 'type=volume,src=3d-scene_s3d-data,dst=/data' --mount "type=bind,src=$backupDir,dst=/backup,readonly" alpine:3.22 tar -C /data -xzf /backup/s3d-final-backup.tar.gz
-docker compose up -d
-```
-
-A backup was restored to a disposable volume on 2026-10-08 and checked for both
-Scene records, source Packages, 100 embedding BLOBs, masks and 43 query records.
-Evidence is in `docs/spikes/backup-restore.json`. Fresh-clone installation and
-multi-turn queries also passed with outbound Internet blocked after model pull;
-see `docs/spikes/clean-rebuild.json` and [review](docs/code-review.md).
-
-## Licenses and data
-
-- Ultralytics YOLOE weights and code: AGPL-3.0; review its terms before use.
-- Apple MobileCLIP2: Apple's model and code license applies.
-- Mask3D: MIT code license; checkpoint terms should be verified before use.
-- Qwen3-VL: Apache-2.0. llama.cpp: MIT.
-- ScanNet: research/non-commercial terms of use. Do not publish raw scans or
-  derived Packages without permission.
+- [Operations](docs/operations.md): batch preprocessing, backups, LLM configuration, and licenses.
+- [Development](docs/development.md): native setup, testing, and API schema updates.
+- [Architecture & Terminology](CONTEXT.md), [Package specification](docs/s3dpkg-spec.md).
+- [Project status & verification](docs/project-status.md).
+- [Coding agent instructions](AGENTS.md) — read before modifying the repository.
