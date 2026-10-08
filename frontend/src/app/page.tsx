@@ -12,15 +12,13 @@ type HealthResponse = paths["/v1/health"]["get"]["responses"][200]["content"]["a
 export default function Home() {
   const [status, setStatus] = useState("Checking API…");
   const [scenes, setScenes] = useState<Scene[]>([]);
-  const [inbox, setInbox] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState("S1");
   const [deletePackage, setDeletePackage] = useState(false);
   async function refresh() {
-    const [sceneResponse, inboxResponse] = await Promise.all([fetch(apiUrl("/v1/scenes")), fetch(apiUrl("/v1/inbox"))]);
+    const sceneResponse = await fetch(apiUrl("/v1/scenes"));
     if (sceneResponse.ok) setScenes(await sceneResponse.json());
-    if (inboxResponse.ok) setInbox(await inboxResponse.json());
   }
   useEffect(() => {
     fetch(apiUrl("/v1/health"))
@@ -85,21 +83,17 @@ export default function Home() {
   return <main>
     <div className="eyebrow">LOCAL 3D EXPLORER</div>
     <h1>Scenes</h1>
-    <p className="muted">Import a prepared ScanNet Package, then explore its mesh.</p>
+    <p className="muted">Upload an aligned ScanNet Package, then explore its mesh.</p>
     <div className="status"><span className={status === "API is online" ? "dot online" : "dot"} />{status}</div>
     <section className="card">
       <h2>Import a Package</h2>
+      <p className="muted">Prepare your Scan outside S3D, then upload its .s3dpkg file. Package v2 is required.</p>
       <label className="upload">Drop or select a .s3dpkg file
         <input type="file" accept=".s3dpkg" disabled={busy} onChange={event => {
           const file = event.target.files?.[0];
           if (file) { const data = new FormData(); data.set("file", file); submit(data); }
         }} />
       </label>
-      {inbox.length > 0 && <div className="inbox"><h3>Available in inbox</h3>{inbox.map(name =>
-        <Button key={name} variant="outline" disabled={busy} onClick={() => {
-          const data = new FormData(); data.set("inbox_name", name); submit(data);
-        }}>{name} <span>Import →</span></Button>
-      )}</div>}
     </section>
     {message && <p role="status" className="message">{message}</p>}
     <section className="card"><h2>Your Scenes</h2>

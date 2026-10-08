@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict
 from s3d_app.ask import answer_events
 from s3d_app.packages import InvalidPackage, verify_package
 from s3d_app.pipeline import STAGES, WAKE, artifact_dir, start_worker, stop_worker
-from s3d_app.storage import data_root, database, inbox_root
+from s3d_app.storage import data_root, database
 
 
 @asynccontextmanager
@@ -51,14 +51,6 @@ if os.getenv("S3D_DEV") == "1":
 @app.get("/v1/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
-
-
-@app.get("/v1/inbox")
-def list_inbox() -> list[str]:
-    root = inbox_root()
-    if not root.is_dir():
-        return []
-    return sorted(path.name for path in root.glob("*.s3dpkg") if path.is_file())
 
 
 @app.get("/v1/scenes")
@@ -210,7 +202,7 @@ def reprocess_scene(scene_id: str, request: ReprocessRequest) -> dict:
     if request.stage not in STAGES:
         raise HTTPException(400, f"Supported stages: {', '.join(STAGES)}")
     with database() as connection:
-        scene = connection.execute("SELECT id FROM scenes WHERE id = ?", (scene_id,)).fetchone()
+        scene = connection.execute("SELECT * FROM scenes WHERE id = ?", (scene_id,)).fetchone()
         if scene is None:
             raise HTTPException(404, "Scene not found")
         active = connection.execute(
@@ -218,6 +210,11 @@ def reprocess_scene(scene_id: str, request: ReprocessRequest) -> dict:
         ).fetchone()
         if active:
             raise HTTPException(409, "Scene has an active job")
+        if request.stage == "S1":
+            try:
+                verify_package(Path(scene["package_path"]))
+            except InvalidPackage as exc:
+                raise HTTPException(400, str(exc)) from exc
         if STAGES.index(request.stage) <= STAGES.index("S4b"):
             connection.execute("DELETE FROM sessions WHERE scene_id = ?", (scene_id,))
         stages = STAGES[STAGES.index(request.stage):]
@@ -278,33 +275,20 @@ def delete_scene(scene_id: str, delete_package: Annotated[bool, Query()] = False
 
 @app.post("/v1/imports")
 def import_package(file: Annotated[UploadFile | None, File()] = None,
-                   inbox_name: Annotated[str | None, Form()] = None,
                    replace: Annotated[bool, Form()] = False) -> dict:
-    if (file is None) == (inbox_name is None):
-        raise HTTPException(400, "Choose one uploaded file or inbox Package")
-    if file is not None and Path(file.filename or "").suffix != ".s3dpkg":
+    if file is None:
+        raise HTTPException(400, "Upload a prepared s3dpkg/2 Package file.")
+    if Path(file.filename or "").suffix != ".s3dpkg":
         raise HTTPException(400, "The file must end in .s3dpkg")
-    if inbox_name is not None:
-        source_path = inbox_root() / inbox_name
-        if (source_path.name != inbox_name or source_path.suffix != ".s3dpkg"
-                or not source_path.is_file()):
-            raise HTTPException(400, "Invalid inbox Package name")
     root = data_root()
     root.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=root, suffix=".s3dpkg", delete=False) as temporary:
         candidate = Path(temporary.name)
-        if file is not None:
-            source = file.file
-        else:
-            source = source_path.open("rb")
+        source = file.file
         digest = hashlib.sha256()
-        try:
-            while block := source.read(1024 * 1024):
-                temporary.write(block)
-                digest.update(block)
-        finally:
-            if file is None:
-                source.close()
+        while block := source.read(1024 * 1024):
+            temporary.write(block)
+            digest.update(block)
     try:
         manifest = verify_package(candidate)
         scene_id = manifest["scan_id"]

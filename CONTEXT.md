@@ -10,8 +10,12 @@ Hệ thống chạy local cho một người dùng: nạp scene 3D trong nhà đ
 Một lần quét RGB-D của ScanNet, định danh bằng mã dạng `scene0011_00`; cùng một phòng có thể có nhiều scan (`_00`, `_01`).
 _Avoid_: recording, capture
 
+**Preprocessing**:
+Chuẩn hoá Scan và căn chỉnh hệ toạ độ hoàn toàn bên ngoài hệ thống; tạo Package để người dùng upload. Xem [glossary](GLOSSARY.md) và ADR 0009.
+_Avoid_: Import, xử lý Scene
+
 **Package**:
-File `.s3dpkg` do script tiền xử lý tạo ra từ một scan, tuân theo đặc tả `s3dpkg/1`; là thứ duy nhất hệ thống nhận vào.
+File `.s3dpkg` đã được căn chỉnh do script độc lập tạo từ một Scan, tuân theo `s3dpkg/2`; là thứ duy nhất hệ thống nhận qua upload.
 _Avoid_: gói raw, bundle, archive
 
 **Scene**:
@@ -20,7 +24,7 @@ _Avoid_: room (phòng là một mức trong scene graph), scan (khi nói về d�
 
 **Import**:
 Việc đưa một package vào hệ thống: kiểm tra theo đặc tả, chép vào kho dữ liệu, tạo hoặc thay thế scene.
-_Avoid_: upload (upload chỉ là một trong hai cách gửi package)
+_Avoid_: upload (upload là cách gửi Package; Import là việc kiểm tra và tạo Scene)
 
 **Replace**:
 Import một package khác cho scan đã có scene, do người dùng chủ động chọn; scene cũ bị xoá và xử lý lại từ đầu.

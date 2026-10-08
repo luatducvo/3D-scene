@@ -10,10 +10,6 @@ def data_root() -> Path:
     return Path(os.getenv("S3D_DATA_DIR", Path.cwd() / "data"))
 
 
-def inbox_root() -> Path:
-    return Path(os.getenv("S3D_INBOX_DIR", Path.cwd() / "inbox"))
-
-
 @contextmanager
 def database():
     root = data_root()

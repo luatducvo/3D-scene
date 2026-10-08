@@ -83,11 +83,11 @@ File nằm ở `tools/scannet_prep.py`, ngoài project `backend/` và ngoài m�
 
 ```bash
 # một scene
-uv run scannet_prep.py pack   D:/scannet/scans/scene0011_00 --out D:/s3d/inbox
+uv run tools/scannet_prep.py pack dataset/scans/scene0011_00 --out dataset/preprocessing
 # nhiều scene theo danh sách
-uv run scannet_prep.py batch  D:/scannet/scans --list scenes.txt --out D:/s3d/inbox --workers 4
+uv run tools/scannet_prep.py batch dataset/scans --list scenes.txt --out dataset/preprocessing --workers 4
 # kiểm tra lại một gói đã tạo
-uv run scannet_prep.py verify D:/s3d/inbox/scene0011_00.s3dpkg
+uv run tools/scannet_prep.py verify dataset/preprocessing/scene0011_00.s3dpkg
 ```
 
 Mã thoát 0 khi thành công, khác 0 khi lỗi kèm tên bước lỗi. `batch` ghi báo cáo `prep_report.csv` (scene, trạng thái, thời gian, kích thước gói, lỗi) và bỏ qua scene đã có gói hợp lệ khi chạy lại.
@@ -98,27 +98,27 @@ Mã thoát 0 khi thành công, khác 0 khi lỗi kèm tên bước lỗi. `batch
 2. Giải mã `.sens` bằng reader Python 3 đọc stream (bản gốc của ScanNet là Python 2, nạp cả file); kích thước ảnh và `depth_shift` lấy từ header.
 3. Giữ 1 trong 10 khung, bỏ khung có pose không hữu hạn, ghi điểm mờ (Laplacian).
 4. Ghi ảnh màu JPEG; mặc định thu cạnh dài về 960 px (`--color-width`); depth PNG 16-bit, pose, intrinsics đã hiệu chỉnh theo kích thước mới.
-5. Chép `vh_clean_2.ply` và superpoint từ `segs.json` (ScanNet phát hành sẵn cho mọi scene, kể cả scene test, nên script không cần chạy Segmentator); ghi `axisAlignment` vào manifest. Scene không có `axisAlignment` dùng ma trận đơn vị và đặt cờ `aligned: false`.
+5. Áp `axisAlignment` cho mesh, normal và pose; giữ thứ tự đỉnh, faces, RGB và superpoint từ `segs.json`. Ghi ma trận nguồn thành `source_axis_alignment` và hệ toạ độ `coordinate_frame: axis_aligned` trong manifest v2. Thiếu hoặc sai `axisAlignment` thì dừng, không tạo Package hoàn chỉnh; identity chỉ được nhận khi đã được khai báo hợp lệ.
 6. Ghi gói ra file tạm `scene0011_00.s3dpkg.partial`, tự chạy `verify` trên file đó, rồi mới đổi tên thành `.s3dpkg`. Gói hỏng giữa chừng không bao giờ mang đuôi `.s3dpkg`.
 
 Gói không chứa nhãn GT; `aggregation.json` và file nhãn không được dùng.
 
 ```text
 scene0011_00.s3dpkg              # tar không nén
-  manifest.json                  # format_version "s3dpkg/1", status "complete", phiên bản script,
-                                 # tham số, sha256 từng file, sha256 của .sens gốc, aligned
-  mesh/vh_clean_2.ply            # giữ thứ tự đỉnh
+  manifest.json                  # format_version "s3dpkg/2", status "complete", phiên bản script,
+                                 # tham số, sha256, coordinate_frame, source_axis_alignment
+  mesh/vh_clean_2.ply            # đã căn chỉnh, giữ thứ tự đỉnh
   mesh/superpoints.npy           # int32 theo đỉnh
   calib/intrinsics.json          # màu + depth, kích thước, depth_shift
   frames/index.parquet           # frame_id, blur, valid
   frames/color/000120.jpg
   frames/depth/000120.png        # uint16
-  frames/pose/000120.txt         # 4×4 camera→world
+  frames/pose/000120.txt         # 4×4 camera→aligned world
 ```
 
-**Ranh giới với hệ thống là đặc tả gói.** Script và hệ thống không chia sẻ mã. Hợp đồng duy nhất giữa hai bên là đặc tả `s3dpkg/1` (cấu trúc file, nội dung manifest, kiểu dữ liệu từng file), ghi trong `docs/s3dpkg-spec.md`. S0 của hệ thống tự kiểm tra theo đặc tả: đuôi `.s3dpkg`, `format_version` được hỗ trợ, `status` là `complete`, đủ file, sha256 khớp. Sai bất kỳ điều kiện nào thì từ chối import và báo lý do; hệ thống không tự sửa hay xử lý tiếp gói lỗi.
+**Ranh giới với hệ thống là đặc tả gói.** Script và hệ thống không chia sẻ mã. Hợp đồng duy nhất là `s3dpkg/2` trong `docs/s3dpkg-spec.md`. S0 tự kiểm tra đuôi, phiên bản, hệ toạ độ đã căn chỉnh, trạng thái complete, file và checksum. V1 bị từ chối với hướng dẫn chạy lại prep; không có nhánh căn chỉnh cũ trong hệ thống. Xem ADR 0009.
 
-Đưa gói vào hệ thống: ghi thẳng ra thư mục inbox (bind mount từ ổ `D:`) rồi chọn trên web, hoặc kéo thả file để upload. Cả hai đều qua `POST /v1/imports` và S0, sau đó gói được chép vào volume dữ liệu rồi mới xếp hàng.
+Đưa gói vào hệ thống: chọn hoặc kéo thả file từ `dataset/preprocessing/` để upload qua `POST /v1/imports` và S0. Gói được chép vào volume dữ liệu rồi mới xếp hàng; file ngoài hệ thống vẫn được giữ riêng. Không có inbox, bind mount raw hay chức năng tiền xử lý trong ứng dụng.
 
 Mỗi scan có nhiều nhất một scene, định danh bằng chính mã scan (`scene0011_00`). Import lại gói có sha256 trùng gói đang dùng thì không làm gì. Gói khác cho cùng scan bị từ chối, trừ khi người dùng chọn Replace: scene cũ bị xoá cùng artifact, gói mới được xử lý lại từ S0.
 
@@ -129,7 +129,7 @@ Worker trong `api` chỉ là một thread điều phối: lấy job từ bảng 
 | Stage | Làm gì | Model | Chạy ở | VRAM ước tính |
 | --- | --- | --- | --- | --- |
 | S0 Verify | Schema, checksum của gói | — | Thread `api` | 0 |
-| S1 Load | Giải nén, áp `T_align` cho đỉnh và pose | — | Thread `api` | 0 |
+| S1 Load | Đọc/giải nén Package đã căn chỉnh; không áp lại ma trận nguồn | — | Thread `api` | 0 |
 | S2 Geometry | Điểm, superpoint, sàn/tường bằng RANSAC, visibility cache trên GPU | — (PyTorch tensor) | Tiến trình con | dưới 1 GB |
 | S3 Instance | Đề xuất 3D class-agnostic | Mask3D ScanNet200 | Container `mask3d` | Chưa có số, dự kiến 2–5 GB; đo trong spike Mask3D |
 | S4a Labels | Nhãn từ vựng mở bằng bỏ phiếu đa view | YOLOE-26-L-seg | Tiến trình con | \~1–2 GB |
@@ -228,7 +228,7 @@ REST `/v1` chạy trên `localhost`, SSE cho hỏi đáp và tiến độ. Cùng
 | Method và path | Mục đích |
 | --- | --- |
 | `GET /` | Giao diện web (file tĩnh của Next.js) |
-| `POST /v1/imports` | Nhận gói `.s3dpkg` qua upload từ web hoặc theo tên file trong inbox, chạy `verify`, chép vào volume dữ liệu, xếp job |
+| `POST /v1/imports` | Nhận upload `.s3dpkg` v2 từ web, chạy `verify`, chép vào volume dữ liệu, xếp job |
 | `GET /v1/scenes` · `GET /v1/scenes/{id}` · `DELETE /v1/scenes/{id}` | Danh sách, trạng thái, xoá |
 | `GET /v1/scenes/{id}/events` (SSE) | Tiến độ từng stage |
 | `POST /v1/scenes/{id}/reprocess` | Chạy lại từ một stage |
@@ -259,7 +259,7 @@ Giao diện tiếng Anh là ứng dụng Next.js (App Router, TypeScript, Tailwi
 
 | Trang | Nội dung |
 | --- | --- |
-| `/` | Danh sách scene và trạng thái; kéo thả file `.s3dpkg` để upload hoặc chọn gói có sẵn trong inbox; tiến độ từng stage qua `GET /events` (`EventSource`) |
+| `/` | Danh sách scene và trạng thái; chọn/kéo thả `.s3dpkg` v2 để upload; tiến độ từng stage qua `GET /events` (`EventSource`) |
 | `/scene?id=scene0011_00` | Viewer 3D bên trái, khung hội thoại bên phải; danh sách vật lọc được theo nhãn |
 
 Trang scene dùng tham số query thay cho route động `/scenes/[id]`, vì static export chỉ sinh được route động có sẵn lúc build, còn scene thì người dùng thêm sau.
@@ -293,7 +293,7 @@ frontend/
 
 ## 9. Lưu trữ: SQLite + filesystem
 
-Một file SQLite (chế độ WAL) giữ metadata, job, scene graph và vector; mảng lớn nằm trên đĩa. Tất cả nằm trong **named volume** của Docker (trên ext4 của máy ảo WSL2), không đặt trên ổ `D:` qua bind mount: SQLite WAL không chạy an toàn trên filesystem mạng, còn I/O qua ranh giới Windows–WSL2 chậm hơn nhiều. Chỉ thư mục inbox là bind mount, để thả gói `.s3dpkg` từ Windows. Khi dev native trên Windows (ADR 0003), `api` dùng một thư mục dữ liệu local trên ổ Windows, truy cập trực tiếp chứ không qua bind mount.
+Một file SQLite (chế độ WAL) giữ metadata, job, scene graph và vector; mảng lớn nằm trên đĩa. Tất cả nằm trong **named volume** của Docker (trên ext4 của máy ảo WSL2), không đặt trên ổ `D:` qua bind mount: SQLite WAL không chạy an toàn trên filesystem mạng, còn I/O qua ranh giới Windows–WSL2 chậm hơn nhiều. Package được upload từ Windows; ứng dụng không mount thư mục preprocessing hoặc raw scan. Khi dev native trên Windows (ADR 0003), `api` dùng một thư mục dữ liệu local trên ổ Windows, truy cập trực tiếp chứ không qua bind mount.
 
 Vector MobileCLIP2 lưu dạng BLOB float32 trong bảng `nodes`. Mỗi scene chỉ vài trăm vật, nên khi mở scene `api` nạp các vector vào một ma trận NumPy và tìm vét cạn gần như tức thời. Không cần sqlite-vec (vẫn ở giai đoạn pre-v1).
 
@@ -310,7 +310,7 @@ volume s3d-data   → /data
 volume s3d-models → /models
   mask3d/  yoloe/  mobileclip2/
   llm/     Qwen3VL-4B-Instruct-Q4_K_M.gguf  mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf  presets.ini
-bind D:\s3d\inbox  → /inbox                 # chỉ để thả gói .s3dpkg
+dataset/preprocessing/*.s3dpkg             # ngoài hệ thống; người dùng upload file
 ```
 
 ```sql
@@ -394,13 +394,11 @@ services:
     environment:
       S3D_DATA: /data
       S3D_MODELS: /models
-      S3D_INBOX: /inbox
       LLM_BASE_URL: http://llm:8080
       MASK3D_URL: http://mask3d:9000
     volumes:
       - s3d-data:/data
       - s3d-models:/models
-      - ${S3D_INBOX:-./inbox}:/inbox
     depends_on: [llm, mask3d]
 
   mask3d:
@@ -543,8 +541,8 @@ docker compose up -d
 # mở http://localhost:8000
 
 # tiền xử lý, chạy riêng bất cứ lúc nào (mục 3)
-uv run tools/scannet_prep.py batch D:/scannet/scans --list scenes.txt --out D:/s3d/inbox
-# rồi chọn gói trên web (inbox) hoặc kéo thả file để upload
+uv run tools/scannet_prep.py batch dataset/scans --list scenes.txt --out dataset/preprocessing
+# rồi chọn/kéo thả file v2 từ dataset/preprocessing để upload
 ```
 
 Khi phát triển: chạy web bằng `npm run dev` và `api` bằng `uv run s3d serve` ngoài Docker; chỉ khi biến `S3D_DEV=1` được đặt, `api` mới bật CORS cho cổng dev của Next.js. `mask3d` và `llm` vẫn chạy trong Docker; `compose.dev.yaml` mở cổng của chúng trên `127.0.0.1` và bind thư mục dữ liệu local vào `mask3d`.
@@ -562,7 +560,7 @@ Khi phát triển: chạy web bằng `npm run dev` và `api` bằng `uv run s3d 
 | Giai đoạn | Việc | Điều kiện xong |
 | --- | --- | --- |
 | 0 | Bảy việc kiểm chứng bên dưới (spike Mask3D, spike `llm`); khung web + API chạy được end-to-end | Có số đo thật; chốt Mask3D hay nhánh 2D-only |
-| 1 | `scannet_prep.py` (độc lập), gói `.s3dpkg`, inbox, `POST /v1/imports`, job và tiến độ, `mesh.bin` và viewer | Import scene0000_00 và scene0000_01 qua web, `verify` đúng, xem được mesh |
+| 1 | `scannet_prep.py` (độc lập), Package v2 đã căn chỉnh, upload, `POST /v1/imports`, job và tiến độ, `mesh.bin` và viewer | Import scene0000_00 và scene0000_01 qua web, `verify` đúng, xem được mesh |
 | 2 | S2–S4 trong tiến trình con (visibility, instance, YOLOE-26, MobileCLIP2, màu HSV); viewer tô sáng vật; Lookup | Click vật thấy nhãn; Lookup chạy được |
 | 3 | Scene graph + solver + vị từ `COLOR` và Viewpoint, chưa dùng LLM | Trả lời đúng các Program viết tay trên hai scene |
 | 4 | LLM sinh Program + Pydantic + chuẩn hoá danh từ; câu trả lời SSE; Session và Clarify; Tiebreak; câu hỏi thuộc tính và câu hỏi mở | Hỏi đáp nhiều lượt đầy đủ trên web |

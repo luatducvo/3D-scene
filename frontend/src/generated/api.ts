@@ -1,5 +1,5 @@
-// OpenAPI: e713b8118e5e60c10146a5bb0eb056da8c8e8a9dda646dbe0f29ce9fc876bdb1
-// API source: ca9dce0d57e126889db22f941d85d49acedf86dbfb8599e5758982e777af05f2
+// OpenAPI: 8010e1d5761b14ed18326397c63c3ecb6b405015e8529a4ae2c17b7f029156f7
+// API source: 4ee58bee771b0bd6cf3d52cb0ee4b722c6dbc55b6c571218181ba30b9a91d832
 export interface paths {
     "/v1/health": {
         parameters: {
@@ -29,23 +29,6 @@ export interface paths {
         put?: never;
         /** Import Package */
         post: operations["import_package_v1_imports_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/inbox": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Inbox */
-        get: operations["list_inbox_v1_inbox_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -267,8 +250,6 @@ export interface components {
         Body_import_package_v1_imports_post: {
             /** File */
             file?: string | null;
-            /** Inbox Name */
-            inbox_name?: string | null;
             /**
              * Replace
              * @default false
@@ -375,26 +356,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_inbox_v1_inbox_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": string[];
                 };
             };
         };

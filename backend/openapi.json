@@ -87,17 +87,6 @@
             ],
             "title": "File"
           },
-          "inbox_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Inbox Name"
-          },
           "replace": {
             "default": false,
             "title": "Replace",
@@ -284,28 +273,6 @@
           }
         },
         "summary": "Import Package"
-      }
-    },
-    "/v1/inbox": {
-      "get": {
-        "operationId": "list_inbox_v1_inbox_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "title": "Response List Inbox V1 Inbox Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "List Inbox"
       }
     },
     "/v1/scenes": {

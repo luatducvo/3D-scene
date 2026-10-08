@@ -10,8 +10,8 @@ from s3d_app.api import app
 
 
 def package_bytes(label: str = "first", corrupt: bool = False,
-                  translation: float = 0) -> bytes:
-    vertices = b"""ply
+                  translation: float = 0, version: str = "s3dpkg/2") -> bytes:
+    vertices = f"""ply
 format ascii 1.0
 element vertex 3
 property float x
@@ -23,11 +23,11 @@ property uchar blue
 element face 1
 property list uchar int vertex_indices
 end_header
-0 0 0 255 0 0
-1 0 0 0 255 0
-0 1 0 0 0 255
+{translation} 0 0 255 0 0
+{translation + 1} 0 0 0 255 0
+{translation} 1 0 0 0 255
 3 0 1 2
-"""
+""".encode()
     segments = io.BytesIO()
     np.save(segments, np.array([7, 7, 8], dtype=np.int32), allow_pickle=False)
     files = {
@@ -37,13 +37,13 @@ end_header
         "frames/index.parquet": b"test",
         "frames/color/000000.jpg": label.encode(),
         "frames/depth/000000.png": b"depth",
-        "frames/pose/000000.txt": b"1 0 0 0\n0 1 0 0\n0 0 1 0\n0 0 0 1\n",
+        "frames/pose/000000.txt": f"1 0 0 {translation}\n0 1 0 0\n0 0 1 0\n0 0 0 1\n".encode(),
     }
     alignment = np.eye(4)
     alignment[0, 3] = translation
     manifest = {
-        "format_version": "s3dpkg/1", "status": "complete", "scan_id": "scene0000_00",
-        "aligned": bool(translation), "axis_alignment": alignment.tolist(),
+        "format_version": version, "status": "complete", "scan_id": "scene0000_00",
+        "coordinate_frame": "axis_aligned", "source_axis_alignment": alignment.tolist(),
         "files": {name: hashlib.sha256(content).hexdigest() for name, content in files.items()},
     }
     if corrupt:
@@ -95,4 +95,44 @@ def test_load_and_publish_preserve_vertex_order(monkeypatch, tmp_path) -> None:
     assert struct.unpack_from("<4sIII", mesh) == (b"S3DM", 1, 3, 3)
     positions = struct.unpack_from("<9f", mesh, 16)
     assert positions == (10, 0, 0, 11, 0, 0, 10, 1, 0)
+    pose = np.loadtxt(artifact_dir("scene0000_00", "S1") / "frames/pose/000000.txt")
+    assert pose[0, 3] == 10
     assert struct.unpack_from("<3i", mesh, len(mesh) - 12) == (-1, -1, -1)
+
+
+def test_import_only_accepts_uploaded_v2_packages(monkeypatch, tmp_path):
+    monkeypatch.setenv("S3D_DATA_DIR", str(tmp_path))
+    client = TestClient(app)
+    assert client.get("/v1/inbox").status_code == 404
+    missing = client.post("/v1/imports", data={"inbox_name": "scene0000_00.s3dpkg"})
+    assert missing.status_code == 400 and "Upload" in missing.json()["detail"]
+    old = client.post("/v1/imports", files={"file": ("scan.s3dpkg", package_bytes(version="s3dpkg/1"))})
+    assert old.status_code == 400 and "preprocessing" in old.json()["detail"]
+    raw = client.post("/v1/imports", files={"file": ("scan.sens", b"raw data")})
+    assert raw.status_code == 400
+
+
+def test_reloading_legacy_source_preserves_existing_scene(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from s3d_app.pipeline import load_package, publish_mesh
+    from s3d_app.storage import database
+
+    monkeypatch.setenv("S3D_DATA_DIR", str(tmp_path))
+    client = TestClient(app)
+    response = client.post("/v1/imports", files={"file": ("scan.s3dpkg", package_bytes(translation=10))})
+    assert response.status_code == 200
+    scene = client.get("/v1/scenes/scene0000_00").json()
+    source = Path(scene["package_path"])
+    load_package("scene0000_00", source)
+    publish_mesh("scene0000_00")
+    # Emulate a historical installation with processed artifacts and a v1 source.
+    source.write_bytes(package_bytes(version="s3dpkg/1"))
+    with database() as connection:
+        connection.execute("UPDATE jobs SET status='complete'")
+        connection.execute("UPDATE scenes SET status='ready'")
+    before = client.get("/v1/scenes/scene0000_00/mesh").content
+    reload = client.post("/v1/scenes/scene0000_00/reprocess", json={"stage": "S1"})
+    assert reload.status_code == 400 and "preprocessing" in reload.json()["detail"]
+    assert client.get("/v1/scenes/scene0000_00").json()["status"] == "ready"
+    assert client.get("/v1/scenes/scene0000_00/mesh").content == before

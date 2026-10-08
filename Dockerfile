@@ -20,7 +20,7 @@ RUN uv sync --frozen --no-dev
 RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=web /app/frontend/out /app/web
-ENV S3D_WEB_DIR=/app/web S3D_DATA_DIR=/data S3D_INBOX_DIR=/inbox S3D_MODEL_DIR=/models
+ENV S3D_WEB_DIR=/app/web S3D_DATA_DIR=/data S3D_MODEL_DIR=/models
 ENV PATH="/app/backend/.venv/bin:${PATH}"
 EXPOSE 8000
 CMD ["/app/backend/.venv/bin/uvicorn", "s3d_app.api:app", "--host", "0.0.0.0", "--port", "8000"]

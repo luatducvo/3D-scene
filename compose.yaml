@@ -5,7 +5,6 @@ services:
       - "127.0.0.1:8000:8000"
     environment:
       S3D_DATA_DIR: /data
-      S3D_INBOX_DIR: /inbox
       S3D_MASK3D_URL: http://mask3d:9000
       S3D_LLM_BASE_URL: ${S3D_LLM_BASE_URL:-http://llm:8080}
       S3D_LLM_MANAGED: ${S3D_LLM_MANAGED:-1}
@@ -16,7 +15,6 @@ services:
     volumes:
       - s3d-data:/data
       - s3d-models:/models
-      - ${S3D_INBOX:-./inbox}:/inbox
     gpus: all
     depends_on: [mask3d, llm]
   llm:

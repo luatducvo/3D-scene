@@ -1,4 +1,4 @@
-"""The import-side implementation of the s3dpkg/1 wire contract."""
+"""Independent import-side validation of the aligned s3dpkg/2 contract."""
 
 import hashlib
 import io
@@ -16,7 +16,7 @@ REQUIRED = {"mesh/vh_clean_2.ply", "mesh/superpoints.npy", "calib/intrinsics.jso
 
 
 class InvalidPackage(ValueError):
-    """A Package violates the published s3dpkg/1 contract."""
+    """A Package violates the published s3dpkg/2 contract."""
 
 
 def verify_package(path: Path) -> dict:
@@ -36,18 +36,19 @@ def verify_package(path: Path) -> dict:
             if "manifest.json" not in names:
                 raise InvalidPackage("Missing manifest.json")
             manifest = json.load(archive.extractfile("manifest.json"))
-            if manifest.get("format_version") != "s3dpkg/1":
-                raise InvalidPackage("Unsupported format_version")
+            if manifest.get("format_version") != "s3dpkg/2":
+                raise InvalidPackage("Unsupported format_version. Rerun standalone preprocessing to create an aligned s3dpkg/2 Package, then upload it.")
             if manifest.get("status") != "complete":
                 raise InvalidPackage("Package status is not complete")
             if not SCAN_ID.fullmatch(manifest.get("scan_id", "")):
                 raise InvalidPackage("Invalid scan_id")
-            alignment = np.asarray(manifest.get("axis_alignment"), dtype=np.float64)
+            alignment = np.asarray(manifest.get("source_axis_alignment"), dtype=np.float64)
             if (alignment.shape != (4, 4) or not np.isfinite(alignment).all()
-                    or not isinstance(manifest.get("aligned"), bool)):
-                raise InvalidPackage("Invalid axis alignment matrix or aligned flag")
-            if not manifest["aligned"] and not np.allclose(alignment, np.eye(4)):
-                raise InvalidPackage("Unaligned Package must use identity alignment")
+                    or not np.allclose(alignment[3], [0, 0, 0, 1], atol=1e-5)
+                    or not np.allclose(alignment[:3, :3].T @ alignment[:3, :3], np.eye(3), atol=1e-3)
+                    or not np.isclose(np.linalg.det(alignment[:3, :3]), 1, atol=1e-3)
+                    or manifest.get("coordinate_frame") != "axis_aligned"):
+                raise InvalidPackage("Package must contain axis_aligned coordinates and a valid source_axis_alignment transform")
             files = manifest.get("files")
             if not isinstance(files, dict) or set(names) != set(files) | {"manifest.json"}:
                 raise InvalidPackage("Manifest file list does not match archive members")

@@ -19,9 +19,12 @@ from plyfile import PlyData
 
 from s3d_app.gpu import GPU, VramMeter
 from s3d_app.llm import LlmRouter
+from s3d_app.packages import verify_package
 from s3d_app.storage import data_root, database
 
 STAGES = ("S1", "S2", "S3", "S4a", "S4b", "S4c", "S5", "S6")
+# Keep the established artifact namespace so processed Scenes remain readable.
+# Import verifies v2 separately; Replace clears artifacts when the Package changes.
 CONFIG_HASH = hashlib.sha256(b"s3dpkg/1:s1-s6:1").hexdigest()[:12]
 WAKE = threading.Event()
 STOP = threading.Event()
@@ -41,12 +44,12 @@ def load_package(scene_id: str, package: Path) -> None:
     target = artifact_dir(scene_id, "S1")
     if (target / "complete.json").exists():
         return
+    manifest = verify_package(package)
     temporary = target.with_name(target.name + ".partial")
     if temporary.exists():
         shutil.rmtree(temporary)
     temporary.mkdir(parents=True)
     with tarfile.open(package, "r:") as archive:
-        manifest = json.load(archive.extractfile("manifest.json"))
         for member in archive.getmembers():
             if member.name == "manifest.json":
                 continue
@@ -56,19 +59,8 @@ def load_package(scene_id: str, package: Path) -> None:
             destination.parent.mkdir(parents=True, exist_ok=True)
             with destination.open("wb") as output:
                 shutil.copyfileobj(archive.extractfile(member), output)
-    alignment = np.asarray(manifest["axis_alignment"], dtype=np.float64)
-    mesh_path = temporary / "mesh/vh_clean_2.ply"
-    mesh = PlyData.read(mesh_path, mmap=False)
-    vertex = mesh["vertex"].data
-    xyz = np.column_stack((vertex["x"], vertex["y"], vertex["z"], np.ones(len(vertex))))
-    aligned_xyz = xyz @ alignment.T
-    for index, field in enumerate(("x", "y", "z")):
-        vertex[field] = aligned_xyz[:, index]
-    mesh.write(mesh_path)
-    for pose_path in (temporary / "frames/pose").glob("*.txt"):
-        pose = np.loadtxt(pose_path)
-        np.savetxt(pose_path, alignment @ pose, fmt="%.9g")
-    (temporary / "complete.json").write_text(json.dumps({"aligned": manifest["aligned"]}))
+    (temporary / "complete.json").write_text(json.dumps({
+        "format_version": manifest["format_version"], "coordinate_frame": manifest["coordinate_frame"]}))
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists():
         shutil.rmtree(target)

@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy>=2,<3", "pillow>=11,<13", "plyfile>=1,<2", "pyarrow>=19,<24", "opencv-python-headless>=4.11,<5"]
 # ///
-"""Build and verify standalone s3dpkg/1 Packages from raw ScanNet scans."""
+"""Build and verify aligned s3dpkg/2 Packages outside the S3D application."""
 
 import argparse
 import csv
@@ -11,7 +11,6 @@ import io
 import json
 import math
 import re
-import shutil
 import struct
 import tarfile
 import tempfile
@@ -27,7 +26,7 @@ import pyarrow.parquet as pq
 from PIL import Image
 from plyfile import PlyData
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 SCAN_RE = re.compile(r"scene\d{4}_\d{2}$")
 
 
@@ -82,16 +81,24 @@ def sens_header(stream) -> dict:
     }
 
 
-def alignment(scan_dir: Path, scan_id: str) -> tuple[list[list[float]], bool]:
+def alignment(scan_dir: Path, scan_id: str) -> list[list[float]]:
     metadata = scan_dir / f"{scan_id}.txt"
     if metadata.exists():
         for line in metadata.read_text(errors="replace").splitlines():
             if line.startswith("axisAlignment") and "=" in line:
-                values = [float(item) for item in line.split("=", 1)[1].split()]
+                try:
+                    values = [float(item) for item in line.split("=", 1)[1].split()]
+                except ValueError as exc:
+                    raise PackageError("alignment: invalid axisAlignment") from exc
                 if len(values) != 16 or not all(math.isfinite(item) for item in values):
                     raise PackageError("alignment: invalid axisAlignment")
-                return np.array(values).reshape(4, 4).tolist(), True
-    return np.eye(4).tolist(), False
+                matrix = np.array(values).reshape(4, 4)
+                if (not np.allclose(matrix[3], [0, 0, 0, 1], atol=1e-5)
+                        or not np.allclose(matrix[:3, :3].T @ matrix[:3, :3], np.eye(3), atol=1e-3)
+                        or not np.isclose(np.linalg.det(matrix[:3, :3]), 1, atol=1e-3)):
+                    raise PackageError("alignment: axisAlignment must be a rigid transform")
+                return matrix.tolist()
+    raise PackageError(f"alignment: missing axisAlignment in {metadata.name}; supply valid alignment metadata before packing")
 
 
 def verify(package: Path) -> dict:
@@ -110,16 +117,19 @@ def verify(package: Path) -> dict:
         if "manifest.json" not in names:
             raise PackageError("manifest: missing")
         manifest = json.load(archive.extractfile("manifest.json"))
-        if manifest.get("format_version") != "s3dpkg/1":
-            raise PackageError("manifest: unsupported format_version")
+        if manifest.get("format_version") != "s3dpkg/2":
+            raise PackageError("manifest: unsupported format_version; rerun preprocessing to create s3dpkg/2")
         if manifest.get("status") != "complete":
             raise PackageError("manifest: status must be complete")
         if not SCAN_RE.fullmatch(manifest.get("scan_id", "")):
             raise PackageError("manifest: invalid scan_id")
-        alignment = np.asarray(manifest.get("axis_alignment"), dtype=np.float64)
-        if (alignment.shape != (4, 4) or not np.isfinite(alignment).all()
-                or not isinstance(manifest.get("aligned"), bool)):
-            raise PackageError("alignment: invalid matrix or aligned flag")
+        source_alignment = np.asarray(manifest.get("source_axis_alignment"), dtype=np.float64)
+        if (source_alignment.shape != (4, 4) or not np.isfinite(source_alignment).all()
+                or not np.allclose(source_alignment[3], [0, 0, 0, 1], atol=1e-5)
+                or not np.allclose(source_alignment[:3, :3].T @ source_alignment[:3, :3], np.eye(3), atol=1e-3)
+                or not np.isclose(np.linalg.det(source_alignment[:3, :3]), 1, atol=1e-3)
+                or manifest.get("coordinate_frame") != "axis_aligned"):
+            raise PackageError("alignment: Package must contain axis_aligned coordinates and a valid source transform")
         files = manifest.get("files")
         if not isinstance(files, dict) or set(names) != set(files) | {"manifest.json"}:
             raise PackageError("members: file list differs from manifest")
@@ -147,9 +157,6 @@ def verify(package: Path) -> dict:
                          allow_pickle=False)
         if points.dtype != np.int32 or points.ndim != 1 or len(points) != len(mesh["vertex"]):
             raise PackageError("superpoints: shape or dtype mismatch")
-        if not manifest.get("aligned", False) and not np.allclose(
-                manifest.get("axis_alignment"), np.eye(4)):
-            raise PackageError("alignment: unaligned Package needs identity matrix")
         return manifest
 
 
@@ -163,11 +170,21 @@ def pack(scan_dir: Path, output: Path, color_width: int = 960) -> Path:
     for file in (sens, mesh, segs):
         if not file.is_file():
             raise PackageError(f"scan: missing {file.name}")
-    vertices = len(PlyData.read(mesh)["vertex"])
+    mesh_data = PlyData.read(mesh, mmap=False)
+    vertices = len(mesh_data["vertex"])
     segments = np.asarray(json.loads(segs.read_text())["segIndices"], dtype=np.int32)
     if len(segments) != vertices:
         raise PackageError("superpoints: segIndices length differs from mesh vertices")
-    axis_matrix, aligned = alignment(scan_dir, scan_id)
+    axis_matrix = np.asarray(alignment(scan_dir, scan_id), dtype=np.float64)
+    vertex = mesh_data["vertex"].data
+    points = np.column_stack((vertex["x"], vertex["y"], vertex["z"], np.ones(vertices)))
+    aligned_points = points @ axis_matrix.T
+    for index, field in enumerate(("x", "y", "z")):
+        vertex[field] = aligned_points[:, index]
+    if {"nx", "ny", "nz"}.issubset(vertex.dtype.names):
+        normals = np.column_stack((vertex["nx"], vertex["ny"], vertex["nz"])) @ axis_matrix[:3, :3].T
+        for index, field in enumerate(("nx", "ny", "nz")):
+            vertex[field] = normals[:, index]
     output.mkdir(parents=True, exist_ok=True)
     package = output / f"{scan_id}.s3dpkg"
     partial = output / f"{scan_id}.s3dpkg.partial"
@@ -177,7 +194,7 @@ def pack(scan_dir: Path, output: Path, color_width: int = 960) -> Path:
         (root / "calib").mkdir()
         for folder in ("color", "depth", "pose"):
             (root / "frames" / folder).mkdir(parents=True)
-        shutil.copyfile(mesh, root / "mesh/vh_clean_2.ply")
+        mesh_data.write(root / "mesh/vh_clean_2.ply")
         np.save(root / "mesh/superpoints.npy", segments, allow_pickle=False)
         frame_rows = []
         with sens.open("rb") as stream:
@@ -222,16 +239,16 @@ def pack(scan_dir: Path, output: Path, color_width: int = 960) -> Path:
                 fid = f"{frame_id:06d}"
                 image.save(root / f"frames/color/{fid}.jpg", quality=90)
                 depth_image.save(root / f"frames/depth/{fid}.png")
-                np.savetxt(root / f"frames/pose/{fid}.txt", pose, fmt="%.9g")
+                np.savetxt(root / f"frames/pose/{fid}.txt", axis_matrix @ pose, fmt="%.9g")
                 frame_rows.append({"frame_id": frame_id, "blur": blur, "valid": True})
         pq.write_table(pa.Table.from_pylist(frame_rows), root / "frames/index.parquet")
         files = {path.relative_to(root).as_posix(): sha256(path)
                  for path in root.rglob("*") if path.is_file()}
         manifest = {
-            "format_version": "s3dpkg/1", "status": "complete", "scan_id": scan_id,
+            "format_version": "s3dpkg/2", "status": "complete", "scan_id": scan_id,
             "script_version": VERSION, "parameters": {"color_width": color_width, "stride": 10},
-            "sens_sha256": sha256(sens), "aligned": aligned,
-            "axis_alignment": axis_matrix, "files": files,
+            "sens_sha256": sha256(sens), "coordinate_frame": "axis_aligned",
+            "source_axis_alignment": axis_matrix.tolist(), "files": files,
         }
         (root / "manifest.json").write_text(json.dumps(manifest, indent=2))
         with tarfile.open(partial, "w:") as archive:

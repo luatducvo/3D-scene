@@ -13,37 +13,48 @@ MobileCLIP2; spatial questions use a validated Program and deterministic Solver.
 
 ## Prepare a Package
 
-The prep script is a standalone PEP 723 script; it does not import the service.
-From the repository root:
+Preprocessing is a standalone CPU utility, outside the running S3D system. It needs
+`uv` and licensed raw scans; it does not need the API, Docker, GPU or model files.
+It applies source `axisAlignment` to the mesh, normals and camera poses and saves
+an aligned `s3dpkg/2` Package. From the repository root:
 
 ```powershell
-uv run tools/scannet_prep.py pack dataset/scans/scene0000_00 --out inbox
-uv run tools/scannet_prep.py verify inbox/scene0000_00.s3dpkg
-uv run tools/scannet_prep.py batch dataset/scans --list scenes.txt --out inbox --workers 2
+uv run tools/scannet_prep.py pack dataset/scans/scene0000_00 --out dataset/preprocessing
+uv run tools/scannet_prep.py pack dataset/scans/scene0000_01 --out dataset/preprocessing
+uv run tools/scannet_prep.py verify dataset/preprocessing/scene0000_00.s3dpkg
+# For a list of scan IDs, one per line:
+uv run tools/scannet_prep.py batch dataset/scans --list scenes.txt --out dataset/preprocessing --workers 2
 uv run tools/test_scannet_prep.py
 ```
 
 `pack` writes a `.partial` file, verifies it, then renames it to `.s3dpkg`.
 The [Package contract](docs/s3dpkg-spec.md) is the only contract between prep
-and import. Packages contain no ground-truth labels.
+and import. Packages contain no ground-truth labels. Missing or invalid
+`axisAlignment` stops prep with an error; no new complete Package is produced.
+The output directory is separate from the application's storage and ignored by
+Git and Docker builds. Old `s3dpkg/1` files must be prepared again from raw scans;
+moving or renaming them does not convert them to v2.
 
 ## Run with Compose
 
 ```powershell
-New-Item -ItemType Directory -Force inbox | Out-Null
 docker compose build
 docker compose run --rm --no-deps api s3d models pull
 docker compose up -d
 ```
 
-Open [S3D](http://127.0.0.1:8000), import an inbox Package or upload a `.s3dpkg`,
+Open [S3D](http://127.0.0.1:8000), select or drop an aligned `.s3dpkg` from
+`dataset/preprocessing/`,
 then open its Scene when processing finishes. Try `stools`, `something to sit on`,
 `How many stools?`, or `the stool closest to the desk`. Follow-up `it` uses the
 last single Target or the Object clicked in the viewer. Clarify buttons resolve
 ambiguous Programs. The API, web, `mask3d`, and `llm` share the local
-Compose network; the host binds the web port to loopback. The default inbox is
-`./inbox`; set `S3D_INBOX` to another host directory before `docker compose up`
-if needed. The app stores Scene data and models in separate named volumes.
+Compose network; the host binds the web port to loopback. Upload is the sole input:
+S3D receives no raw scan directory, `.sens` file or inbox mount. It verifies and
+copies the uploaded Package into its own storage, leaving your preprocessing file
+untouched. S1 extracts the already aligned data and never applies the source matrix
+again. Existing processed Scenes remain usable; reloading their v1 source requires
+a newly prepared v2 upload. The app stores Scene data and models in separate named volumes.
 Model sources and hashes are pinned in `models.lock`; `models pull` skips files
 whose SHA-256 already matches and rejects corrupt existing files. After pulling,
 the model files do not need network access.
@@ -71,7 +82,6 @@ uv sync --project backend --extra dev --frozen
 npm ci --prefix frontend
 npm run build --prefix frontend
 $env:S3D_DATA_DIR = Join-Path (Resolve-Path .).Path '.local-data'
-$env:S3D_INBOX_DIR = Join-Path (Resolve-Path .).Path 'inbox'
 $env:S3D_MODEL_DIR = Join-Path (Resolve-Path .).Path 'models'
 $env:S3D_LLM_BASE_URL = 'http://127.0.0.1:8080'
 $env:S3D_MASK3D_URL = 'http://127.0.0.1:9000'
