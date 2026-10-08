@@ -15,6 +15,7 @@ build/
 dist/
 *.egg-info/
 .pytest_cache/
+.pytest-temp/
 .mypy_cache/
 .ruff_cache/
 .coverage
@@ -27,6 +28,15 @@ htmlcov/
 
 # Frontend dependencies and build output
 node_modules/
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+.uv-cache/
+inbox/
+.local-data/
+models/
+.backups/
+mask3d/checkpoints/
 frontend/dist/
 frontend/build/
 

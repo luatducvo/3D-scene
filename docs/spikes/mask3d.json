@@ -1,0 +1,254 @@
+[
+  {
+    "scene": "scene0000_00",
+    "vertices": 81369,
+    "voxel_m": 0.02,
+    "instances": 87,
+    "largest": [
+      {
+        "label_id": 4,
+        "confidence": 0.8186314105987549,
+        "vertices": 5781
+      },
+      {
+        "label_id": 16,
+        "confidence": 0.9408097863197327,
+        "vertices": 5242
+      },
+      {
+        "label_id": 3,
+        "confidence": 0.9641006588935852,
+        "vertices": 5012
+      },
+      {
+        "label_id": 1,
+        "confidence": 0.7976303696632385,
+        "vertices": 4573
+      },
+      {
+        "label_id": 4,
+        "confidence": 0.9359498620033264,
+        "vertices": 4235
+      },
+      {
+        "label_id": 28,
+        "confidence": 0.7588387131690979,
+        "vertices": 3326
+      },
+      {
+        "label_id": 66,
+        "confidence": 0.8788192868232727,
+        "vertices": 3273
+      },
+      {
+        "label_id": 8,
+        "confidence": 0.9319103360176086,
+        "vertices": 2964
+      },
+      {
+        "label_id": 6,
+        "confidence": 0.8925225138664246,
+        "vertices": 2753
+      },
+      {
+        "label_id": 28,
+        "confidence": 0.6241920590400696,
+        "vertices": 2506
+      }
+    ],
+    "seconds": 7.18,
+    "baseline_vram_mb": 1698,
+    "peak_device_vram_mb": 5571,
+    "peak_torch_allocated_mb": 1809,
+    "peak_torch_reserved_mb": 2292
+  },
+  {
+    "scene": "scene0000_00",
+    "vertices": 81369,
+    "voxel_m": 0.03,
+    "instances": 58,
+    "largest": [
+      {
+        "label_id": 16,
+        "confidence": 0.9306879639625549,
+        "vertices": 5607
+      },
+      {
+        "label_id": 3,
+        "confidence": 0.9630049467086792,
+        "vertices": 5347
+      },
+      {
+        "label_id": 66,
+        "confidence": 0.8678341507911682,
+        "vertices": 4879
+      },
+      {
+        "label_id": 4,
+        "confidence": 0.9425668716430664,
+        "vertices": 4469
+      },
+      {
+        "label_id": 4,
+        "confidence": 0.9112717509269714,
+        "vertices": 3430
+      },
+      {
+        "label_id": 8,
+        "confidence": 0.9087920188903809,
+        "vertices": 3048
+      },
+      {
+        "label_id": 1,
+        "confidence": 0.8612372279167175,
+        "vertices": 2682
+      },
+      {
+        "label_id": 5,
+        "confidence": 0.8933289647102356,
+        "vertices": 2613
+      },
+      {
+        "label_id": 1,
+        "confidence": 0.9107037782669067,
+        "vertices": 2254
+      },
+      {
+        "label_id": 159,
+        "confidence": 0.5118613839149475,
+        "vertices": 2165
+      }
+    ],
+    "seconds": 7.21,
+    "baseline_vram_mb": 1835,
+    "peak_device_vram_mb": 5017,
+    "peak_torch_allocated_mb": 1435,
+    "peak_torch_reserved_mb": 1682
+  },
+  {
+    "scene": "scene0000_01",
+    "vertices": 80583,
+    "voxel_m": 0.02,
+    "instances": 84,
+    "largest": [
+      {
+        "label_id": 3,
+        "confidence": 0.9587718844413757,
+        "vertices": 5304
+      },
+      {
+        "label_id": 16,
+        "confidence": 0.959101140499115,
+        "vertices": 5010
+      },
+      {
+        "label_id": 4,
+        "confidence": 0.9168503880500793,
+        "vertices": 4698
+      },
+      {
+        "label_id": 4,
+        "confidence": 0.8877747654914856,
+        "vertices": 3844
+      },
+      {
+        "label_id": 6,
+        "confidence": 0.8582459092140198,
+        "vertices": 3216
+      },
+      {
+        "label_id": 66,
+        "confidence": 0.8333877921104431,
+        "vertices": 2588
+      },
+      {
+        "label_id": 28,
+        "confidence": 0.8778250813484192,
+        "vertices": 2587
+      },
+      {
+        "label_id": 8,
+        "confidence": 0.9229019284248352,
+        "vertices": 2520
+      },
+      {
+        "label_id": 28,
+        "confidence": 0.7923990488052368,
+        "vertices": 2465
+      },
+      {
+        "label_id": 33,
+        "confidence": 0.957383930683136,
+        "vertices": 2180
+      }
+    ],
+    "seconds": 7.59,
+    "baseline_vram_mb": 1743,
+    "peak_device_vram_mb": 5602,
+    "peak_torch_allocated_mb": 1800,
+    "peak_torch_reserved_mb": 2280
+  },
+  {
+    "scene": "scene0000_01",
+    "vertices": 80583,
+    "voxel_m": 0.03,
+    "instances": 64,
+    "largest": [
+      {
+        "label_id": 16,
+        "confidence": 0.9424769282341003,
+        "vertices": 5688
+      },
+      {
+        "label_id": 3,
+        "confidence": 0.9520569443702698,
+        "vertices": 5272
+      },
+      {
+        "label_id": 5,
+        "confidence": 0.505153477191925,
+        "vertices": 5019
+      },
+      {
+        "label_id": 8,
+        "confidence": 0.8405957221984863,
+        "vertices": 4115
+      },
+      {
+        "label_id": 4,
+        "confidence": 0.9232682585716248,
+        "vertices": 3043
+      },
+      {
+        "label_id": 8,
+        "confidence": 0.9442812204360962,
+        "vertices": 2650
+      },
+      {
+        "label_id": 30,
+        "confidence": 0.7470570206642151,
+        "vertices": 2199
+      },
+      {
+        "label_id": 16,
+        "confidence": 0.9540776610374451,
+        "vertices": 2019
+      },
+      {
+        "label_id": 4,
+        "confidence": 0.7991905212402344,
+        "vertices": 1894
+      },
+      {
+        "label_id": 33,
+        "confidence": 0.9585373997688293,
+        "vertices": 1850
+      }
+    ],
+    "seconds": 7.69,
+    "baseline_vram_mb": 1742,
+    "peak_device_vram_mb": 4969,
+    "peak_torch_allocated_mb": 1426,
+    "peak_torch_reserved_mb": 1650
+  }
+]

@@ -1,0 +1,28 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: uv sync --frozen --extra dev
+        working-directory: backend
+      - run: uv run --frozen pytest
+        working-directory: backend
+      - run: uv run --frozen ruff check .
+        working-directory: backend
+      - run: uv run --frozen python -m s3d_app.export_openapi --check
+        working-directory: backend
+      - run: uv run tools/test_scannet_prep.py
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run types:api && git diff --exit-code -- src/generated/api.ts
+        working-directory: frontend
+      - run: npm run typecheck && npm test && npm run build
+        working-directory: frontend

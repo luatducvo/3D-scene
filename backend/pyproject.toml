@@ -1,20 +1,45 @@
 [project]
-name = "backend"
+name = "s3d-app"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local 3D scene explorer"
 readme = "README.md"
-authors = [
-    { name = "luatducvo", email = "lvo017205@gmail.com" }
-]
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-    "fastapi>=0.142.2",
-    "uvicorn>=0.54.0",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+  "python-multipart>=0.0.9,<1",
+  "numpy>=2,<3",
+  "plyfile>=1,<2",
+  "pillow>=11,<13",
+  "torch==2.7.1",
+  "torchvision==0.22.1",
+  "ultralytics>=8.4,<9",
+  "open-clip-torch>=3.2,<4",
+  "nvidia-ml-py>=12,<14",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "httpx>=0.27,<1", "ruff>=0.8,<1"]
+
 [project.scripts]
-backend = "backend:main"
+s3d = "s3d_app.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.2,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }

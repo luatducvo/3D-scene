@@ -1,0 +1,58 @@
+services:
+  api:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      S3D_DATA_DIR: /data
+      S3D_INBOX_DIR: /inbox
+      S3D_MASK3D_URL: http://mask3d:9000
+      S3D_LLM_BASE_URL: ${S3D_LLM_BASE_URL:-http://llm:8080}
+      S3D_LLM_MANAGED: ${S3D_LLM_MANAGED:-1}
+      S3D_LLM_MODEL: ${S3D_LLM_MODEL:-qwen3-vl-4b-text}
+      S3D_LLM_API_KEY: ${S3D_LLM_API_KEY:-}
+      S3D_DEBUG_PROGRAM: ${S3D_DEBUG_PROGRAM:-0}
+      S3D_CAPTIONS_TOP_N: ${S3D_CAPTIONS_TOP_N:-0}
+    volumes:
+      - s3d-data:/data
+      - s3d-models:/models
+      - ${S3D_INBOX:-./inbox}:/inbox
+    gpus: all
+    depends_on: [mask3d, llm]
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda-b11459@sha256:fff6185edd2fbc4093aa5970bf6db53ed11c283e3a1c52a3e244cf27047264f4
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --models-preset
+      - /config/models.ini
+      - --models-max
+      - "1"
+      - --no-models-autoload
+      - --sleep-idle-seconds
+      - "600"
+    volumes:
+      - s3d-models:/models:ro
+      - ./docker/llm-models.ini:/config/models.ini:ro
+    gpus: all
+
+  mask3d:
+    build:
+      context: .
+      dockerfile: mask3d/Dockerfile
+    image: s3d-mask3d:1
+    volumes:
+      - s3d-data:/data
+      - s3d-models:/models:ro
+    gpus: all
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  s3d-data:
+  s3d-models:

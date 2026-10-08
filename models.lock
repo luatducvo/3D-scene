@@ -1,0 +1,40 @@
+{
+  "format_version": 1,
+  "models": [
+    {
+      "name": "yoloe-26l-seg.pt",
+      "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yoloe-26l-seg.pt",
+      "sha256": "a612d2d505f24e14d87ec82d688b823b6cb600646664f16125ce6c84ce360da9"
+    },
+    {
+      "name": "yoloe-26l-seg-pf.pt",
+      "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yoloe-26l-seg-pf.pt",
+      "sha256": "8b0ff5ecfd5baa0ebed509efb00aacff52faae2f6770e7ffa2a223231b9653c0"
+    },
+    {
+      "name": "mobileclip2_b.pt",
+      "url": "https://huggingface.co/apple/MobileCLIP2-B/resolve/c61288acd0f82f59f99bc4b8691ba1c2c100597a/mobileclip2_b.pt",
+      "sha256": "144b1344f5f01f08af8be1077f0db5eec95bf0fd1e349c1e9ca6102724448486"
+    },
+    {
+      "name": "mobileclip2_b.ts",
+      "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/mobileclip2_b.ts",
+      "sha256": "35d7f213e4d75f38514e4656ad3cb91158bd33e3805d8ac349f23b186f66982f"
+    },
+    {
+      "name": "scannet200_val.ckpt",
+      "url": "https://omnomnom.vision.rwth-aachen.de/data/mask3d/checkpoints/scannet200/scannet200_val.ckpt",
+      "sha256": "6a0c4347616a27348bed32ff1ae225cab0087e0a0148f36d1023ca2d46f82534"
+    },
+    {
+      "name": "Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+      "url": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/1cd86afb9a95c410a6038ab3b40d8b578c892266/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+      "sha256": "66358cb18bb6b3b1b6675aa412c7a88ef01d228f481184d13668e5201c730a0a"
+    },
+    {
+      "name": "mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf",
+      "url": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/1cd86afb9a95c410a6038ab3b40d8b578c892266/mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf",
+      "sha256": "30ba2c7dd3127a4561b6cba9d13d0f711c91bdb38742e2f56d73c8cb596bd06d"
+    }
+  ]
+}

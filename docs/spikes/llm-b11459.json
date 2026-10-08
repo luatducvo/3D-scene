@@ -1,0 +1,249 @@
+{
+  "build": "b11459",
+  "baseline_used_mb": 814,
+  "after_used_mb": 917,
+  "valid": 30,
+  "total": 30,
+  "results": [
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the chair next to the window",
+      "valid": true,
+      "error": "",
+      "seconds": 1.11,
+      "gpu_used_mb": 3788
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the bed near the desk",
+      "valid": true,
+      "error": "",
+      "seconds": 1.11,
+      "gpu_used_mb": 3896
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the lamp on the table",
+      "valid": true,
+      "error": "",
+      "seconds": 1.11,
+      "gpu_used_mb": 3957
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the cabinet behind the chair",
+      "valid": true,
+      "error": "",
+      "seconds": 1.19,
+      "gpu_used_mb": 3950
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the pillow under the blanket",
+      "valid": true,
+      "error": "",
+      "seconds": 1.2,
+      "gpu_used_mb": 3943
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the sofa by the wall",
+      "valid": true,
+      "error": "",
+      "seconds": 1.25,
+      "gpu_used_mb": 3939
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the nearest chair to the door",
+      "valid": true,
+      "error": "",
+      "seconds": 1.12,
+      "gpu_used_mb": 3910
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the largest table",
+      "valid": true,
+      "error": "",
+      "seconds": 1.14,
+      "gpu_used_mb": 3895
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the smallest lamp",
+      "valid": true,
+      "error": "",
+      "seconds": 1.12,
+      "gpu_used_mb": 3890
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the red chair",
+      "valid": true,
+      "error": "",
+      "seconds": 1.12,
+      "gpu_used_mb": 3890
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the green plant",
+      "valid": true,
+      "error": "",
+      "seconds": 1.22,
+      "gpu_used_mb": 3888
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the white cabinet",
+      "valid": true,
+      "error": "",
+      "seconds": 1.12,
+      "gpu_used_mb": 3895
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "the table between the chairs",
+      "valid": true,
+      "error": "",
+      "seconds": 1.17,
+      "gpu_used_mb": 3878
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "How many chairs are near the desk?",
+      "valid": true,
+      "error": "",
+      "seconds": 1.03,
+      "gpu_used_mb": 3874
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "How many pillows are on the bed?",
+      "valid": true,
+      "error": "",
+      "seconds": 1.0,
+      "gpu_used_mb": 3870
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "Is there a lamp on the table?",
+      "valid": true,
+      "error": "",
+      "seconds": 0.92,
+      "gpu_used_mb": 3869
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "Is any chair next to the window?",
+      "valid": true,
+      "error": "",
+      "seconds": 0.98,
+      "gpu_used_mb": 3869
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "What color is the sofa near the door?",
+      "valid": true,
+      "error": "",
+      "seconds": 1.05,
+      "gpu_used_mb": 3867
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "What is behind the bed?",
+      "valid": true,
+      "error": "",
+      "seconds": 1.06,
+      "gpu_used_mb": 3871
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "Find the object to the left of the cabinet",
+      "valid": true,
+      "error": "",
+      "seconds": 1.02,
+      "gpu_used_mb": 3866
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "Find the object to the right of the desk",
+      "valid": true,
+      "error": "",
+      "seconds": 0.95,
+      "gpu_used_mb": 3866
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "Which table is farthest from the window?",
+      "valid": true,
+      "error": "",
+      "seconds": 1.12,
+      "gpu_used_mb": 3866
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "Which chair is highest?",
+      "valid": true,
+      "error": "",
+      "seconds": 1.05,
+      "gpu_used_mb": 3867
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "What is this room used for?",
+      "valid": true,
+      "error": "",
+      "seconds": 1.05,
+      "gpu_used_mb": 3867
+    },
+    {
+      "preset": "qwen3-vl-4b-text",
+      "question": "Describe the furniture in the room.",
+      "valid": true,
+      "error": "",
+      "seconds": 1.09,
+      "gpu_used_mb": 3867
+    },
+    {
+      "preset": "qwen3-vl-4b-vision",
+      "question": "What colors are these two images?",
+      "valid": true,
+      "error": "",
+      "seconds": 2.78,
+      "gpu_used_mb": 4678
+    },
+    {
+      "preset": "qwen3-vl-4b-vision",
+      "question": "Which image is red?",
+      "valid": true,
+      "error": "",
+      "seconds": 2.64,
+      "gpu_used_mb": 4661
+    },
+    {
+      "preset": "qwen3-vl-4b-vision",
+      "question": "Which image is blue?",
+      "valid": true,
+      "error": "",
+      "seconds": 2.66,
+      "gpu_used_mb": 4661
+    },
+    {
+      "preset": "qwen3-vl-4b-vision",
+      "question": "Is the first image brighter than the second?",
+      "valid": true,
+      "error": "",
+      "seconds": 2.74,
+      "gpu_used_mb": 4663
+    },
+    {
+      "preset": "qwen3-vl-4b-vision",
+      "question": "Describe the two colors briefly.",
+      "valid": true,
+      "error": "",
+      "seconds": 2.69,
+      "gpu_used_mb": 4663
+    }
+  ]
+}

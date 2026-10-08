@@ -1,0 +1,38 @@
+{
+  "name": "s3d-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "prebuild": "node scripts/api-types.mjs check",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "types:api": "node scripts/api-types.mjs generate"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.4.0",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "eventsource-parser": "^3.1.1",
+    "lucide-react": "^1.53.0",
+    "next": "^16.4.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.7.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.186.0",
+    "openapi-typescript": "^7.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^5.0.3"
+  }
+}

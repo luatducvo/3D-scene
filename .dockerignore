@@ -1,0 +1,17 @@
+.git
+.scratch
+.agents
+.uv-cache
+dataset
+**/.venv
+**/node_modules
+**/.next
+**/out
+**/__pycache__
+**/*.s3dpkg
+**/*.partial
+.local-data
+.backups
+inbox
+models
+mask3d/checkpoints

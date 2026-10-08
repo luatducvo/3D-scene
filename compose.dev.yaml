@@ -1,0 +1,16 @@
+services:
+  llm:
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./models:/models:ro
+  mask3d:
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - ./.local-data:/data
+      - ./models:/models:ro
+  api:
+    volumes:
+      - ./.local-data:/data
+      - ./models:/models

@@ -1,0 +1,11 @@
+{
+  "caption_cache_matches": true,
+  "caption_cached_ms": 2.3,
+  "after_unload_mb": 1479,
+  "before_unload_mb": 5223,
+  "tiebreak_target": [
+    29
+  ],
+  "caption_first_ms": 1617.2,
+  "used_tiebreak": true
+}
