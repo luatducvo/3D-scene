@@ -4,12 +4,14 @@
 
 **Blocked by:** 03, 10, 17
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Câu không phải Lookup thì lấy khoá GPU, nạp preset `text` nếu chưa nạp (gỡ preset khác trước, xác nhận bằng `GET /models` và NVML), rồi gọi chat completions với JSON schema sinh từ schema Program.
-- [ ] JSON không hợp lệ, hoặc 200 OK kèm văn bản tự do, thì thử lại một lần; vẫn sai thì phát `clarify` xin người dùng diễn đạt lại; số lần thử ghi vào `json_retry`.
-- [ ] Chuẩn hoá danh từ: ánh xạ về Label trong Scene bằng độ giống text MobileCLIP (top-k) và alt label (ví dụ "couch" → sofa).
-- [ ] Stage offline cần GPU chờ hoặc gỡ preset `llm` qua cùng một khoá; không bao giờ có hai việc GPU chạy cùng lúc (test với `llm` giả).
-- [ ] `llm.base_url` trong config quyết định endpoint; trỏ sang endpoint khác tương thích OpenAI không cần sửa code.
-- [ ] SSE phát `program` → `candidates` → `final`, với câu trả lời mẫu dựng từ kết quả Solver.
-- [ ] Bộ 30 câu từ spike `llm` chạy lại như test local-only; ghi tỉ lệ Program hợp lệ và tỉ lệ Solution đúng.
+- [x] Câu không phải Lookup thì lấy khoá GPU, nạp preset `text` nếu chưa nạp (gỡ preset khác trước, xác nhận bằng `GET /models` và NVML), rồi gọi chat completions với JSON schema sinh từ schema Program.
+- [x] JSON không hợp lệ, hoặc 200 OK kèm văn bản tự do, thì thử lại một lần; vẫn sai thì phát `clarify` xin người dùng diễn đạt lại; số lần thử ghi vào `json_retry`.
+- [x] Chuẩn hoá danh từ: ánh xạ về Label trong Scene bằng độ giống text MobileCLIP (top-k) và alt label (ví dụ "couch" → sofa).
+- [x] Stage offline cần GPU chờ hoặc gỡ preset `llm` qua cùng một khoá; không bao giờ có hai việc GPU chạy cùng lúc (test với `llm` giả).
+- [x] `llm.base_url` trong config quyết định endpoint; trỏ sang endpoint khác tương thích OpenAI không cần sửa code.
+- [x] SSE phát `program` → `candidates` → `final`, với câu trả lời mẫu dựng từ kết quả Solver.
+- [x] Bộ 30 câu từ spike `llm` chạy lại như test local-only; ghi tỉ lệ Program hợp lệ và tỉ lệ Solution đúng.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

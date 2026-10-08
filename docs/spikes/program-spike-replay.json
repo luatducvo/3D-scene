@@ -1,0 +1,526 @@
+{
+  "original_spike_questions": true,
+  "schema": "Program.model_json_schema()",
+  "valid": 26,
+  "cases": 30,
+  "semantic_comparison": "query-eval.json; synthetic color-image questions do not have Scene target ground truth",
+  "results": [
+    {
+      "question": "the chair next to the window",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "chair",
+          "a": "window"
+        },
+        "constraints": [
+          [
+            "NEXT_TO",
+            "t",
+            "a"
+          ]
+        ],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the bed near the desk",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "bed",
+          "a": "desk"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the lamp on the table",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "lamp",
+          "a": "table"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the cabinet behind the chair",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "cabinet",
+          "a": "chair"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the pillow under the blanket",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "pillow",
+          "a": "blanket"
+        },
+        "constraints": [
+          [
+            "UNDER",
+            "t",
+            "a"
+          ]
+        ],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the sofa by the wall",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "sofa",
+          "a": "wall"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the nearest chair to the door",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "chair",
+          "a": "door"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the largest table",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "table"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the smallest lamp",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "lamp"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the red chair",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "chair"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [
+          "red"
+        ],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the green plant",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "plant"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [
+          "green"
+        ],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the white cabinet",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "cabinet"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [
+          "white"
+        ],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "the table between the chairs",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "table",
+          "a": "chair"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "How many chairs are near the desk?",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "count",
+        "vars": {
+          "t": "chair",
+          "a": "desk"
+        },
+        "constraints": [
+          [
+            "NEAR",
+            "t",
+            "a"
+          ]
+        ],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "How many pillows are on the bed?",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "count",
+        "vars": {
+          "t": "pillow",
+          "a": "bed"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "Is there a lamp on the table?",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "exists",
+        "vars": {
+          "t": "lamp",
+          "a": "table"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "Is any chair next to the window?",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "exists",
+        "vars": {
+          "t": "chair",
+          "a": "window"
+        },
+        "constraints": [
+          [
+            "NEXT_TO",
+            "t",
+            "a"
+          ]
+        ],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "What color is the sofa near the door?",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "attribute",
+        "vars": {
+          "t": "sofa",
+          "a": "door"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "What is behind the bed?",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "object",
+          "a": "bed"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "Find the object to the left of the cabinet",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "object",
+          "a": "cabinet"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "Find the object to the right of the desk",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "object",
+          "a": "desk"
+        },
+        "constraints": [
+          [
+            "RIGHT",
+            "t",
+            "a"
+          ]
+        ],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "Which table is farthest from the window?",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "table"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "Which chair is highest?",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "chair"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "What is this room used for?",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "open",
+        "vars": {
+          "t": "object"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "Describe the furniture in the room.",
+      "preset": "text",
+      "valid": true,
+      "json_retry": 0,
+      "program": {
+        "intent": "ground",
+        "vars": {
+          "t": "furniture"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "What colors are these two images?",
+      "preset": "vision",
+      "valid": false,
+      "raw": "{\n  \"intent\": \"open\",\n  \"vars\": {\n    \"t\": \"object\",\n    \"target\": \"t\"\n  },\n  \"target\": \"t\",\n  \"constraints\": [],\n  \"viewpoint\": null\n}"
+    },
+    {
+      "question": "Which image is red?",
+      "preset": "vision",
+      "valid": true,
+      "program": {
+        "intent": "open",
+        "vars": {
+          "t": "object"
+        },
+        "constraints": [],
+        "select": null,
+        "target": "t",
+        "appearance": [],
+        "viewpoint": null
+      }
+    },
+    {
+      "question": "Which image is blue?",
+      "preset": "vision",
+      "valid": false,
+      "raw": "{\n  \"intent\": \"open\",\n  \"vars\": {\n    \"t\": \"object\",\n    \"target\": \"t\"\n  },\n  \"target\": \"t\",\n  \"constraints\": [],\n  \"viewpoint\": null\n}"
+    },
+    {
+      "question": "Is the first image brighter than the second?",
+      "preset": "vision",
+      "valid": false,
+      "raw": "{\n  \"intent\": \"open\",\n  \"vars\": {\n    \"t\": \"object\",\n    \"target\": \"t\"\n  },\n  \"target\": \"t\",\n  \"constraints\": [],\n  \"viewpoint\": null\n}"
+    },
+    {
+      "question": "Describe the two colors briefly.",
+      "preset": "vision",
+      "valid": false,
+      "raw": "{\n  \"intent\": \"open\",\n  \"vars\": {\n    \"t\": \"object\",\n    \"target\": \"t\"\n  },\n  \"target\": \"t\",\n  \"constraints\": [],\n  \"viewpoint\": null\n}"
+    }
+  ]
+}

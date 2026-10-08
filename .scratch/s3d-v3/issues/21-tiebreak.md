@@ -4,10 +4,12 @@
 
 **Blocked by:** 20
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Chọn các Keyframe thấy rõ nhiều Candidate nhất; vẽ viền và số lên ảnh; cạnh dài tối đa 768 px; tối đa 2 ảnh.
-- [ ] Lấy khoá GPU, gỡ preset `text`, nạp preset `vision`; NVML không đạt ngưỡng thì bỏ qua và chuyển sang Clarify (test với NVML giả).
-- [ ] Câu trả lời của model phải là số của một Candidate; không hợp lệ thì Clarify.
-- [ ] SSE phát sự kiện `tiebreak`; `evidence.tiebreak` là true; `used_tiebreak` được ghi vào `queries`.
-- [ ] Câu có từ chỉ màu được giải bằng `COLOR` trước khi tính tới Tiebreak.
+- [x] Chọn các Keyframe thấy rõ nhiều Candidate nhất; vẽ viền và số lên ảnh; cạnh dài tối đa 768 px; tối đa 2 ảnh.
+- [x] Lấy khoá GPU, gỡ preset `text`, nạp preset `vision`; NVML không đạt ngưỡng thì bỏ qua và chuyển sang Clarify (test với NVML giả).
+- [x] Câu trả lời của model phải là số của một Candidate; không hợp lệ thì Clarify.
+- [x] SSE phát sự kiện `tiebreak`; `evidence.tiebreak` là true; `used_tiebreak` được ghi vào `queries`.
+- [x] Câu có từ chỉ màu được giải bằng `COLOR` trước khi tính tới Tiebreak.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

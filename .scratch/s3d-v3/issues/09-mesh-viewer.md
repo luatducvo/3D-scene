@@ -4,10 +4,12 @@
 
 **Blocked by:** 08
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] S6 ghi `mesh.bin`; `GET /v1/scenes/{id}/mesh` trả về file này.
-- [ ] `/scene?id=scene0000_00` hiện mesh có màu, xoay và zoom được; viewer chỉ nạp ở phía client.
-- [ ] Thứ tự đỉnh trong `mesh.bin` trùng với mesh trong Package (có test).
-- [ ] Hàm giải mã `mesh.bin` phía web có test vitest; định dạng được ghi trong tài liệu.
-- [ ] Trang chủ có link mở các Scene đã sẵn sàng.
+- [x] S6 ghi `mesh.bin`; `GET /v1/scenes/{id}/mesh` trả về file này.
+- [x] `/scene?id=scene0000_00` hiện mesh có màu, xoay và zoom được; viewer chỉ nạp ở phía client.
+- [x] Thứ tự đỉnh trong `mesh.bin` trùng với mesh trong Package (có test).
+- [x] Hàm giải mã `mesh.bin` phía web có test vitest; định dạng được ghi trong tài liệu.
+- [x] Trang chủ có link mở các Scene đã sẵn sàng.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

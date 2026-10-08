@@ -4,12 +4,14 @@
 
 **Blocked by:** 01, 04
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] `POST /v1/imports` nhận file upload hoặc tên file trong inbox; Package nhiều GB upload được mà không nạp cả file vào RAM.
-- [ ] S0 từ chối khi sai đuôi, `format_version` không được hỗ trợ, `status` khác `complete`, thiếu file hoặc sha256 lệch; lỗi nói rõ điều kiện nào sai và hiện trên web.
-- [ ] Import thành công: Package được chép vào kho dữ liệu, Scene được tạo với id = mã scan, hiện trong `GET /v1/scenes` và `GET /v1/scenes/{id}`.
-- [ ] Package trùng sha256 với Scene đang có thì không tạo gì mới; Package khác cho cùng scan thì bị từ chối, hoặc Replace nếu người dùng chọn (Scene cũ và artifact bị xoá).
-- [ ] Trang chủ liệt kê các Package có trong inbox để chọn.
-- [ ] Contract test S0 chạy trên Package tổng hợp sinh ngay trong test (một bản hợp lệ và từng kiểu lỗi); có test cho no-op, từ chối và Replace.
-- [ ] Import được Package thật của scene0000_00 và scene0000_01.
+- [x] `POST /v1/imports` nhận file upload hoặc tên file trong inbox; Package nhiều GB upload được mà không nạp cả file vào RAM.
+- [x] S0 từ chối khi sai đuôi, `format_version` không được hỗ trợ, `status` khác `complete`, thiếu file hoặc sha256 lệch; lỗi nói rõ điều kiện nào sai và hiện trên web.
+- [x] Import thành công: Package được chép vào kho dữ liệu, Scene được tạo với id = mã scan, hiện trong `GET /v1/scenes` và `GET /v1/scenes/{id}`.
+- [x] Package trùng sha256 với Scene đang có thì không tạo gì mới; Package khác cho cùng scan thì bị từ chối, hoặc Replace nếu người dùng chọn (Scene cũ và artifact bị xoá).
+- [x] Trang chủ liệt kê các Package có trong inbox để chọn.
+- [x] Contract test S0 chạy trên Package tổng hợp sinh ngay trong test (một bản hợp lệ và từng kiểu lỗi); có test cho no-op, từ chối và Replace.
+- [x] Import được Package thật của scene0000_00 và scene0000_01.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

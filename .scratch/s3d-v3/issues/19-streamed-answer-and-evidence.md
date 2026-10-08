@@ -4,10 +4,12 @@
 
 **Blocked by:** 18
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] SSE phát `token` trong lúc LLM diễn đạt câu trả lời; `final` có answer, targets, related, program, evidence và latency_ms theo mẫu ở mục 7.
-- [ ] Câu trả lời chứa ID hoặc con số không có trong kết quả Solver bị chặn và thay bằng câu trả lời mẫu (có test).
-- [ ] `GET /v1/scenes/{id}/frames/{fid}.jpg` trả Keyframe; khung hội thoại hiện Keyframe Evidence; viewer tô Target và vật liên quan, vẽ bbox và đưa camera tới Target.
-- [ ] Bảng `queries` lưu text, program, viewpoint, result, n_solutions, used_tiebreak, json_retry và latency_ms.
-- [ ] Câu Lookup cũng có câu trả lời bằng chữ và được ghi nhật ký.
+- [x] SSE phát `token` trong lúc LLM diễn đạt câu trả lời; `final` có answer, targets, related, program, evidence và latency_ms theo mẫu ở mục 7.
+- [x] Câu trả lời chứa ID hoặc con số không có trong kết quả Solver bị chặn và thay bằng câu trả lời mẫu (có test).
+- [x] `GET /v1/scenes/{id}/frames/{fid}.jpg` trả Keyframe; khung hội thoại hiện Keyframe Evidence; viewer tô Target và vật liên quan, vẽ bbox và đưa camera tới Target.
+- [x] Bảng `queries` lưu text, program, viewpoint, result, n_solutions, used_tiebreak, json_retry và latency_ms.
+- [x] Câu Lookup cũng có câu trả lời bằng chữ và được ghi nhật ký.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

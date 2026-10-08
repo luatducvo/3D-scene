@@ -14,3 +14,10 @@ The 2 cm configuration exceeds the 3.5 GiB stage budget. Both 3 cm runs fit that
 Device measurements include the existing Windows desktop allocation. The increase is the difference between sampled peak device usage and baseline, rather than PyTorch's allocation alone. Sampling uses `nvidia-smi` at 100 ms intervals; short peaks can fall between samples. Full measurements are in `docs/spikes/mask3d.json` and can be repeated with `mask3d/spike.py`.
 
 The inference subprocess exits after each request. The service process does not import torch or own a CUDA context. The backend and service share only volume paths and small JSON responses.
+
+Both supplied scans completed the real pipeline and the bed, desks, cabinets and
+stools were inspected in the viewer. The final CUDA-enabled image was rebuilt
+from a fresh clone and saved with `docker save` to `.backups/s3d-mask3d.tar`
+(5,486,678,528 bytes for the initial backup; the refreshed image is also saved).
+The unaligned Package completed all GPU stages at 3 cm; its measurements are in
+`docs/spikes/unaligned-pipeline.json`.

@@ -4,11 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Image build từ đầu trong Docker Desktop; trong container đang chạy, chẩn đoán của MinkowskiEngine báo có CUDA.
-- [ ] Mask3D fp16 chạy được trên scene0000_00 và scene0000_01, đọc thẳng mesh raw (chưa cần Package); ghi VRAM đỉnh (PyTorch và `nvidia-smi`), thời gian và số Instance ở mỗi mức voxel đã thử.
-- [ ] Ghi VRAM trống ban đầu khi Windows đang chạy.
-- [ ] Kiểm bằng mắt: các đồ nội thất lớn đều có Instance.
-- [ ] Image đạt được lưu dự phòng bằng `docker save`.
-- [ ] Có ADR mới kèm số đo, chốt một trong hai: Mask3D (đạt cả ba điều kiện: có CUDA, VRAM đỉnh ≤ 3,5 GB với voxel ≤ 3 cm, mask hợp lý) hoặc nhánh 2D-only (chưa đạt sau 2 ngày công).
+- [x] Image build từ đầu trong Docker Desktop; trong container đang chạy, chẩn đoán của MinkowskiEngine báo có CUDA.
+- [x] Mask3D fp16 chạy được trên scene0000_00 và scene0000_01, đọc thẳng mesh raw (chưa cần Package); ghi VRAM đỉnh (PyTorch và `nvidia-smi`), thời gian và số Instance ở mỗi mức voxel đã thử.
+- [x] Ghi VRAM trống ban đầu khi Windows đang chạy.
+- [x] Kiểm bằng mắt: các đồ nội thất lớn đều có Instance.
+- [x] Image đạt được lưu dự phòng bằng `docker save`.
+- [x] Có ADR mới kèm số đo, chốt một trong hai: Mask3D (đạt cả ba điều kiện: có CUDA, VRAM đỉnh ≤ 3,5 GB với voxel ≤ 3 cm, mask hợp lý) hoặc nhánh 2D-only (chưa đạt sau 2 ngày công).
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

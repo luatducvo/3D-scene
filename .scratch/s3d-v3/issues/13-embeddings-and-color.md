@@ -4,10 +4,12 @@
 
 **Blocked by:** 12
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Lấy 3–5 crop có nhiều điểm nhìn thấy nhất, encode bằng MobileCLIP2-B, bỏ crop có z-score độ giống dưới −3 (ROFA), lấy trung bình chuẩn hoá; vector lưu dạng BLOB cùng node.
-- [ ] Màu chủ đạo tính từ histogram HSV trên màu đỉnh mesh, lưu thành tên màu tiếng Anh (red, green, white…) kèm RGB.
-- [ ] Panel Object hiện tên màu và một ô màu mẫu.
-- [ ] ROFA và bước đặt tên màu có test.
-- [ ] Stage chạy dưới khoá GPU trong tiến trình con; VRAM đỉnh ghi vào `stage_runs`.
+- [x] Lấy 3–5 crop có nhiều điểm nhìn thấy nhất, encode bằng MobileCLIP2-B, bỏ crop có z-score độ giống dưới −3 (ROFA), lấy trung bình chuẩn hoá; vector lưu dạng BLOB cùng node.
+- [x] Màu chủ đạo tính từ histogram HSV trên màu đỉnh mesh, lưu thành tên màu tiếng Anh (red, green, white…) kèm RGB.
+- [x] Panel Object hiện tên màu và một ô màu mẫu.
+- [x] ROFA và bước đặt tên màu có test.
+- [x] Stage chạy dưới khoá GPU trong tiến trình con; VRAM đỉnh ghi vào `stage_runs`.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

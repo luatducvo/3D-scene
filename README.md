@@ -154,7 +154,7 @@ shown by `docker volume ls`.
 $backupDir = Join-Path (Resolve-Path .).Path '.backups'
 New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
 docker compose stop api
-docker run --rm --mount 'type=volume,src=3d-scene_s3d-data,dst=/data,readonly' --mount "type=bind,src=$backupDir,dst=/backup" alpine:3.22 tar -C /data -czf /backup/s3d-backup.tar.gz .
+docker run --rm --mount 'type=volume,src=3d-scene_s3d-data,dst=/data,readonly' --mount "type=bind,src=$backupDir,dst=/backup" alpine:3.22 tar -C /data -czf /backup/s3d-final-backup.tar.gz .
 docker compose up -d api
 ```
 
@@ -166,12 +166,15 @@ $backupDir = Join-Path (Resolve-Path .).Path '.backups'
 docker compose down
 docker volume rm 3d-scene_s3d-data
 docker volume create 3d-scene_s3d-data
-docker run --rm --mount 'type=volume,src=3d-scene_s3d-data,dst=/data' --mount "type=bind,src=$backupDir,dst=/backup,readonly" alpine:3.22 tar -C /data -xzf /backup/s3d-backup.tar.gz
+docker run --rm --mount 'type=volume,src=3d-scene_s3d-data,dst=/data' --mount "type=bind,src=$backupDir,dst=/backup,readonly" alpine:3.22 tar -C /data -xzf /backup/s3d-final-backup.tar.gz
 docker compose up -d
 ```
 
-A backup was restored to a disposable volume and checked for both Scene records
-and source Packages on 2026-10-08.
+A backup was restored to a disposable volume on 2026-10-08 and checked for both
+Scene records, source Packages, 100 embedding BLOBs, masks and 43 query records.
+Evidence is in `docs/spikes/backup-restore.json`. Fresh-clone installation and
+multi-turn queries also passed with outbound Internet blocked after model pull;
+see `docs/spikes/clean-rebuild.json` and [review](docs/code-review.md).
 
 ## Licenses and data
 

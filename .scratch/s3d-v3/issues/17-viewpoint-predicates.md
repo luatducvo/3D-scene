@@ -4,10 +4,12 @@
 
 **Blocked by:** 16
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] `LEFT`, `RIGHT`, `FRONT`, `BEHIND`, `BETWEEN` được tính lúc truy vấn trong hệ toạ độ của Viewpoint.
-- [ ] `CLOSEST`, `FARTHEST`, `LARGEST`, `SMALLEST`, `HIGHEST`, `LOWEST` chạy trên tập Candidate; `COLOR` dùng màu chủ đạo của Object.
-- [ ] `/ask` nhận Viewpoint tuỳ chọn; ChatPanel gửi pose camera của viewer; bảng `queries` lưu Viewpoint đã dùng.
-- [ ] Cùng một Program cho đáp án `LEFT`/`RIGHT` ngược nhau khi camera xoay 180° (có test).
-- [ ] Viewpoint suy biến (camera nằm trong bbox của Anchor) lùi về tâm Room, có test.
+- [x] `LEFT`, `RIGHT`, `FRONT`, `BEHIND`, `BETWEEN` được tính lúc truy vấn trong hệ toạ độ của Viewpoint.
+- [x] `CLOSEST`, `FARTHEST`, `LARGEST`, `SMALLEST`, `HIGHEST`, `LOWEST` chạy trên tập Candidate; `COLOR` dùng màu chủ đạo của Object.
+- [x] `/ask` nhận Viewpoint tuỳ chọn; ChatPanel gửi pose camera của viewer; bảng `queries` lưu Viewpoint đã dùng.
+- [x] Cùng một Program cho đáp án `LEFT`/`RIGHT` ngược nhau khi camera xoay 180° (có test).
+- [x] Viewpoint suy biến (camera nằm trong bbox của Anchor) lùi về tâm Room, có test.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

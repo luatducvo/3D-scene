@@ -4,10 +4,12 @@
 
 **Blocked by:** 21
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Intent thuộc tính: Solver tìm Target, preset `vision` đọc thuộc tính trên Keyframe tốt nhất, câu trả lời kèm Evidence.
-- [ ] Intent câu mở: scene graph được lọc theo câu hỏi và tuần tự hoá vừa ngữ cảnh 4k, rồi đưa cho LLM trả lời.
-- [ ] Caption sinh lười và cache cùng node; hỏi lại lần sau không gọi model nữa.
-- [ ] Tuỳ chọn tạo trước caption cho N Object lớn nhất khi xử lý Scene (mặc định tắt).
-- [ ] Không đủ VRAM cho preset `vision` thì câu trả lời nói rõ không đọc được ảnh, không treo.
+- [x] Intent thuộc tính: Solver tìm Target, preset `vision` đọc thuộc tính trên Keyframe tốt nhất, câu trả lời kèm Evidence.
+- [x] Intent câu mở: scene graph được lọc theo câu hỏi và tuần tự hoá vừa ngữ cảnh 4k, rồi đưa cho LLM trả lời.
+- [x] Caption sinh lười và cache cùng node; hỏi lại lần sau không gọi model nữa.
+- [x] Tuỳ chọn tạo trước caption cho N Object lớn nhất khi xử lý Scene (mặc định tắt).
+- [x] Không đủ VRAM cho preset `vision` thì câu trả lời nói rõ không đọc được ảnh, không treo.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

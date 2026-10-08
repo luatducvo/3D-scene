@@ -4,12 +4,14 @@
 
 **Blocked by:** 13
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] `POST /v1/scenes/{id}/ask` trả SSE; một câu Lookup phát sự kiện `candidates` và `final` kèm `targets`.
-- [ ] Router luật: cụm danh từ không có từ quan hệ hay từ hỏi thì là Lookup; câu khác nhận câu trả lời "not supported yet" rõ ràng cho tới khi các ticket Solver và LLM xong.
-- [ ] Kết hợp Label, alt label và độ giống text MobileCLIP; chọn số kết quả tại điểm rơi lớn nhất.
-- [ ] Khi mở Scene, vector của các Object được nạp thành một ma trận NumPy và tìm vét cạn.
-- [ ] ChatPanel đọc SSE bằng `fetch` + `ReadableStream` + `eventsource-parser`; sự kiện `final` tô sáng `targets` trên viewer.
-- [ ] Router và bước chọn điểm rơi có test; parser SSE phía web có test vitest.
-- [ ] Đường Lookup không gọi LLM và không lấy khoá GPU.
+- [x] `POST /v1/scenes/{id}/ask` trả SSE; một câu Lookup phát sự kiện `candidates` và `final` kèm `targets`.
+- [x] Router luật: cụm danh từ không có từ quan hệ hay từ hỏi thì là Lookup; câu khác nhận câu trả lời "not supported yet" rõ ràng cho tới khi các ticket Solver và LLM xong.
+- [x] Kết hợp Label, alt label và độ giống text MobileCLIP; chọn số kết quả tại điểm rơi lớn nhất.
+- [x] Khi mở Scene, vector của các Object được nạp thành một ma trận NumPy và tìm vét cạn.
+- [x] ChatPanel đọc SSE bằng `fetch` + `ReadableStream` + `eventsource-parser`; sự kiện `final` tô sáng `targets` trên viewer.
+- [x] Router và bước chọn điểm rơi có test; parser SSE phía web có test vitest.
+- [x] Đường Lookup không gọi LLM và không lấy khoá GPU.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

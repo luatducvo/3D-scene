@@ -4,9 +4,11 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] `models.lock` liệt kê tên file, nguồn và sha256 của YOLOE-26-L-seg, MobileCLIP2-B, Qwen3-VL-4B-Instruct Q4_K_M và mmproj Q8_0; checkpoint Mask3D ScanNet200 được thêm nếu spike Mask3D chọn nhánh Mask3D.
-- [ ] `s3d models pull` tải các model còn thiếu, bỏ qua file đã đúng sha256, báo lỗi rõ khi sha256 sai.
-- [ ] Chạy được cả native lẫn `docker compose run --rm api s3d models pull`.
-- [ ] Sau khi pull, khởi động hệ thống không cần mạng.
+- [x] `models.lock` liệt kê tên file, nguồn và sha256 của YOLOE-26-L-seg, MobileCLIP2-B, Qwen3-VL-4B-Instruct Q4_K_M và mmproj Q8_0; checkpoint Mask3D ScanNet200 được thêm nếu spike Mask3D chọn nhánh Mask3D.
+- [x] `s3d models pull` tải các model còn thiếu, bỏ qua file đã đúng sha256, báo lỗi rõ khi sha256 sai.
+- [x] Chạy được cả native lẫn `docker compose run --rm api s3d models pull`.
+- [x] Sau khi pull, khởi động hệ thống không cần mạng.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).

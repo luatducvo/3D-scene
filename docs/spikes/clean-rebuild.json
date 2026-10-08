@@ -1,0 +1,614 @@
+{
+  "source_commit": "232dc87",
+  "fresh_data_and_model_volumes": true,
+  "models_downloaded": 7,
+  "scene_ready": true,
+  "multi_turn_pass": true,
+  "results": [
+    {
+      "question": "bed",
+      "events": [
+        "candidates",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "final"
+      ],
+      "final": {
+        "answer": "I found the bed (Object 26).",
+        "target_ids": [
+          26
+        ],
+        "targets": [
+          {
+            "id": 26,
+            "label": "bed",
+            "confidence": 0.90879,
+            "bbox": {
+              "center": [
+                -0.2913999855518341,
+                -2.461199998855591,
+                0.5529999732971191
+              ],
+              "size": [
+                1.7757999897003174,
+                2.033400058746338,
+                1.1620999574661255
+              ]
+            }
+          }
+        ],
+        "related": [],
+        "program": null,
+        "evidence": {
+          "frames": [
+            {
+              "object_id": 26,
+              "frame_id": 970
+            }
+          ],
+          "n_solutions": 1,
+          "tiebreak": false,
+          "viewpoint": "room",
+          "keyframe": "/v1/scenes/scene0000_00/frames/970.jpg"
+        },
+        "session_id": "d2bb472d086a4b549d8801217a66f304",
+        "viewpoint": null,
+        "used_tiebreak": false,
+        "json_retry": 0,
+        "n_solutions": 1,
+        "latency_ms": 6429.0
+      }
+    },
+    {
+      "question": "it",
+      "events": [
+        "candidates",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "final"
+      ],
+      "final": {
+        "answer": "I found the bed (Object 26).",
+        "target_ids": [
+          26
+        ],
+        "targets": [
+          {
+            "id": 26,
+            "label": "bed",
+            "confidence": 0.90879,
+            "bbox": {
+              "center": [
+                -0.2913999855518341,
+                -2.461199998855591,
+                0.5529999732971191
+              ],
+              "size": [
+                1.7757999897003174,
+                2.033400058746338,
+                1.1620999574661255
+              ]
+            }
+          }
+        ],
+        "related": [],
+        "program": null,
+        "evidence": {
+          "frames": [
+            {
+              "object_id": 26,
+              "frame_id": 970
+            }
+          ],
+          "n_solutions": 1,
+          "tiebreak": false,
+          "viewpoint": "room",
+          "keyframe": "/v1/scenes/scene0000_00/frames/970.jpg"
+        },
+        "session_id": "d2bb472d086a4b549d8801217a66f304",
+        "viewpoint": null,
+        "used_tiebreak": false,
+        "json_retry": 0,
+        "n_solutions": 1,
+        "latency_ms": 9.7
+      }
+    },
+    {
+      "question": "What color is it?",
+      "events": [
+        "program",
+        "candidates",
+        "token",
+        "token",
+        "token",
+        "token",
+        "final"
+      ],
+      "final": {
+        "answer": "The bed is blue.",
+        "target_ids": [
+          26
+        ],
+        "targets": [
+          {
+            "id": 26,
+            "label": "bed",
+            "confidence": 0.90879,
+            "bbox": {
+              "center": [
+                -0.2913999855518341,
+                -2.461199998855591,
+                0.5529999732971191
+              ],
+              "size": [
+                1.7757999897003174,
+                2.033400058746338,
+                1.1620999574661255
+              ]
+            }
+          }
+        ],
+        "related": [],
+        "program": {
+          "intent": "attribute",
+          "vars": {
+            "t": "bed"
+          },
+          "constraints": [],
+          "select": null,
+          "target": "t",
+          "appearance": [],
+          "viewpoint": null
+        },
+        "evidence": {
+          "frames": [
+            {
+              "object_id": 26,
+              "frame_id": 970
+            }
+          ],
+          "n_solutions": 1,
+          "tiebreak": false,
+          "viewpoint": "room",
+          "keyframe": "/v1/scenes/scene0000_00/frames/970.jpg"
+        },
+        "session_id": "d2bb472d086a4b549d8801217a66f304",
+        "viewpoint": {
+          "position": [
+            -0.1151726096868515,
+            0.012256264686584473,
+            1.4477542638778687
+          ],
+          "forward": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "used_tiebreak": false,
+        "json_retry": 0,
+        "n_solutions": 1,
+        "latency_ms": 2478.4
+      }
+    },
+    {
+      "question": "How many stools?",
+      "events": [
+        "program",
+        "candidates",
+        "token",
+        "token",
+        "token",
+        "final"
+      ],
+      "final": {
+        "answer": "I found 4.",
+        "target_ids": [
+          3,
+          27,
+          28,
+          18
+        ],
+        "targets": [
+          {
+            "id": 3,
+            "label": "stool",
+            "confidence": 0.95384,
+            "bbox": {
+              "center": [
+                1.2811000347137451,
+                1.7675000429153442,
+                0.3709999918937683
+              ],
+              "size": [
+                0.4724000096321106,
+                0.9314000010490417,
+                0.7211999893188477
+              ]
+            }
+          },
+          {
+            "id": 27,
+            "label": "stool",
+            "confidence": 0.94958,
+            "bbox": {
+              "center": [
+                1.3207999467849731,
+                2.8752999305725098,
+                0.40799999237060547
+              ],
+              "size": [
+                0.4207000136375427,
+                0.9639999866485596,
+                0.6949999928474426
+              ]
+            }
+          },
+          {
+            "id": 28,
+            "label": "stool",
+            "confidence": 0.93769,
+            "bbox": {
+              "center": [
+                1.3654999732971191,
+                3.141200065612793,
+                0.41200000047683716
+              ],
+              "size": [
+                0.3589000105857849,
+                0.5522000193595886,
+                0.7026000022888184
+              ]
+            }
+          },
+          {
+            "id": 18,
+            "label": "stool",
+            "confidence": 0.9154,
+            "bbox": {
+              "center": [
+                1.2768000364303589,
+                2.263700008392334,
+                0.4952999949455261
+              ],
+              "size": [
+                0.49559998512268066,
+                0.9952999949455261,
+                0.9262999892234802
+              ]
+            }
+          }
+        ],
+        "related": [],
+        "program": {
+          "intent": "count",
+          "vars": {
+            "t": "stool"
+          },
+          "constraints": [],
+          "select": null,
+          "target": "t",
+          "appearance": [],
+          "viewpoint": null
+        },
+        "evidence": {
+          "frames": [
+            {
+              "object_id": 3,
+              "frame_id": 5240
+            },
+            {
+              "object_id": 27,
+              "frame_id": 4990
+            },
+            {
+              "object_id": 28,
+              "frame_id": 5000
+            },
+            {
+              "object_id": 18,
+              "frame_id": 5190
+            }
+          ],
+          "n_solutions": 4,
+          "tiebreak": false,
+          "viewpoint": "room",
+          "keyframe": "/v1/scenes/scene0000_00/frames/5240.jpg"
+        },
+        "session_id": "6fa86582712f49bea0a175790241f444",
+        "viewpoint": {
+          "position": [
+            -0.1151726096868515,
+            0.012256264686584473,
+            1.4477542638778687
+          ],
+          "forward": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "used_tiebreak": false,
+        "json_retry": 0,
+        "n_solutions": 4,
+        "latency_ms": 757.7
+      }
+    },
+    {
+      "question": "Describe the bed.",
+      "events": [
+        "program",
+        "candidates",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "final"
+      ],
+      "final": {
+        "answer": "A bed with a dark blue bedspread and a white bed frame, featuring a large brown teddy bear resting on a light blue pillow at the head of the bed. A dark bag or suitcase is placed on the bed’s surface. The bed is positioned on a patterned carpet, with a small white nightstand partially visible to the left.",
+        "target_ids": [
+          26
+        ],
+        "targets": [
+          {
+            "id": 26,
+            "label": "bed",
+            "confidence": 0.90879,
+            "bbox": {
+              "center": [
+                -0.2913999855518341,
+                -2.461199998855591,
+                0.5529999732971191
+              ],
+              "size": [
+                1.7757999897003174,
+                2.033400058746338,
+                1.1620999574661255
+              ]
+            }
+          }
+        ],
+        "related": [],
+        "program": {
+          "intent": "attribute",
+          "vars": {
+            "t": "bed"
+          },
+          "constraints": [],
+          "select": null,
+          "target": "t",
+          "appearance": [],
+          "viewpoint": null
+        },
+        "evidence": {
+          "frames": [
+            {
+              "object_id": 26,
+              "frame_id": 970
+            }
+          ],
+          "n_solutions": 1,
+          "tiebreak": false,
+          "viewpoint": "room",
+          "keyframe": "/v1/scenes/scene0000_00/frames/970.jpg"
+        },
+        "session_id": "7cfdccff598841179697e43cf277d33a",
+        "viewpoint": {
+          "position": [
+            -0.1151726096868515,
+            0.012256264686584473,
+            1.4477542638778687
+          ],
+          "forward": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "used_tiebreak": false,
+        "json_retry": 0,
+        "n_solutions": 1,
+        "latency_ms": 535.4
+      }
+    },
+    {
+      "question": "Describe the bed.",
+      "events": [
+        "program",
+        "candidates",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "token",
+        "final"
+      ],
+      "final": {
+        "answer": "A bed with a dark blue bedspread and a white bed frame, featuring a large brown teddy bear resting on a light blue pillow at the head of the bed. A dark bag or suitcase is placed on the bed’s surface. The bed is positioned on a patterned carpet, with a small white nightstand partially visible to the left.",
+        "target_ids": [
+          26
+        ],
+        "targets": [
+          {
+            "id": 26,
+            "label": "bed",
+            "confidence": 0.90879,
+            "bbox": {
+              "center": [
+                -0.2913999855518341,
+                -2.461199998855591,
+                0.5529999732971191
+              ],
+              "size": [
+                1.7757999897003174,
+                2.033400058746338,
+                1.1620999574661255
+              ]
+            }
+          }
+        ],
+        "related": [],
+        "program": {
+          "intent": "attribute",
+          "vars": {
+            "t": "bed"
+          },
+          "constraints": [],
+          "select": null,
+          "target": "t",
+          "appearance": [],
+          "viewpoint": null
+        },
+        "evidence": {
+          "frames": [
+            {
+              "object_id": 26,
+              "frame_id": 970
+            }
+          ],
+          "n_solutions": 1,
+          "tiebreak": false,
+          "viewpoint": "room",
+          "keyframe": "/v1/scenes/scene0000_00/frames/970.jpg"
+        },
+        "session_id": "7cfdccff598841179697e43cf277d33a",
+        "viewpoint": {
+          "position": [
+            -0.1151726096868515,
+            0.012256264686584473,
+            1.4477542638778687
+          ],
+          "forward": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "used_tiebreak": false,
+        "json_retry": 0,
+        "n_solutions": 1,
+        "latency_ms": 529.4
+      }
+    }
+  ],
+  "offline_runtime_verified": true,
+  "outbound_tcp_error": 101
+}

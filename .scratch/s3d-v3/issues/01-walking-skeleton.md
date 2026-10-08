@@ -4,12 +4,14 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] `s3d serve` chạy native trên Windows bằng uv, phục vụ web tĩnh ở `/` và `GET /v1/health`, chỉ bind `127.0.0.1`.
-- [ ] Trang chủ gọi `/v1/health` bằng đường dẫn tương đối và hiện trạng thái.
-- [ ] Package Python đổi từ `backend` thành `s3d_app`, Python 3.12; `uv.lock` resolve cho cả Windows và Linux x86_64.
-- [ ] Frontend Next.js (App Router, TypeScript, Tailwind CSS, shadcn/ui) với `output: 'export'`; bản build được FastAPI phục vụ.
-- [ ] Kiểu TypeScript sinh từ `/openapi.json` bằng `openapi-typescript`; đổi API mà không sinh lại kiểu thì build web báo lỗi.
-- [ ] `S3D_DEV=1` bật CORS cho cổng dev của Next.js; không đặt biến thì không có CORS.
-- [ ] pytest, vitest, ruff chạy được; GitHub Actions chạy test CPU, ruff và build web, và đang xanh.
+- [x] `s3d serve` chạy native trên Windows bằng uv, phục vụ web tĩnh ở `/` và `GET /v1/health`, chỉ bind `127.0.0.1`.
+- [x] Trang chủ gọi `/v1/health` bằng đường dẫn tương đối và hiện trạng thái.
+- [x] Package Python đổi từ `backend` thành `s3d_app`, Python 3.12; `uv.lock` resolve cho cả Windows và Linux x86_64.
+- [x] Frontend Next.js (App Router, TypeScript, Tailwind CSS, shadcn/ui) với `output: 'export'`; bản build được FastAPI phục vụ.
+- [x] Kiểu TypeScript sinh từ `/openapi.json` bằng `openapi-typescript`; đổi API mà không sinh lại kiểu thì build web báo lỗi.
+- [x] `S3D_DEV=1` bật CORS cho cổng dev của Next.js; không đặt biến thì không có CORS.
+- [x] pytest, vitest, ruff chạy được; GitHub Actions chạy test CPU, ruff và build web, và đang xanh.
+
+**Verification:** See [implementation evidence](../../../docs/verification.md) and [review](../../../docs/code-review.md).
