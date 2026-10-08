@@ -64,6 +64,16 @@ export default function Home() {
       setBusy(false);
     }
   }
+  function upload(file: File | undefined) {
+    if (busy || !file) return;
+    if (!file.name.endsWith(".s3dpkg")) {
+      setMessage("Select an aligned .s3dpkg Package (v2).");
+      return;
+    }
+    const data = new FormData();
+    data.set("file", file);
+    submit(data);
+  }
   async function reprocess(sceneId: string) {
     const response = await fetch(apiUrl(`/v1/scenes/${encodeURIComponent(sceneId)}/reprocess`), {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -88,11 +98,11 @@ export default function Home() {
     <section className="card">
       <h2>Import a Package</h2>
       <p className="muted">Prepare your Scan outside S3D, then upload its .s3dpkg file. Package v2 is required.</p>
-      <label className="upload">Drop or select a .s3dpkg file
-        <input type="file" accept=".s3dpkg" disabled={busy} onChange={event => {
-          const file = event.target.files?.[0];
-          if (file) { const data = new FormData(); data.set("file", file); submit(data); }
-        }} />
+      <label className="upload" onDragOver={event => event.preventDefault()}
+        onDrop={event => { event.preventDefault(); upload(event.dataTransfer.files[0]); }}>
+        Drop or select a .s3dpkg file
+        <input type="file" accept=".s3dpkg" disabled={busy}
+          onChange={event => upload(event.target.files?.[0])} />
       </label>
     </section>
     {message && <p role="status" className="message">{message}</p>}

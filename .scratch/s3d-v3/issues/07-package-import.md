@@ -6,6 +6,8 @@
 
 **Status:** complete
 
+**Input revision 2026-10-09:** The v1, inbox and in-app alignment requirements below are historical; [ticket 25](25-external-preprocessing-upload-only.md) and ADR 0009 supersede them.
+
 - [x] `POST /v1/imports` nhận file upload hoặc tên file trong inbox; Package nhiều GB upload được mà không nạp cả file vào RAM.
 - [x] S0 từ chối khi sai đuôi, `format_version` không được hỗ trợ, `status` khác `complete`, thiếu file hoặc sha256 lệch; lỗi nói rõ điều kiện nào sai và hiện trên web.
 - [x] Import thành công: Package được chép vào kho dữ liệu, Scene được tạo với id = mã scan, hiện trong `GET /v1/scenes` và `GET /v1/scenes/{id}`.

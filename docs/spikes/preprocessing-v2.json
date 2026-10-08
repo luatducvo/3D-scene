@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-09",
+  "output": "dataset/preprocessing",
+  "real_packages": [
+    {
+      "scan": "scene0000_00",
+      "format_version": "s3dpkg/2",
+      "coordinate_frame": "axis_aligned",
+      "bytes": 190289920,
+      "sha256": "f57abea211ee5e35aba5ecc750767e414492f14bc72aaa1194905db50c66569c",
+      "vertices": 81369,
+      "S1_did_not_modify_package": true,
+      "max_point_delta_vs_previous_aligned_reference": 0.0
+    },
+    {
+      "scan": "scene0000_01",
+      "format_version": "s3dpkg/2",
+      "coordinate_frame": "axis_aligned",
+      "bytes": 198113280,
+      "sha256": "ea7eb3ff9026beffe42adeba1591e391a7272dbfaeba12e08537c74bdab75e71",
+      "vertices": 80583,
+      "S1_did_not_modify_package": true,
+      "max_point_delta_vs_previous_aligned_reference": null
+    }
+  ]
+}

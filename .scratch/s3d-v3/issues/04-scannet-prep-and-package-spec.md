@@ -6,6 +6,8 @@
 
 **Status:** complete
 
+**Input revision 2026-10-09:** The v1, inbox and in-app alignment requirements below are historical; [ticket 25](25-external-preprocessing-upload-only.md) and ADR 0009 supersede them.
+
 - [x] Đặc tả `s3dpkg/1` được viết thành tài liệu: cấu trúc file, manifest (format_version, status, phiên bản script, tham số, sha256 từng file, sha256 của `.sens`, aligned) và kiểu dữ liệu từng file.
 - [x] `pack` tạo Package cho scene0000_00 và scene0000_01: giải mã `.sens` dạng stream, giữ 1/10 khung, bỏ pose không hữu hạn, ghi điểm mờ, ảnh màu cạnh dài 960 px, depth uint16, intrinsics đã hiệu chỉnh, mesh giữ thứ tự đỉnh, superpoint lấy từ `segs.json`; không chứa nhãn GT.
 - [x] Package được ghi ra file `.partial`, tự `verify` rồi mới đổi tên; ngắt giữa chừng không để lại file mang đuôi `.s3dpkg`.

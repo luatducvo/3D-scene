@@ -1,5 +1,21 @@
 # Ticket acceptance evidence
 
+## Input revision: 2026-10-09
+
+Ticket 25 / ADR 0009 supersede the historical v1/inbox/S1-alignment requirements
+below. The current flow is standalone prep from `dataset/scans/` to aligned
+`s3dpkg/2` files in `dataset/preprocessing/`, followed by manual upload only.
+Missing/invalid source alignment is rejected; the app rejects v1 and never applies
+the source transform again. Two v2 Packages were created and independently loaded
+through S1 without modifying the originals. Current verification: 56 backend,
+5 standalone prep and 2 frontend tests passed, along with lint, API types and
+native/Docker builds. Both existing Scenes and their Keyframes remain usable.
+See [input review](code-review-input-v2.md), `spikes/preprocessing-v2.json` and
+`spikes/upload-v2-live.json`. The new Packages are ready for the user to upload;
+they were not imported into the existing application by the agent.
+
+## Historical v1 implementation
+
 Date: 2026-10-08. Windows, Docker Desktop, RTX 3050 6 GiB.
 All 24 tickets are implemented. Tests use synthetic contracts at module seams;
 GPU and installation gates below use the licensed local scans and actual models.

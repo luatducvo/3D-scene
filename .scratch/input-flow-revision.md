@@ -22,7 +22,7 @@ dataset/scans/<scan>
     → Import / Scene processing
 ```
 
-## Current facts
+## Facts recorded before implementation (`2ed393e`)
 
 - The script already accepts a separate output directory through `--out`.
 - Raw mesh and camera poses currently remain unchanged in the Package.

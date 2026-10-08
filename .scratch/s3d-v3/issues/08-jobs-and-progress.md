@@ -6,6 +6,8 @@
 
 **Status:** complete
 
+**Input revision 2026-10-09:** The v1, inbox and in-app alignment requirements below are historical; [ticket 25](25-external-preprocessing-upload-only.md) and ADR 0009 supersede them.
+
 - [x] Import thành công tạo job; worker lấy job từ bảng `jobs`, chạy các stage tuần tự và cập nhật trạng thái job và Scene trong SQLite (WAL).
 - [x] S1 giải nén Package, áp `T_align` cho đỉnh và pose, ghi artifact vào thư mục theo stage và config hash; chạy lại với cùng config thì bỏ qua.
 - [x] `GET /v1/scenes/{id}/events` (SSE) phát tiến độ; trang chủ hiện bằng `EventSource`.

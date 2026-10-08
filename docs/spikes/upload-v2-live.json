@@ -1,0 +1,10 @@
+{
+  "date": "2026-10-09",
+  "upload_only_schema": true,
+  "inbox_http_status": 404,
+  "v1_upload_http_status": 400,
+  "v1_reprocess_http_status": 400,
+  "existing_scenes_unchanged": true,
+  "existing_keyframe_available": true,
+  "scene_count": 2
+}

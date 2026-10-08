@@ -14,7 +14,7 @@ Việc chuẩn hoá dữ liệu và căn chỉnh hệ toạ độ của một Sc
 _Avoid_: Import, xử lý Scene
 
 **Package**:
-Dữ liệu của một Scan đã được tiền xử lý, là đơn vị đầu vào để Import thành một Scene.
+Dữ liệu của một Scan đã được tiền xử lý và căn chỉnh hệ toạ độ, là đơn vị đầu vào để Import thành một Scene.
 _Avoid_: gói raw, bundle, archive
 
 **Scene**:

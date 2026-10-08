@@ -576,7 +576,7 @@ Làm solver và vị từ trước VLM có chủ đích: nếu LLM 4B không đ�
 4. **Test JSON:** 30 câu hỏi mẫu tiếng Anh, một phần kèm ảnh, qua `response_format` trên build đã ghim; đếm tỉ lệ JSON hợp lệ.
 5. **Build `mask3d` từ đầu** trong Docker Desktop với `FORCE_CUDA=1`; kiểm tra MinkowskiEngine báo hỗ trợ CUDA trong container đang chạy; `docker save` bản dự phòng.
 6. **Thời gian nạp một scene** từ đầu đến cuối và từng stage.
-7. **Scene thiếu `axisAlignment`** đi qua toàn pipeline (dùng bản sao scene0000_00 đã xoá dòng `axisAlignment`).
+7. **Scan thiếu hoặc sai `axisAlignment`** bị từ chối tại prep, báo lỗi rõ và không tạo Package hoàn chỉnh (dùng bản sao scene0000_00 đã xoá dòng `axisAlignment`). Hệ thống chỉ nhận v2 đã căn chỉnh.
 
 **Rủi ro chính**
 

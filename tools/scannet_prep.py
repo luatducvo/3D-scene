@@ -9,7 +9,6 @@ import csv
 import hashlib
 import io
 import json
-import math
 import re
 import struct
 import tarfile
@@ -81,21 +80,27 @@ def sens_header(stream) -> dict:
     }
 
 
+def is_rigid_transform(matrix: np.ndarray) -> bool:
+    return (matrix.shape == (4, 4) and bool(np.isfinite(matrix).all())
+            and np.allclose(matrix[3], [0, 0, 0, 1], atol=1e-5)
+            and np.allclose(matrix[:3, :3].T @ matrix[:3, :3], np.eye(3), atol=1e-3)
+            and bool(np.isclose(np.linalg.det(matrix[:3, :3]), 1, atol=1e-3)))
+
+
 def alignment(scan_dir: Path, scan_id: str) -> list[list[float]]:
     metadata = scan_dir / f"{scan_id}.txt"
     if metadata.exists():
         for line in metadata.read_text(errors="replace").splitlines():
-            if line.startswith("axisAlignment") and "=" in line:
+            key, separator, value = line.partition("=")
+            if key.strip() == "axisAlignment" and separator:
                 try:
-                    values = [float(item) for item in line.split("=", 1)[1].split()]
+                    values = [float(item) for item in value.split()]
                 except ValueError as exc:
                     raise PackageError("alignment: invalid axisAlignment") from exc
-                if len(values) != 16 or not all(math.isfinite(item) for item in values):
+                if len(values) != 16:
                     raise PackageError("alignment: invalid axisAlignment")
                 matrix = np.array(values).reshape(4, 4)
-                if (not np.allclose(matrix[3], [0, 0, 0, 1], atol=1e-5)
-                        or not np.allclose(matrix[:3, :3].T @ matrix[:3, :3], np.eye(3), atol=1e-3)
-                        or not np.isclose(np.linalg.det(matrix[:3, :3]), 1, atol=1e-3)):
+                if not is_rigid_transform(matrix):
                     raise PackageError("alignment: axisAlignment must be a rigid transform")
                 return matrix.tolist()
     raise PackageError(f"alignment: missing axisAlignment in {metadata.name}; supply valid alignment metadata before packing")
@@ -124,10 +129,7 @@ def verify(package: Path) -> dict:
         if not SCAN_RE.fullmatch(manifest.get("scan_id", "")):
             raise PackageError("manifest: invalid scan_id")
         source_alignment = np.asarray(manifest.get("source_axis_alignment"), dtype=np.float64)
-        if (source_alignment.shape != (4, 4) or not np.isfinite(source_alignment).all()
-                or not np.allclose(source_alignment[3], [0, 0, 0, 1], atol=1e-5)
-                or not np.allclose(source_alignment[:3, :3].T @ source_alignment[:3, :3], np.eye(3), atol=1e-3)
-                or not np.isclose(np.linalg.det(source_alignment[:3, :3]), 1, atol=1e-3)
+        if (not is_rigid_transform(source_alignment)
                 or manifest.get("coordinate_frame") != "axis_aligned"):
             raise PackageError("alignment: Package must contain axis_aligned coordinates and a valid source transform")
         files = manifest.get("files")

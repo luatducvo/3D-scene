@@ -6,6 +6,8 @@
 
 **Status:** complete
 
+**Input revision 2026-10-09:** The v1, inbox and in-app alignment requirements below are historical; [ticket 25](25-external-preprocessing-upload-only.md) and ADR 0009 supersede them.
+
 - [x] `docker compose up` rồi mở `http://localhost:8000` thấy trang skeleton; cổng chỉ bind `127.0.0.1`.
 - [x] Image `api` cài từ cùng `uv.lock` (frozen); lớp phụ thuộc chỉ build lại khi lock đổi.
 - [x] Dữ liệu và model nằm trong named volume; inbox là bind mount, cấu hình được bằng biến môi trường.
