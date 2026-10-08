@@ -113,6 +113,9 @@ def caption(scene_id: str, item: dict, router: LlmRouter) -> str:
 def verified_wording(proposed: str, fallback: str, allowed_ids: set[int | str],
                      allowed_numbers: set[int]) -> str:
     normalized = proposed.lower()
+    # Composite quantities cannot be validated by checking their individual digits.
+    if re.search(r"\d[.,]\d|\b(?:thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|half|quarter|dozen)\b", normalized):
+        return fallback
     words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
              "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
              "seventeen", "eighteen", "nineteen", "twenty"]
@@ -120,6 +123,7 @@ def verified_wording(proposed: str, fallback: str, allowed_ids: set[int | str],
         normalized = re.sub(rf"\b{word}\b", str(number), normalized)
     mentioned = set(re.findall(r"(?:object\s*#?\s*|#)([a-z][a-z0-9-]*|\d+)", normalized))
     allowed = {str(identifier).lower() for identifier in allowed_ids}
-    id_numbers = {int(value) for identifier in mentioned for value in re.findall(r"\d+", identifier)}
-    numbers = {int(value) for value in re.findall(r"\b\d+\b", normalized)}
-    return proposed if mentioned <= allowed and (numbers - id_numbers) <= allowed_numbers else fallback
+    # Remove only ID occurrences, so a quantity equal to an ID still needs validation.
+    quantities = re.sub(r"(?:object\s*#?\s*|#)([a-z][a-z0-9-]*|\d+)", "", normalized)
+    numbers = {int(value) for value in re.findall(r"\b\d+\b", quantities)}
+    return proposed if mentioned <= allowed and numbers <= allowed_numbers else fallback

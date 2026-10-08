@@ -141,8 +141,8 @@ def run_instances(scene_id: str) -> dict:
 def unload_llm() -> None:
     try:
         LlmRouter().unload_all()
-    except urllib.error.URLError:
-        pass
+    except urllib.error.URLError as exc:
+        raise RuntimeError("Cannot confirm LLM unloading. Start the llm service and retry the Scene job.") from exc
 
 
 def run_module(module: str, *arguments: str, environment: dict | None = None) -> None:

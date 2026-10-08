@@ -61,6 +61,7 @@ export default function SceneCanvas({ sceneId }: { sceneId: string }) {
   const [relations, setRelations] = useState<Relation[]>([]);
   const [filter, setFilter] = useState("");
   const [highlightTargets, setHighlightTargets] = useState<number[]>([]);
+  const [relatedTargets, setRelatedTargets] = useState<number[]>([]);
   const [selectedStructureIds, setSelectedStructureIds] = useState<string[]>([]);
   const cameraRef = useRef<PerspectiveCamera | null>(null);
   const selectionTexture = useMemo(() => {
@@ -68,11 +69,12 @@ export default function SceneCanvas({ sceneId }: { sceneId: string }) {
     const data = new Uint8Array(width * 4);
     const selectedIds = highlightTargets.length ? highlightTargets : clicked !== null && clicked >= 0 ? [clicked] : [];
     selectedIds.forEach((id, index) => { if (id >= 0 && id < width) data.set([...HIGHLIGHT_COLORS[index % HIGHLIGHT_COLORS.length], 255], id * 4); });
+    relatedTargets.forEach(id => { if (id >= 0 && id < width && !selectedIds.includes(id)) data.set([83, 190, 224, 255], id * 4); });
     const texture = new DataTexture(data, width, 1, RGBAFormat);
     texture.magFilter = texture.minFilter = NearestFilter;
     texture.needsUpdate = true;
-    return { texture, width, active: selectedIds.length > 0 };
-  }, [objects, clicked, highlightTargets]);
+    return { texture, width, active: selectedIds.length > 0 || relatedTargets.length > 0 };
+  }, [objects, clicked, highlightTargets, relatedTargets]);
   useEffect(() => () => selectionTexture.texture.dispose(), [selectionTexture]);
   useEffect(() => {
     fetch(apiUrl(`/v1/scenes/${encodeURIComponent(sceneId)}/mesh`))
@@ -131,6 +133,7 @@ export default function SceneCanvas({ sceneId }: { sceneId: string }) {
     if (!mesh || event.faceIndex == null) return;
     const index = mesh.indices[event.faceIndex * 3 + 2];
     setHighlightTargets([]);
+    setRelatedTargets([]);
     setSelectedStructureIds([]);
     setClicked(mesh.instanceIds[index]);
   }
@@ -188,7 +191,7 @@ export default function SceneCanvas({ sceneId }: { sceneId: string }) {
     <div className="object-list">{objects.filter(item =>
       item.label.toLowerCase().includes(filter.toLowerCase())).map(item =>
       <button className={clicked === item.id ? "object-item selected" : "object-item"}
-        key={item.id} onClick={() => { setHighlightTargets([]); setSelectedStructureIds([]); setClicked(item.id); }}>
+        key={item.id} onClick={() => { setHighlightTargets([]); setRelatedTargets([]); setSelectedStructureIds([]); setClicked(item.id); }}>
         <span className="swatch" style={{ backgroundColor: `rgb(${item.rgb.join(",")})` }} />
         <span><strong>{item.label}</strong><small>#{item.id} · {Math.round(item.confidence * 100)}% · {item.color}</small></span>
       </button>)}</div>
@@ -201,6 +204,7 @@ export default function SceneCanvas({ sceneId }: { sceneId: string }) {
           onClick={() => {
             const id = Number(relation.anchor);
             setHighlightTargets([]);
+            setRelatedTargets([]);
             if (Number.isInteger(id)) { setSelectedStructureIds([]); setClicked(id); }
             else { setClicked(null); setSelectedStructureIds(relation.anchor === "room" ? [] : relation.anchor.split(",")); setShowStructures(relation.anchor !== "room"); }
           }}>
@@ -208,9 +212,10 @@ export default function SceneCanvas({ sceneId }: { sceneId: string }) {
             String(item.id) === relation.anchor)?.label ?? relation.anchor}
         </button>)}
     </div>}
-  </aside><ChatPanel sceneId={sceneId} selectedObjectId={clicked ?? (selectedStructureIds.length === 1 ? selectedStructureIds[0] : null)} onTargets={ids => {
+  </aside><ChatPanel sceneId={sceneId} selectedObjectId={clicked ?? (selectedStructureIds.length === 1 ? selectedStructureIds[0] : null)} onTargets={(ids, related = []) => {
     const objectIds = ids.filter((id): id is number => typeof id === "number");
-    const structureIds = ids.filter((id): id is string => typeof id === "string" && id !== "room");
+    const structureIds = [...ids, ...related].filter((id): id is string => typeof id === "string" && id !== "room");
+    setRelatedTargets(related.filter((id): id is number => typeof id === "number"));
     setHighlightTargets(objectIds);
     setClicked(objectIds.length === 1 ? objectIds[0] : null);
     setSelectedStructureIds(structureIds);

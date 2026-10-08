@@ -1,0 +1,3 @@
+# Viewpoint mặc định của vị từ trái/phải/trước/sau là camera viewer
+
+CSVG và kiến trúc v3 đặt người nhìn ở tâm phòng nhìn về anchor, nhưng scan như scene0000_00 gồm nhiều khu nên tâm phòng có thể không nằm trong không gian nào có nghĩa. Vì người dùng hỏi trong lúc nhìn viewer 3D, web gửi pose camera hiện tại kèm mỗi câu hỏi và đó là Viewpoint mặc định; chỉ khi không có camera (gọi API trực tiếp) mới dùng tâm phòng, và câu nêu rõ góc nhìn ("từ cửa vào") luôn ghi đè. Hệ quả: cùng một câu có thể cho đáp án khác nhau khi người dùng xoay camera, và `queries` phải lưu Viewpoint đã dùng để tái hiện câu trả lời.

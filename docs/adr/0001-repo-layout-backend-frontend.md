@@ -1,0 +1,3 @@
+# Giữ layout backend/ + frontend/ thay cho uv workspace trong kiến trúc v3
+
+Kiến trúc v3 mô tả một uv workspace (`packages/s3d-app`, `web/`, `envs/mask3d`, Python 3.11), nhưng repo đã có sẵn `backend/` (uv project) và `frontend/`. Ta giữ hai thư mục này: `backend/` là service `api` (package Python `s3d_app`, CLI `s3d`, Python 3.12), `frontend/` là web Next.js; thêm `mask3d/` (project uv riêng, Python 3.10, PyTorch 1.12 + cu113), `docker/` và `tools/` ở gốc. Chỉ có một package Python cho hệ thống nên không cần workspace; Python 3.12 được mọi phụ thuộc chính (torch cu128, ultralytics, open_clip) hỗ trợ.

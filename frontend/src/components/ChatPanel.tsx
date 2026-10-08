@@ -9,13 +9,13 @@ import { highlightColor } from "@/lib/highlights";
 type NodeId = number | string;
 type Candidate = { id: NodeId; label: string; color: string; size: number[]; center?: number[] };
 type EvidenceFrame = { object_id: number; frame_id: number };
-type Final = { answer: string; target_ids: NodeId[]; targets: { id: NodeId }[]; session_id: string;
+type Final = { answer: string; target_ids: NodeId[]; targets: { id: NodeId }[]; related: { id: NodeId }[]; session_id: string;
   evidence: { frames: EvidenceFrame[]; tiebreak: boolean }; latency_ms: number };
 
 export default function ChatPanel({ sceneId, viewpoint, onTargets, selectedObjectId }: {
   sceneId: string;
   viewpoint: () => { position: number[]; forward: number[] } | null;
-  onTargets: (ids: NodeId[]) => void;
+  onTargets: (ids: NodeId[], related?: NodeId[]) => void;
   selectedObjectId: NodeId | null;
 }) {
   const [text, setText] = useState("");
@@ -61,7 +61,7 @@ export default function ChatPanel({ sceneId, viewpoint, onTargets, selectedObjec
           setAnswer(final.answer);
           setEvidence(final.evidence?.frames ?? []);
           setSessionId(final.session_id);
-          onTargets(final.target_ids ?? final.targets.map(item => item.id));
+          onTargets(final.target_ids ?? final.targets.map(item => item.id), (final.related ?? []).map(item => item.id));
         }
       });
       while (true) {
