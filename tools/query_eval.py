@@ -7,6 +7,7 @@ import urllib.request
 from pathlib import Path
 
 from s3d_app.ask import _node, scene_context
+from s3d_app.retrieval import similarities
 from s3d_app.solver import Program, Viewpoint, solve
 
 
@@ -79,11 +80,15 @@ def run(base_url: str, scene: str) -> dict:
     objects = json.loads(request(f"{base_url}/v1/scenes/{scene}/objects"))
     records, graph = scene_context(scene, objects)
     nodes = [_node(item) for item in records]
+    def evaluate(program):
+        semantic = {variable: similarities(scene, phrase) for variable, phrase in program.vars.items()
+                    if phrase not in {"object", "thing", "any", "wall", "floor", "room"}}
+        return solve(program, nodes, Viewpoint(**VIEWPOINT), graph=graph, semantic_scores=semantic)
     rows = []
     for index, (question, expected_json) in enumerate(CASES):
         started = time.monotonic()
         expected_program = Program.model_validate(expected_json)
-        expected = solve(expected_program, nodes, Viewpoint(**VIEWPOINT), graph=graph)
+        expected = evaluate(expected_program)
         expected_targets = {solution[expected_program.target] for solution in expected.solutions}
         row = {"question": question, "expected_program": expected_json}
         try:
@@ -98,7 +103,7 @@ def run(base_url: str, scene: str) -> dict:
             if expected_program.intent == "open":
                 row["solution_correct"] = None
             elif program is not None and program.intent != "open":
-                actual = solve(program, nodes, Viewpoint(**VIEWPOINT), graph=graph)
+                actual = evaluate(program)
                 targets = {solution[program.target] for solution in actual.solutions}
                 row.update(expected_targets=sorted(expected_targets, key=str), actual_targets=sorted(targets, key=str),
                            solution_correct=(program.intent == expected_program.intent and

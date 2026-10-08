@@ -157,7 +157,7 @@ export default function SceneCanvas({ sceneId }: { sceneId: string }) {
       }}>
         {showStructures ? "Hide" : "Show"} Structures
       </Button>
-      <Canvas camera={{ position: [center.x + radius, center.y - radius, center.z + radius / 2],
+      <Canvas frameloop="demand" camera={{ position: [center.x + radius, center.y - radius, center.z + radius / 2],
                         fov: 55, near: 0.01, far: radius * 50 }}
         onCreated={({ camera }) => {
           camera.up.set(0, 0, 1);

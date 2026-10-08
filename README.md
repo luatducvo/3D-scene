@@ -102,7 +102,9 @@ docker compose up -d api
 
 Cloud mode calls chat completions directly and does not call local model-management
 endpoints or take the GPU lock. It sends the question, label/context text, and real
-Keyframes for vision requests. Packages and full meshes stay local. Debug Program
+Keyframes for vision requests. Solver results are worded locally in cloud mode;
+Object IDs, counts, geometry and graph relations are not sent for rephrasing.
+Packages and full meshes stay local. Debug Program
 input is enabled with `S3D_DEBUG_PROGRAM=1`; it is off by default. Captions are lazy
 and cached in SQLite.
 

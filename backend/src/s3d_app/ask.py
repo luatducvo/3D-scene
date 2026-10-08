@@ -492,7 +492,7 @@ def _answer_events(scene_id: str, body: dict[str, Any],
     evidence = [{"object_id": item_id, "frame_id": by_id[item_id]["keyframes"][0]}
                 for item_id in targets if by_id[item_id].get("keyframes")]
     streamed = False
-    if program and program.intent in {"ground", "count", "exists"} and not debug_program:
+    if program and program.intent in {"ground", "count", "exists"} and not debug_program and active_router.managed:
         fallback = answer
         chunks = []
         try:

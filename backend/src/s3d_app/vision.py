@@ -107,7 +107,7 @@ def verified_wording(proposed: str, fallback: str, allowed_ids: set[int | str],
                      allowed_numbers: set[int]) -> str:
     normalized = proposed.lower()
     # Composite quantities cannot be validated by checking their individual digits.
-    if re.search(r"\d[.,]\d|\b(?:thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|half|quarter|dozen)\b", normalized):
+    if re.search(r"\d[.,/]\d|(?<!\w)-\d|\b(?:thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|half|quarter|dozen)\b|\btwenty[ -]+(?:one|two|three|four|five|six|seven|eight|nine)\b", normalized):
         return fallback
     words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
              "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
