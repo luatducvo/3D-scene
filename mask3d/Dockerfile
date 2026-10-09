@@ -10,8 +10,9 @@ ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python \
     VIRTUAL_ENV=/opt/venv \
     PATH=/opt/venv/bin:/usr/local/cuda/bin:${PATH} \
     FORCE_CUDA=1 \
-    TORCH_CUDA_ARCH_LIST=8.6 \
+    TORCH_CUDA_ARCH_LIST=7.5 \
     MAX_JOBS=2
+#TORCH_CUDA_ARCH_LIST=7.5
 RUN uv python install 3.10 && uv venv /opt/venv --python 3.10
 RUN uv pip install --python /opt/venv/bin/python numpy==1.24.2 ninja==1.10.2.3 \
     torch==1.12.1+cu113 torchvision==0.13.1+cu113 \

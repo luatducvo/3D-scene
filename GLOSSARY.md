@@ -1,26 +1,26 @@
 # S3D
 
-S3D nhận dữ liệu của Scan đã được tiền xử lý để tạo Scene và hỗ trợ hỏi đáp
-về các đồ vật trong Scene.
+S3D ingests preprocessed Scan data to create a Scene and supports question answering
+about objects within the Scene.
 
 ## Language
 
 **Scan**:
-Một lần quét RGB-D của ScanNet, định danh bằng mã scan; cùng một phòng có thể có nhiều Scan.
+An RGB-D scan from ScanNet, identified by a scan ID; the same room may have multiple Scans.
 _Avoid_: recording, capture
 
 **Preprocessing**:
-Việc chuẩn hoá dữ liệu và căn chỉnh hệ toạ độ của một Scan bên ngoài hệ thống để tạo một Package dùng được cho Import.
-_Avoid_: Import, xử lý Scene
+Normalizing data and aligning coordinates of a Scan completely outside the system to produce a Package usable for Import.
+_Avoid_: Import, Scene processing
 
 **Package**:
-Dữ liệu của một Scan đã được tiền xử lý và căn chỉnh hệ toạ độ, là đơn vị đầu vào để Import thành một Scene.
-_Avoid_: gói raw, bundle, archive
+Preprocessed and coordinate-aligned data of a Scan, serving as the sole input unit to Import into a Scene.
+_Avoid_: raw package, bundle, archive
 
 **Scene**:
-Bản thể của một Scan bên trong hệ thống; mỗi Scan có nhiều nhất một Scene.
-_Avoid_: Scan (khi nói về dữ liệu đã nạp), Room
+The internal representation of a Scan within the system; each Scan has at most one Scene.
+_Avoid_: Scan (when referring to ingested data), Room
 
 **Import**:
-Việc đưa một Package vào hệ thống để tạo hoặc thay thế Scene.
-_Avoid_: Preprocessing, upload (chỉ là cách gửi Package)
+Bringing a Package into the system to create or replace a Scene.
+_Avoid_: Preprocessing, upload (which is merely the transport mechanism for a Package)
