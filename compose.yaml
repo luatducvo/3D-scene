@@ -1,0 +1,110 @@
+# Root Compose file to run the entire 3D Scene system (Backend + Frontend)
+# Usage:
+#   docker compose up -d --build
+#
+# With local GPU compute server:
+#   docker compose --profile local-gpu up -d --build
+#
+# To stop:
+#   docker compose down
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-scene}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scene}
+      POSTGRES_DB: ${POSTGRES_DB:-scene}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scene}"]
+      interval: 5s
+      retries: 10
+
+  scene-api:
+    build:
+      context: .
+      dockerfile: backend/docker/python.Dockerfile
+      args:
+        PACKAGE: scene-api
+    command: ["uvicorn", "scene_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file:
+      - backend/.env
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - scene-data:/data
+      - ./backend/config:/app/backend/config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  scene-worker:
+    build:
+      context: .
+      dockerfile: backend/docker/python.Dockerfile
+      args:
+        PACKAGE: scene-worker
+        SYSTEM_PACKAGES: ffmpeg
+    command: ["python", "-m", "scene_worker.main"]
+    env_file:
+      - backend/.env
+    volumes:
+      - scene-data:/data
+      - ./backend/config:/app/backend/config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  scene-compute:
+    profiles:
+      - local-gpu
+    build:
+      context: .
+      dockerfile: backend/docker/compute.Dockerfile
+      args:
+        EXTRAS: "${LOCAL_GPU_EXTRAS:-}"
+    env_file:
+      - backend/.env
+    environment:
+      PORT: "9000"
+      COMPUTE_TOKEN: ""              # private network, no token needed locally
+    expose:
+      - "9000"
+    volumes:
+      - scene-data:/data
+      - ${HOST_MODELS_DIR:-./backend/models}:/models
+      - ./backend/config:/app/backend/config:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_API_MODE: ${NEXT_PUBLIC_API_MODE:-http}
+    env_file:
+      - frontend/.env
+    environment:
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://scene-api:8000}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - scene-api
+
+volumes:
+  scene-data:
+  postgres-data:
+
+networks:
+  default:
+    name: scene-net

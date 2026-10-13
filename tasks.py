@@ -36,7 +36,8 @@ def env_values():
 
 def compose(*arguments):
     env_values()
-    return run("docker", "compose", "-f", str(BACKEND / "compose.yaml"), "--env-file", str(ENV_FILE), *arguments)
+    compose_file = ROOT / "compose.yaml" if (ROOT / "compose.yaml").exists() else BACKEND / "compose.yaml"
+    return run("docker", "compose", "-f", str(compose_file), "--env-file", str(ENV_FILE), *arguments)
 
 
 def models_dir():
@@ -135,7 +136,7 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     for name, handler, help_text in [
         ("init-storage", init_storage, "create the host model cache folder"),
-        ("up", up, "start Postgres, scene-api and scene-worker"),
+        ("up", up, "start Postgres, scene-api, scene-worker and frontend"),
         ("up-local-gpu", up_local_gpu, "also start scene-compute on the local GPU"),
         ("down", down, "stop the backend, keeping all data"),
         ("reset", reset, "delete all Scenes and the database, keep model weights"),
