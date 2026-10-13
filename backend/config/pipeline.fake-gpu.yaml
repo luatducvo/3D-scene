@@ -1,0 +1,12 @@
+# Exercises remote transport without downloading model weights.
+default_gpu_target: modal
+stages:
+  ingest: {algorithm: ingest.fake, target: cpu}
+  recon: {algorithm: recon.fake, target: gpu}
+  align: {algorithm: align.fake, target: gpu}
+  mesh: {algorithm: mesh.fake, target: cpu}
+  segment: {algorithm: segment.fake, target: gpu}
+  lift: {algorithm: lift.fake, target: gpu}
+  embed: {algorithm: embed.fake, target: gpu}
+  attributes: {algorithm: attributes.fake, target: cpu}
+  graph: {algorithm: graph.fake, target: cpu}

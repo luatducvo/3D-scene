@@ -1,0 +1,54 @@
+targets:
+  cpu:
+    backend: inprocess
+  local_gpu:
+    backend: http
+    url: http://scene-compute:9000
+    shared_storage: true
+    token: ${COMPUTE_TOKEN}
+    chunk_size: 25000000
+  modal:
+    backend: http
+    url: ${MODAL_COMPUTE_URL}
+    token: ${COMPUTE_TOKEN}
+    chunk_size: 25000000
+    startup_timeout: 900
+    poll_interval: 3
+  # Real GPU Algorithms need two image variants (numpy conflict between MapAnything and SAM 3).
+  modal_recon:
+    backend: http
+    url: ${MODAL_RECON_URL}
+    token: ${COMPUTE_TOKEN}
+    chunk_size: 25000000
+    startup_timeout: 900
+    poll_interval: 3
+  modal_perception:
+    backend: http
+    url: ${MODAL_PERCEPTION_URL}
+    token: ${COMPUTE_TOKEN}
+    chunk_size: 25000000
+    startup_timeout: 900
+    poll_interval: 3
+  runpod_pod:
+    backend: http
+    url: ${RUNPOD_POD_URL}
+    token: ${COMPUTE_TOKEN}
+    chunk_size: 25000000
+    startup_timeout: 900
+    poll_interval: 3
+  runpod_serverless:
+    backend: http
+    url: ${RUNPOD_SERVERLESS_URL}
+    token: ${COMPUTE_TOKEN}
+    headers:
+      Authorization: Bearer ${RUNPOD_API_KEY}
+    chunk_size: 25000000
+    startup_timeout: 900
+    poll_interval: 3
+  generic:
+    backend: http
+    url: ${GENERIC_COMPUTE_URL}
+    token: ${COMPUTE_TOKEN}
+    chunk_size: 25000000
+    startup_timeout: 900
+    poll_interval: 3

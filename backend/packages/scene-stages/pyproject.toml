@@ -1,0 +1,48 @@
+[project]
+name="scene-stages"
+version="0.1.0"
+requires-python=">=3.12"
+dependencies=["scene-core", "pillow>=11", "httpx>=0.28"]
+[project.optional-dependencies]
+# One extra per heavy Algorithm; each runtime installs only what it runs.
+mesh-tsdf=["trimesh>=4", "scikit-image>=0.24"]
+recon-mapanything=["torch", "torchvision", "huggingface_hub", "mapanything @ git+https://github.com/facebookresearch/map-anything.git"]
+align-geocalib=["torch", "geocalib @ git+https://github.com/cvg/GeoCalib.git"]
+segment-sam3=["torch>=2.7", "huggingface_hub", "sam3 @ git+https://github.com/facebookresearch/sam3.git"]
+embed-metaclip2=["torch", "transformers>=4.56,<5", "huggingface_hub"]
+[build-system]
+requires=["hatchling"]
+build-backend="hatchling.build"
+[tool.uv.sources]
+scene-core={workspace=true}
+
+[project.entry-points.scene_stages]
+"ingest.fake"="scene_stages.fake:IngestFake"
+"recon.fake"="scene_stages.fake:ReconFake"
+"align.fake"="scene_stages.fake:AlignFake"
+"mesh.fake"="scene_stages.fake:MeshFake"
+"segment.fake"="scene_stages.fake:SegmentFake"
+"lift.fake"="scene_stages.fake:LiftFake"
+"embed.fake"="scene_stages.fake:EmbedFake"
+"attributes.fake"="scene_stages.fake:AttributesFake"
+"graph.fake"="scene_stages.fake:GraphFake"
+"ingest.opencv"="scene_stages.ingest:OpenCVIngest"
+"recon.mapanything"="scene_stages.gpu:MapAnythingReconstruction"
+"align.geocalib_ransac"="scene_stages.gpu:GeoCalibAlignment"
+"mesh.tsdf"="scene_stages.mesh:TSDFMesh"
+"segment.sam3"="scene_stages.gpu:Sam3Segmentation"
+"lift.maskclustering"="scene_stages.lift:MaskClustering"
+"embed.metaclip2"="scene_stages.gpu:MetaClipEmbeddings"
+"attributes.vlm_api"="scene_stages.attributes:VisionAttributes"
+"graph.geometric"="scene_stages.graph:GeometricGraph"
+
+[project.entry-points.scene_relations]
+"on"="scene_stages.graph:On"
+"under"="scene_stages.graph:Under"
+"above"="scene_stages.graph:Above"
+"inside"="scene_stages.graph:Inside"
+"next_to"="scene_stages.graph:NextTo"
+"near"="scene_stages.graph:Near"
+"against_wall"="scene_stages.graph:AgainstWall"
+[tool.hatch.metadata]
+allow-direct-references=true

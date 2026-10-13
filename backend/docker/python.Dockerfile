@@ -1,0 +1,17 @@
+# scene-api and scene-worker. Build context is the repository root.
+FROM python:3.12-slim
+COPY --from=ghcr.io/astral-sh/uv:0.12.2 /uv /uvx /bin/
+ARG PACKAGE
+ARG SYSTEM_PACKAGES=""
+RUN if [ -n "$SYSTEM_PACKAGES" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends $SYSTEM_PACKAGES && rm -rf /var/lib/apt/lists/*; \
+    fi
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+COPY backend/packages backend/packages
+COPY backend/services backend/services
+COPY backend/migrations backend/migrations
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --package ${PACKAGE}
+ENV PATH="/app/.venv/bin:$PATH" DATA_DIR=/data

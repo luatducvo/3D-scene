@@ -1,0 +1,38 @@
+default_gpu_target: cpu
+stages:
+  ingest:
+    algorithm: ingest.fake
+    target: cpu
+    params: {}
+  recon:
+    algorithm: recon.fake
+    target: cpu
+    params: {}
+  align:
+    algorithm: align.fake
+    target: cpu
+    params: {}
+  mesh:
+    algorithm: mesh.fake
+    target: cpu
+    params: {}
+  segment:
+    algorithm: segment.fake
+    target: cpu
+    params: {}
+  lift:
+    algorithm: lift.fake
+    target: cpu
+    params: {}
+  embed:
+    algorithm: embed.fake
+    target: cpu
+    params: {}
+  attributes:
+    algorithm: attributes.fake
+    target: cpu
+    params: {}
+  graph:
+    algorithm: graph.fake
+    target: cpu
+    params: {}

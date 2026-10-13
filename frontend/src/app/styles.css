@@ -1,0 +1,381 @@
+:root {
+  font-family: Arial, sans-serif;
+  color: #e7eee9;
+  background: #111b21;
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button,
+.button {
+  border: 1px solid #75c6b1;
+  border-radius: 8px;
+  background: #75c6b1;
+  color: #10271e;
+  padding: 10px 16px;
+  cursor: pointer;
+  font: inherit;
+  display: inline-block;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.subtle {
+  background: transparent;
+  color: #bacfc6;
+  border-color: #3b504a;
+}
+.selected {
+  background: #75c6b1;
+  color: #10271e;
+}
+input,
+textarea,
+select {
+  width: 100%;
+  border: 1px solid #46605a;
+  background: #17272b;
+  color: inherit;
+  border-radius: 8px;
+  padding: 12px;
+  font: inherit;
+  margin: 8px 0;
+}
+textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+input:focus,
+textarea:focus {
+  outline: 2px solid #75c6b1;
+}
+header {
+  height: 68px;
+  border-bottom: 1px solid #2a3a3e;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  background: #152229;
+}
+nav {
+  display: flex;
+  gap: 24px;
+}
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.page {
+  max-width: 1160px;
+  margin: 40px auto;
+  padding: 0 24px;
+}
+.narrow {
+  max-width: 760px;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.scene-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
+  gap: 20px;
+}
+.card {
+  padding: 24px;
+  background: #1d2d34;
+  border: 1px solid #34484d;
+  border-radius: 14px;
+}
+.room-icon {
+  font-size: 72px;
+  color: #75c6b1;
+}
+.badge {
+  display: inline-block;
+  border: 1px solid #4b665e;
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 13px;
+  margin-right: 12px;
+}
+.tips {
+  padding: 20px 20px 20px 42px;
+  background: #1a3033;
+  border-radius: 12px;
+  line-height: 1.8;
+}
+.dropzone {
+  padding: 32px;
+  text-align: center;
+  border: 2px dashed #466b61;
+  border-radius: 12px;
+}
+.dropzone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.uploads {
+  list-style: none;
+  padding: 0;
+}
+.uploads li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+.uploads li > span:first-child {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.quality {
+  font-size: 12px;
+  border-radius: 8px;
+  padding: 6px;
+}
+.green {
+  background: #195b46;
+}
+.amber {
+  background: #675222;
+}
+.red {
+  background: #742d34;
+}
+progress {
+  width: 70%;
+  margin: 18px 10px 18px 0;
+  accent-color: #75c6b1;
+}
+.stepper {
+  list-style: none;
+  padding: 0;
+}
+.stepper li {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-left: 3px solid #3a4d54;
+  padding: 12px 16px;
+  margin: 4px 0;
+  background: #17262d;
+}
+.stepper li[data-status="done"],
+.stepper li[data-status="skipped"] {
+  border-color: #75c6b1;
+}
+.stepper li[data-status="running"] {
+  border-color: #f7cb69;
+}
+.stepper li[data-status="failed"] {
+  border-color: #ef8b8b;
+}
+[role="alert"] {
+  color: #ffb8ae;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  max-height: 320px;
+  overflow: auto;
+}
+.explorer {
+  display: flex;
+  height: calc(100dvh - 68px);
+}
+.viewport {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+.viewer-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.viewer-toolbar > * {
+  pointer-events: auto;
+}
+.viewer-toolbar input {
+  max-width: 340px;
+  margin: 0;
+  background: #16272de8;
+}
+.viewer-toolbar span {
+  background: #17232ae8;
+  padding: 8px;
+  border-radius: 6px;
+}
+.side-panel {
+  width: 350px;
+  overflow: auto;
+  background: #152229;
+  border-left: 1px solid #34484d;
+  padding: 22px;
+}
+.side-panel h1 {
+  font-size: 22px;
+  margin-top: 0;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.tabs button {
+  flex: 1;
+}
+.object-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.evidence {
+  display: flex;
+  gap: 8px;
+  overflow: auto;
+  margin: 16px 0;
+}
+.evidence img {
+  width: 130px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.suggestions {
+  display: grid;
+  gap: 8px;
+}
+.suggestions button {
+  text-align: left;
+  font-size: 13px;
+}
+.messages p {
+  padding: 12px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+}
+.messages .user {
+  background: #27433f;
+}
+.messages .assistant {
+  background: #21323a;
+}
+.chat form button {
+  margin-right: 8px;
+}
+.measurement {
+  background: #11212b;
+  padding: 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+  color: #f7cb69;
+}
+details {
+  margin-top: 24px;
+  border-top: 1px solid #30454b;
+  padding-top: 14px;
+}
+summary {
+  cursor: pointer;
+  color: #a6c0b8;
+}
+h3 {
+  font-size: 14px;
+  color: #a6c0b8;
+}
+button:hover:not(:disabled),
+.button:hover {
+  filter: brightness(1.12);
+}
+@media (max-width: 700px) {
+  header {
+    padding: 0 16px;
+    height: 58px;
+  }
+  nav {
+    gap: 16px;
+  }
+  .page {
+    margin: 24px auto;
+  }
+  .heading {
+    align-items: flex-start;
+  }
+  .heading h1 {
+    font-size: 24px;
+    margin: 0 0 24px;
+  }
+  .explorer {
+    height: calc(100dvh - 58px);
+    display: block;
+    position: relative;
+  }
+  .viewport {
+    height: 100%;
+    padding-bottom: 34dvh;
+  }
+  .side-panel {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 36dvh;
+    max-height: 70dvh;
+    resize: vertical;
+    border-radius: 20px 20px 0 0;
+    border-top: 2px solid #466b61;
+    padding: 18px;
+    box-shadow: 0 -8px 30px #0004;
+  }
+  .side-panel:before {
+    content: "";
+    display: block;
+    width: 42px;
+    height: 4px;
+    background: #557066;
+    border-radius: 4px;
+    margin: -8px auto 14px;
+  }
+  .viewer-toolbar {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+  }
+  .viewer-toolbar input {
+    max-width: none;
+  }
+  .viewer-toolbar button {
+    font-size: 12px;
+    padding: 8px;
+  }
+  .side-panel h1 {
+    font-size: 18px;
+  }
+  .uploads li {
+    flex-wrap: wrap;
+  }
+}

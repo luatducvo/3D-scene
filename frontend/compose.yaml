@@ -1,0 +1,14 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_API_MODE: ${NEXT_PUBLIC_API_MODE:-http}
+    environment:
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://scene-api:8000}
+    ports: ["127.0.0.1:3000:3000"]
+    networks: [scene-net]
+networks:
+  scene-net:
+    external: true

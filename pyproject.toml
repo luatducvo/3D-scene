@@ -1,0 +1,26 @@
+[project]
+name="scene-understanding"
+version="0.1.0"
+requires-python=">=3.12,<3.14"
+# Plain `uv sync` installs every workspace member (light deps only) for tooling and tests.
+dependencies=["scene-core", "scene-stages", "scene-api", "scene-worker", "scene-compute"]
+[tool.uv]
+package=false
+conflicts=[
+  [{package="scene-stages", extra="recon-mapanything"}, {package="scene-stages", extra="segment-sam3"}],
+  [{package="scene-compute", extra="recon"}, {package="scene-compute", extra="perception"}],
+]
+[tool.uv.sources]
+scene-core={workspace=true}
+scene-stages={workspace=true}
+scene-api={workspace=true}
+scene-worker={workspace=true}
+scene-compute={workspace=true}
+[tool.uv.workspace]
+members=["backend/packages/*", "backend/services/*"]
+[dependency-groups]
+dev=["pytest>=8", "pytest-asyncio>=0.24", "httpx>=0.28", "ruff>=0.9"]
+[tool.pytest.ini_options]
+testpaths=["backend/tests"]
+[tool.ruff]
+line-length=100

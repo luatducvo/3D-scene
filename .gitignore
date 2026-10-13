@@ -30,12 +30,17 @@ node_modules/
 frontend/dist/
 frontend/build/
 
-# 3D scan dataset files (often large)
-dataset/scans/
-
 # Editors and operating systems
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local test, model and capture data
+.pytest-tmp*/
+backend/models/
+samples/
+.next/
+next-env.d.ts
+*.tsbuildinfo
