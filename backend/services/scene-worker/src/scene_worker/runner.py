@@ -11,9 +11,13 @@ class Worker:
         self.repo=Repository(database_url);self.data_dir=data_dir
         defaults=configuration() if pipeline is None or compute is None else (pipeline,compute)
         self.pipeline=pipeline or defaults[0];self.compute=compute or defaults[1]
-        used={self.pipeline.default_gpu_target if s.target=="gpu" else s.target for s in self.pipeline.stages.values()}
+        used={s.target for s in self.pipeline.stages.values()}
+        unset=sorted(t[2:-1] for t in used if t.startswith("${"))
+        if unset:raise ValueError(f"Set {', '.join(unset)} in backend/.env to a compute Target name")
         missing=used-set(self.compute.targets)
         if missing:raise ValueError(f"Pipeline uses unknown compute Targets: {sorted(missing)}")
+        no_url=sorted(t for t in used if self.compute.targets[t].missing_url)
+        if no_url:raise ValueError(f"compute Targets {no_url} have no URL; set their URL variables in backend/.env")
         self.backends={name:backend_for(data_dir,self.compute.targets[name]) for name in used}
     def run_once(self):
         with self.repo.connect() as conn:
@@ -33,8 +37,7 @@ class Worker:
                 if skip:
                     self._stage(job,stage,config,"skipped",previous["manifest"]);continue
                 force=True;self._stage(job,stage,config,"running")
-                target=self.pipeline.default_gpu_target if config.target=="gpu" else config.target
-                manifest=self.backends[target].run(config.algorithm,str(job["scene_id"]),config.params,algorithm.reads,algorithm.writes)
+                manifest=self.backends[config.target].run(config.algorithm,str(job["scene_id"]),config.params,algorithm.reads,algorithm.writes)
                 self._stage(job,stage,config,"done",manifest)
             self.publish(job["scene_id"],workspace)
             with self.repo.connect() as conn:

@@ -1,12 +1,12 @@
 # Exercises remote transport without downloading model weights.
-default_gpu_target: modal
+# GPU_TARGET names the compute Target that receives every GPU Stage; no provider is the default.
 stages:
   ingest: {algorithm: ingest.fake, target: cpu}
-  recon: {algorithm: recon.fake, target: gpu}
-  align: {algorithm: align.fake, target: gpu}
+  recon: {algorithm: recon.fake, target: "${GPU_TARGET}"}
+  align: {algorithm: align.fake, target: "${GPU_TARGET}"}
   mesh: {algorithm: mesh.fake, target: cpu}
-  segment: {algorithm: segment.fake, target: gpu}
-  lift: {algorithm: lift.fake, target: gpu}
-  embed: {algorithm: embed.fake, target: gpu}
+  segment: {algorithm: segment.fake, target: "${GPU_TARGET}"}
+  lift: {algorithm: lift.fake, target: "${GPU_TARGET}"}
+  embed: {algorithm: embed.fake, target: "${GPU_TARGET}"}
   attributes: {algorithm: attributes.fake, target: cpu}
   graph: {algorithm: graph.fake, target: cpu}

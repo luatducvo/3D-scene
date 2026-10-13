@@ -108,10 +108,14 @@ def disk_usage(_):
 
 
 def image_name(args):
-    image = args.image or env_values().get("COMPUTE_IMAGE")
-    if not image or "<owner>" in image:
-        sys.exit("Pass --image or set COMPUTE_IMAGE in backend/.env")
-    return image
+    """`--image` wins; otherwise COMPUTE_IMAGE_REPO:<variant>-<git short sha>, so live checks name an exact build."""
+    if args.image:
+        return args.image
+    repository = env_values().get("COMPUTE_IMAGE_REPO")
+    if not repository or "<" in repository:
+        sys.exit("Pass --image or set COMPUTE_IMAGE_REPO in backend/.env")
+    revision = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    return f"{repository}:{args.extras or 'fake'}-{revision}"
 
 
 def compute_image(args):
@@ -121,7 +125,12 @@ def compute_image(args):
 
 def push_compute_image(args):
     compute_image(args)
-    run("docker", "push", image_name(args))
+    image = image_name(args)
+    run("docker", "push", image)
+    digests = subprocess.run(["docker", "image", "inspect", "--format", "{{range .RepoDigests}}{{println .}}{{end}}", image],
+                             capture_output=True, text=True, check=True).stdout.split()
+    digest = next((d for d in digests if d.startswith(image.rsplit(":", 1)[0] + "@")), "unknown")
+    print(f"Pushed {image}\nDigest {digest}")
 
 
 def deploy_modal(args):

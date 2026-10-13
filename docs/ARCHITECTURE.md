@@ -6,7 +6,7 @@
 > - **Design:** SOLID. Every capability is a replaceable component chosen in configuration.
 > - **Deployment:** local, single user. Docker Compose for everything; `uv` manages Python, `npm` manages the Next.js frontend.
 > - **Storage:** system state (scene files and PostgreSQL) lives in named Docker volumes, so `docker compose down -v` returns the system to a fresh, empty state. Only the model weight cache is bind-mounted to the host (`./models`) to avoid re-downloading tens of gigabytes. Users keep their original photos on their own computer. No Redis, no object store.
-> - **Compute:** each pipeline stage runs either in-process (CPU) or on a GPU target: local GPU, Modal, RunPod or any Docker host. Every GPU target runs the same Docker image behind the same HTTP contract, so switching provider changes configuration and a deployment file, never application code.
+> - **Compute:** each pipeline stage runs either in-process (CPU) or on a GPU target: local GPU, Modal, RunPod, Vast.ai or any Docker host. No provider is the default; the operator names the Targets before starting the system. Every GPU target runs the same Docker image behind the same HTTP contract, so switching provider changes configuration and a deployment file, never application code.
 > - **Language:** all code, identifiers, comments, logs, API messages and documentation are in English. Only the user-facing UI strings are localized (`en`, `vi`).
 > - **Scope:** learning project. No fallbacks, no benchmarks.
 
@@ -632,7 +632,8 @@ What every provider does accept is the same pair:
 | Modal | `modal.Image.from_dockerfile` + `@modal.web_server(port)` | 150 s per request | 4 GiB body | Modal proxy auth (optional) or our token |
 | RunPod Pod | Custom image, exposed HTTP port, `https://<pod-id>-<port>.proxy.runpod.net` | 100 s (Cloudflare 524) | not documented | none (public proxy) → our token |
 | RunPod Serverless (load balancing endpoint) | Same image, `https://<endpoint-id>.api.runpod.ai/<path>`, health check on `/ping` | 5.5 min per request | 30 MB request and response | RunPod API key |
-| Any Docker host (Vast.ai, a VM, a lab server) | `docker run --gpus all -p 9000:9000 …` | depends on proxy | depends on proxy | our token |
+| Vast.ai | Registry image on a rented instance (SSH launch mode, On-start starts uvicorn), `http://<public-ip>:<random external port>` | none (direct) | none (direct) | our token; SSH tunnel for real captures |
+| Any Docker host (a VM, a lab server) | `docker run --gpus all -p 9000:9000 …` | depends on proxy | depends on proxy | our token |
 
 So the system defines its **own** small HTTP contract (6.2), designed to fit inside the strictest limits above, and runs **one image** (`scene-compute`) that implements it everywhere. The worker has a single `HttpBackend`. Switching provider means:
 
@@ -649,7 +650,7 @@ flowchart LR
   HB -->|compute contract| L[scene-compute<br/>local GPU · shared ./data]
   HB -->|compute contract| M[scene-compute<br/>on Modal]
   HB -->|compute contract| P[scene-compute<br/>on RunPod Pod / Serverless]
-  HB -->|compute contract| V[scene-compute<br/>on any Docker host]
+  HB -->|compute contract| V[scene-compute<br/>on Vast.ai or any Docker host]
   IP & L & M & P & V --> EX[Executor<br/>registry → StageAlgorithm.run]
 ```
 
@@ -686,6 +687,9 @@ text embedding reuses the pipeline's embed Stage. Each Target selects `inprocess
 provider headers, shared-storage mode, chunk size in bytes and startup/poll intervals in seconds.
 Environment expansion supplies secrets and provider URLs. The worker defaults to a 900-second
 readiness deadline and transfers at most 25,000,000 bytes per request. Local GPU uses shared storage.
+The worker refuses to start when a Target named by the pipeline is unset, unknown, or an HTTP Target
+without a URL. Query-time embedding waits at most 10 s for readiness and otherwise answers
+`COMPUTE_UNAVAILABLE` (HTTP 503).
 
 ### 6.4 Backends in the worker (`scene_worker.compute`)
 
@@ -849,21 +853,27 @@ polls during active Compute Runs. The worker waits through cold starts.
 registry image. Serverless uses the load-balancing product, one worker, and an idle timeout longer
 than polling. The shared compute token is mandatory behind public proxies.
 
+**Vast.ai** — [runbook](../backend/deploy/vast/README.md) rents one instance per image variant by
+hand from the web console, pulls the image pushed to Docker Hub, and starts the server from the
+On-start script. Each instance has a new URL; for real captures the worker reaches it through an
+SSH tunnel. Instances are destroyed after each session.
+
 **Generic Docker host** — [deployment guide](../backend/deploy/generic/README.md) uses the same
 image, persistent model cache and authenticated HTTP endpoint.
 
 Official provider API references are linked in the guides. API verification does not establish
-successful deployment: live Modal end-to-end and cold-start checks require the user's account and
-credentials. Local GPU, RunPod and generic hosts are not exercised during development. Remote disks
+successful deployment: live checks require the user's provider account and credentials. Vast.ai is
+the first provider exercised live; Modal, local GPU, RunPod and generic hosts are not exercised during
+development. Remote disks
 are caches; local Scene storage remains authoritative.
 
 ### 6.8 Image variants and GPU sizing
 
-GPU algorithms ship as two image variants because their dependencies conflict (NumPy): `EXTRAS=recon` (MapAnything, GeoCalib) and `EXTRAS=perception` (SAM 3, MetaCLIP 2). Each is deployed as its own target (`modal_recon`, `modal_perception`) and `pipeline.yaml` assigns stages to them. The contract and the code stay identical.
+GPU algorithms ship as two image variants because their dependencies conflict (NumPy): `EXTRAS=recon` (MapAnything, GeoCalib) and `EXTRAS=perception` (SAM 3, MetaCLIP 2). Each is deployed as its own target (for example `vast_recon` and `vast_perception`, or `modal_recon` and `modal_perception`) and `pipeline.yaml` assigns stages to them through `RECON_TARGET` and `PERCEPTION_TARGET`. The contract and the code stay identical.
 
 | Algorithm | Suggested GPU | Notes |
 |---|---|---|
-| `recon.mapanything` | 40–80 GB (A100/H100); 24 GB with `memory_efficient_inference` and ≤ 80 keyframes | About 1B parameters |
+| `recon.mapanything` | 24 GB with `memory_efficient_inference` and ≤ 80 keyframes (the pipeline's `max_keyframes`); 40–80 GB (A100/H100) for more | About 1B parameters |
 | `align.geocalib_ransac` | ≥ 8 GB | |
 | `segment.sam3` | ≥ 16 GB | Gated checkpoint on Hugging Face |
 | `lift.maskclustering` | ≥ 16 GB | |
@@ -892,8 +902,11 @@ extra makes its implementation usable.
 ### 7.2 Pipeline configuration (`config/pipeline.yaml`)
 
 The executable [real pipeline](../backend/config/pipeline.yaml) maps the nine Stage names to
-Algorithm, Target and parameters in processing order. `target: gpu` resolves through
-`default_gpu_target`; changing that setting moves every GPU Stage together. CPU Stages use `cpu`.
+Algorithm, Target and parameters in processing order. GPU Stages name their Target through
+`${RECON_TARGET}` (recon, align) and `${PERCEPTION_TARGET}` (segment, lift, embed); the fake GPU
+pipeline uses `${GPU_TARGET}`. No provider is the default, so the operator sets these in `.env`;
+an unset variable stays literal and the worker reports it by name. CPU Stages use `cpu`. The
+config hash excludes the Target, so moving Stages to another provider does not rerun them.
 The [fake GPU example](../backend/config/pipeline.fake-gpu.yaml) exercises the same remote contract
 without model weights. The default walking skeleton uses fake Algorithms on CPU. Real-model
 configuration requires the selected optional dependencies and verified model access.
@@ -1151,7 +1164,7 @@ Flow:
 
 - **Versioned prefix:** everything under `/api/v1`.
 - **OpenAPI is the source of truth:** `uv run tasks.py openapi` writes `openapi/openapi.json` from the FastAPI models; the frontend generates its types from that file.
-- **Error format:** `{"error": {"code": "SCENE_NOT_FOUND", "message": "Scene not found."}}` with a matching HTTP status. Codes are UPPER_SNAKE_CASE English.
+- **Error format:** `{"error": {"code": "SCENE_NOT_FOUND", "message": "Scene not found."}}` with a matching HTTP status. Codes are UPPER_SNAKE_CASE English. Search answers `COMPUTE_UNAVAILABLE` (503) when the embed Stage's Target is unset or unreachable.
 - **File URLs are issued by the API:** responses contain absolute URLs such as `mesh_url`. The frontend never builds storage paths.
 - **Units:** meters; coordinates z-up with the floor at z = 0.
 - **Single user, local:** no authentication. Ports are bound to `127.0.0.1` in Compose. `CORS_ORIGINS` lists the frontend origin.
@@ -1447,7 +1460,10 @@ CORS_ORIGINS=http://localhost:3000
 PIPELINE_CONFIG=/app/config/pipeline.yaml
 COMPUTE_CONFIG=/app/config/compute.yaml
 COMPUTE_TOKEN=                       # shared secret sent as X-Compute-Token to every remote target
-COMPUTE_IMAGE=ghcr.io/<owner>/scene-compute:latest
+RECON_TARGET=                        # compute.yaml Target names; no provider is the default
+PERCEPTION_TARGET=
+GPU_TARGET=                          # pipeline.fake-gpu.yaml only
+COMPUTE_IMAGE_REPO=<dockerhub-user>/scene-compute   # tags <variant>-<git short sha>
 
 # Provider keys (only for the targets you use)
 RUNPOD_API_KEY=
@@ -1661,7 +1677,7 @@ No change to the runner, other stages, the API or the frontend.
 
 ### 12.2 Move a stage to another provider
 
-Change `target` for that stage in `pipeline.yaml` (or `default_gpu_target` for all GPU stages). If the target is new, deploy the image there (6.7) and add its URL and headers to `compute.yaml`. No code changes.
+Point `RECON_TARGET` or `PERCEPTION_TARGET` in `.env` at another Target (or change `target` for that stage in `pipeline.yaml`). If the target is new, deploy the image there (6.7) and add its URL and headers to `compute.yaml`. No code changes.
 
 ### 12.3 Add a provider
 
@@ -1693,12 +1709,13 @@ cd backend
 cp .env.example .env              # LLM_*, VLM_*, COMPUTE_TOKEN, provider keys you need
 uv sync                           # local tooling and tests
 
-# Pick where GPU stages run: config/pipeline.yaml → default_gpu_target
+# Pick where GPU stages run: RECON_TARGET / PERCEPTION_TARGET (or GPU_TARGET for fakes) in .env
 
 # A. Local GPU
 uv run tasks.py up-local-gpu
 
-# B. Remote GPU (Modal, RunPod, any Docker host)
+# B. Remote GPU (Vast.ai, Modal, RunPod, any Docker host)
+# Vast.ai: uv run tasks.py push-compute-image [--extras recon|perception], then deploy/vast/README.md
 uv run tasks.py deploy-modal       # remote build from Dockerfile; no registry push
 # Other providers use the registry image (section 6.7).
 #   and put the endpoint URL in config/compute.yaml
@@ -1725,7 +1742,7 @@ NEXT_PUBLIC_API_MODE=mock npm run dev
 ### 13.3 Day-to-day
 
 - Changed an algorithm: rebuild and redeploy the compute image, then `POST /api/v1/scenes/{scene_id}/process` with `{"from_stage": "<stage>"}`.
-- Changed `pipeline.yaml` or `compute.yaml`: `docker compose restart scene-worker scene-api`.
+- Changed `pipeline.yaml`, `compute.yaml` or a Target variable in `.env`: `uv run tasks.py up` (recreates the containers with the new values).
 - Check a target: `curl -H "X-Compute-Token: $COMPUTE_TOKEN" <url>/info`.
 - Disk usage: `uv run tasks.py disk-usage` (Docker volumes and the model cache). Remove one scene with `DELETE /api/v1/scenes/{scene_id}`.
 - Start over: `uv run tasks.py reset` (same as `docker compose down -v`) deletes every scene and the database; model weights in `./models` stay. Delete `./models` manually to free that space too.

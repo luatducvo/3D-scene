@@ -1,6 +1,7 @@
 import json,os,shutil,uuid
 from pathlib import Path
 from contextlib import asynccontextmanager
+import httpx
 from fastapi import BackgroundTasks,FastAPI,Request,UploadFile,File,Response
 from fastapi.responses import JSONResponse,FileResponse,StreamingResponse
 from fastapi.exceptions import RequestValidationError
@@ -8,8 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from scene_core.contracts import SceneWorkspace,STAGES
 from scene_core.errors import SceneError
 from psycopg.types.json import Jsonb
+from scene_worker.compute.http import ComputeError
 from scene_worker.repository import Repository
 from .models import *
+
+QUERY_READY_TIMEOUT_S=10
 
 def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=None):
     repo=Repository(database_url or os.getenv("DATABASE_URL","postgresql://scene:scene@localhost:5432/scene"))
@@ -139,9 +143,12 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
             from scene_worker.container import configuration,backend_for
             defaults=None if app.state.pipeline and app.state.compute else configuration()
             pipeline=app.state.pipeline or defaults[0];compute_config=app.state.compute or defaults[1]
-            stage=pipeline.stages["embed"]
-            target=pipeline.default_gpu_target if stage.target=="gpu" else stage.target
-            app.state.embedder=(stage.algorithm,backend_for(data_dir,compute_config.targets[target]))
+            stage=pipeline.stages["embed"];target=compute_config.targets.get(stage.target)
+            if target is None or target.missing_url:
+                raise SceneError("COMPUTE_UNAVAILABLE",f"The embed Stage's compute Target {stage.target} is not configured",503)
+            # A query waits briefly for readiness instead of a Job's full cold-start deadline.
+            target=target.model_copy(update={"startup_timeout":min(target.startup_timeout,QUERY_READY_TIMEOUT_S)})
+            app.state.embedder=(stage.algorithm,backend_for(data_dir,target))
         return app.state.embedder
     @app.get("/api/v1/scenes/{scene_id}/search",response_model=list[SearchHit])
     def search_objects(scene_id:uuid.UUID,q:str,request:Request):
@@ -150,7 +157,9 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
         if not q.strip():return []
         import numpy as np
         algorithm,backend=query_embedder()
-        vector=backend.invoke(algorithm,"embed_text",{"texts":[q]})["vectors"][0]
+        try:vector=backend.invoke(algorithm,"embed_text",{"texts":[q]})["vectors"][0]
+        except (ComputeError,httpx.TransportError) as exc:
+            raise SceneError("COMPUTE_UNAVAILABLE",f"The embed Stage's compute Target is unavailable: {exc}",503) from exc
         if len(vector)!=1024:raise SceneError("EMBEDDING_DIMENSION_MISMATCH","Query vector dimension differs from database",500)
         scores={}
         if np.linalg.norm(vector)>0:

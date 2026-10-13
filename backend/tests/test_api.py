@@ -144,3 +144,28 @@ def test_delete_cleans_remote_workspaces_and_tolerates_unreachable_targets(tmp_p
         scene=client.post("/api/v1/scenes",json={"name":"Remote"}).json()["id"]
         assert client.delete(f"/api/v1/scenes/{scene}").status_code==204
     assert deleted==[("http://remote",scene)]
+
+
+def test_worker_refuses_to_start_without_configured_gpu_targets(tmp_path, monkeypatch):
+    for name in ("GPU_TARGET", "VAST_RECON_URL"):
+        monkeypatch.delenv(name, raising=False)
+    config = Path(__file__).parents[1]/"config"
+    start = lambda: Worker(os.environ["TEST_DATABASE_URL"], tmp_path, PipelineConfig.load(config/"pipeline.fake-gpu.yaml"), ComputeConfig.load(config/"compute.yaml"))
+    with pytest.raises(ValueError, match="GPU_TARGET"):
+        start()
+    monkeypatch.setenv("GPU_TARGET", "vast_recon")
+    with pytest.raises(ValueError, match="vast_recon.*URL"):
+        start()
+
+
+def test_search_reports_unavailable_compute_target(client, monkeypatch):
+    prefix=uploaded(client);client.post(prefix+"/process",json={});worker(client).run_once()
+    monkeypatch.delenv("GPU_TARGET",raising=False)
+    client.app.state.pipeline=PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake-gpu.yaml")
+    client.app.state.compute=ComputeConfig.model_validate({"targets":{"cpu":{},"down":{"backend":"http","url":"http://127.0.0.1:9","startup_timeout":0.2,"poll_interval":0.1}}})
+    for target in (None,"down"):
+        if target:monkeypatch.setenv("GPU_TARGET",target);client.app.state.pipeline=PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake-gpu.yaml")
+        client.app.state.embedder=None
+        response=client.get(prefix+"/search",params={"q":"chair"})
+        assert response.status_code==503,target
+        assert response.json()["error"]["code"]=="COMPUTE_UNAVAILABLE"

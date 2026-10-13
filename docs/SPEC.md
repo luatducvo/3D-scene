@@ -31,8 +31,8 @@ and ask questions in natural language. Answers come back in the language I asked
 Objects involved, highlight them in 3D and fly the camera to them. Every number in an answer comes
 from a geometric computation, never from the language model's guess.
 
-Heavy Stages run on a remote GPU (Modal during development) behind one small HTTP contract; switching
-provider is a configuration change, not a code change.
+Heavy Stages run on a remote GPU behind one small HTTP contract. No provider is the default: I configure
+the Targets before starting the system, and switching provider is a configuration change, not a code change.
 
 ## User Stories
 
@@ -101,9 +101,9 @@ provider is a configuration change, not a code change.
 
 ### Compute and operations
 52. As an operator, I want to choose per Stage whether it runs in-process on CPU or on a named GPU target, so that I can place work where it fits.
-53. As an operator, I want to move all GPU Stages to another provider by changing one setting, so that switching providers is trivial.
-54. As an operator, I want one GPU image that runs unchanged on Modal, RunPod (Pod or Serverless), a local GPU or any Docker host, so that I never write provider-specific application code.
-55. As an operator, I want Modal to build the GPU image from the project's own build definition, so that I do not push a 10+ GB image from a home connection.
+53. As an operator, I want to move all GPU Stages to another provider by changing the Target settings (one per image variant), so that switching providers is trivial.
+54. As an operator, I want one GPU image that runs unchanged on Modal, RunPod (Pod or Serverless), Vast.ai, a local GPU or any Docker host, so that I never write provider-specific application code.
+55. As an operator using Modal, I want Modal to build the GPU image from the project's own build definition, so that I do not push a 10+ GB image from a home connection.
 56. As an operator, I want the worker to wait through remote cold starts, so that a sleeping GPU container does not fail a Job.
 57. As an operator, I want remote targets to receive only the inputs they need, skip files already present (by checksum), and return outputs to my machine, so that transfers are minimal and my machine remains the source of truth.
 58. As an operator, I want file transfers chunked under the strictest provider body limit, so that the same contract works on every provider.
@@ -142,7 +142,7 @@ provider is a configuration change, not a code change.
 - **Executor lives in scene-core**, so both the GPU server and the worker's in-process backend share it without the worker depending on the GPU server package.
 - **Registration is by package entry points only**, resolved lazily. Groups: one for Stage Algorithms, one for Relation rules. No decorator-based registry. Listing available Algorithms must not import heavy libraries.
 - **Walking skeleton first.** Every layer is wired end-to-end with fake Algorithms before any real model is integrated; real Algorithms then replace fakes Stage by Stage.
-- **Modal is the development GPU target.** The Modal deployment builds the image from the same Dockerfile used everywhere; other providers pull a registry-published image. Local GPU, RunPod and generic Docker hosts are written but not exercised during development.
+- **No GPU provider is the default.** GPU Stages name their Target through `RECON_TARGET` and `PERCEPTION_TARGET` (`GPU_TARGET` for the fake GPU pipeline); the worker refuses to start when a selected Target is unset or has no URL. Vast.ai, rented by hand, is the first provider exercised live. The Modal deployment builds the image from the same Dockerfile used everywhere; other providers pull the image built locally and pushed to Docker Hub. Modal, local GPU, RunPod and generic Docker hosts are written but not exercised during development. See [VAST-PLAN](VAST-PLAN.md).
 - **Task runner** is a stdlib-only Python script invoked through `uv`, replacing the Makefile.
 - **Lift** is an in-house re-implementation of MaskClustering's view-consensus approach (masks → 3D points via aligned depth and poses → mask graph weighted by cross-view consensus → iterative clustering → score×area label voting), not a vendored research repo. The registry key stays `lift.maskclustering`.
 
@@ -157,7 +157,7 @@ provider is a configuration change, not a code change.
 ### API contract
 - Versioned under `/api/v1`; OpenAPI exported from the API models is the source of truth and is committed; the frontend generates types from it.
 - Endpoints as in the architecture doc §9.2. Questions use `POST /scenes/{scene_id}/queries` (the doc's sequence diagram saying `/query` is a typo).
-- Error body `{"error": {"code", "message"}}`, UPPER_SNAKE_CASE codes, matching HTTP status. Codes introduced here: `SCENE_LOCKED`, `SCENE_BUSY`, `NOT_ENOUGH_KEYFRAMES` (surfaced as the Scene's failure).
+- Error body `{"error": {"code", "message"}}`, UPPER_SNAKE_CASE codes, matching HTTP status. Codes introduced here: `SCENE_LOCKED`, `SCENE_BUSY`, `NOT_ENOUGH_KEYFRAMES` (surfaced as the Scene's failure), `COMPUTE_UNAVAILABLE` (HTTP 503 when the embed Stage's Target is unset or unreachable for a query).
 - Progress SSE replays current Stage Run state on connect, then streams `stage` and `status` events. Answer SSE streams `tool`, `delta`, `final` (`answer`, `object_ids`, `evidence`).
 - All file URLs are absolute and issued by the API; the files endpoint serves only whitelisted subfolders and rejects traversal.
 - Units are SI; coordinates are z-up with floor at z = 0.
@@ -175,17 +175,17 @@ provider is a configuration change, not a code change.
 Each ends in something runnable in the browser.
 - **M0** Repo reset (uv workspace replaces the scaffold), task runner, glossary, ADR-0001, architecture doc brought in line with this spec.
 - **M1** Walking skeleton: all services, database, SSE and a minimal UI, running fake Algorithms on CPU.
-- **M2** Compute contract + GPU server deployed on Modal, fake GPU Stages running remotely.
+- **M2** Compute contract + GPU server deployed on a remote provider (Vast.ai first), fake GPU Stages running remotely.
 - **M3** Real ingest, reconstruction, alignment and mesh; mesh viewer; ingest report.
 - **M4** Real segmentation, lifting and embeddings; free-text search.
 - **M5** Real attributes and Scene Graph; publish; object list, boxes, object detail.
 - **M6** QA agent and chat.
 - **M7** UI completion: capture guide, quality badges, upload progress, measuring tool, full Vietnamese, mobile layout, suggested questions.
-- **M8** Remaining targets: local GPU profile, RunPod and generic deploy docs, registry image publishing, remote Workspace cleanup on delete.
+- **M8** Remaining targets: local GPU profile, Modal, RunPod and generic deploy docs, registry image publishing, remote Workspace cleanup on delete.
 
 ### Acceptance criteria (per milestone)
 - **M1:** with the fake pipeline, creating a Scene, uploading the synthetic fixture images and pressing Process shows all 9 Stages complete over SSE; the Scene becomes `ready`; a fake room mesh and Object boxes render; reprocessing skips all Stages; reprocessing from a Stage reruns it and every later Stage; the 409 rules hold.
-- **M2:** the same flow with fake GPU Stages targeting Modal completes; files round-trip by checksum; a cold Modal container is waited for, not failed.
+- **M2:** the same flow with fake GPU Stages targeting a configured remote Target completes; files round-trip by checksum; a Target that is not yet ready is waited for, not failed (including cold starts on providers that scale to zero).
 - **M3:** the user's room capture produces a mesh where the floor is at z ≈ 0, walls are axis-aligned and a known dimension (e.g. a door's height ≈ 2 m) is plausible; rejected files are listed by reason.
 - **M4:** searching a visible object by an English or Vietnamese phrase ranks it in the top results and highlights it.
 - **M5:** every Object has a box, labels in both languages and attributes; relations shown for an Object agree with what is visible.
@@ -213,7 +213,7 @@ Additional pure unit tests only for numeric geometry: box fitting, footprint ove
 - None in the repository yet (it contains only a scaffold). The first tests written in M1 at seams 1 and 3 become the prior art for later milestones.
 
 ### Manual verification
-- Real GPU Algorithms are smoke-tested on Modal with the user's room capture at M3–M6, checked against the acceptance criteria above.
+- Real GPU Algorithms are smoke-tested on the configured provider (Vast.ai first) with the user's room capture at M3–M6, checked against the acceptance criteria above.
 
 ## Out of Scope
 - Multi-user use, authentication, sharing Scenes, any public deployment (ports bind to localhost).
@@ -224,13 +224,13 @@ Additional pure unit tests only for numeric geometry: box fitting, footprint ove
 - Cancelling a running Job.
 - Redis, object storage, cloud persistence of Scenes; the user's own machine is the source of truth.
 - Native mobile app or in-app camera capture.
-- Exercising local GPU, RunPod and generic targets during development (written and documented only).
+- Exercising Modal, local GPU, RunPod and generic targets during development (written and documented only).
 - Fine-tuning or training any model.
 - Localization of anything other than user-facing UI strings.
 
 ## Further Notes
 - Environment: Windows 11 host with Git Bash, Docker with the NVIDIA runtime, an RTX 3050 6 GB (insufficient for every GPU Stage), no `make`, no GitHub CLI.
-- Prerequisites the user must provide: a Modal account (not yet created), a Hugging Face token and gated access to SAM 3 (both available), and an OpenAI-compatible cloud API key for LLM and VLM.
+- Prerequisites the user must provide: a Vast.ai account with credit, a public Docker Hub repository for the GPU images, a Hugging Face token and gated access to SAM 3 (both available), and an OpenAI-compatible cloud API key for LLM and VLM.
 - Verify before integrating: Hugging Face model ids, MapAnything's inference arguments and output keys, the embedding model's output dimension, Modal's support for building from a Dockerfile together with web-server, concurrency and startup-timeout options, and torch version compatibility across GPU dependency groups.
 - The user commits changes; implementing agents only edit files.
 - No issue tracker is configured, so this spec lives in the repository rather than as a `ready-for-agent` issue. Running `/setup-matt-pocock-skills` later would allow publishing it as one.

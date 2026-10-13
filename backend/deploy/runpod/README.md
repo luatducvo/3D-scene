@@ -14,7 +14,7 @@ start command. Set `PORT=9000`, `DATA_DIR=/data`, `MODELS_DIR=/workspace/models`
 weights there. Scene data is a disposable cache and can remain on container disk.
 
 Set `RUNPOD_POD_URL=https://POD_ID-9000.proxy.runpod.net` locally. The `runpod_pod` target in
-`config/compute.yaml` sends `X-Compute-Token`. Select it through `default_gpu_target`.
+`config/compute.yaml` sends `X-Compute-Token`. Select it through the pipeline's Target variables.
 Pods run until stopped; idle timeout and worker autoscaling settings below apply to Serverless.
 See [RunPod HTTP ports](https://docs.runpod.io/pods/configuration/expose-ports).
 

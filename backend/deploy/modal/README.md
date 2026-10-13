@@ -1,4 +1,4 @@
-# Modal development target
+# Modal targets
 
 Status: API options verified against official documentation on 2026-10-13; live deployment,
 browser processing and scale-to-zero recovery have not been exercised. They require the user's
@@ -20,14 +20,14 @@ as build context; it does not require uploading a locally built CUDA image.
 
 Set `MODAL_COMPUTE_URL` to the printed URL and `COMPUTE_TOKEN` locally. Select
 `config/pipeline.fake-gpu.yaml` as `PIPELINE_CONFIG` and `config/compute.yaml` as `COMPUTE_CONFIG`,
-then restart the worker and API. All GPU-designated Stages select the `default_gpu_target`.
-Changing that setting moves them together. The default image contains fakes only.
+set `GPU_TARGET=modal`, then run `uv run tasks.py up`. Every GPU Stage of the fake pipeline
+uses `GPU_TARGET`. The default image contains fakes only.
 
 The real pipeline needs two image variants, because MapAnything requires NumPy 2 and SAM 3
 requires NumPy below 2: `uv run tasks.py deploy-modal --variant recon` (MapAnything, GeoCalib) and
 `uv run tasks.py deploy-modal --variant perception` (SAM 3, MetaCLIP 2). Each becomes its own Modal
-app; set `MODAL_RECON_URL` and `MODAL_PERCEPTION_URL` to the printed URLs. `config/pipeline.yaml`
-sends recon and align to `modal_recon` and the other GPU Stages to `modal_perception`.
+app; set `MODAL_RECON_URL` and `MODAL_PERCEPTION_URL` to the printed URLs. Set
+`RECON_TARGET=modal_recon` and `PERCEPTION_TARGET=modal_perception`.
 
 The app uses one GPU container with concurrent HTTP requests so polling remains available during
 a Compute Run. Model downloads persist in the `scene-models` Volume at `/models`; Scene files

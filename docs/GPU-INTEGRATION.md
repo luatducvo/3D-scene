@@ -1,7 +1,8 @@
 # GPU integration evidence
 
 Checked 2026-10-13. These are implementation references, not successful inference results.
-Live checks need Modal credentials, gated SAM 3 access and the user's room capture.
+Live checks need a configured GPU provider (Vast.ai first, see the [Vast runbook](../backend/deploy/vast/README.md)),
+gated SAM 3 access and the user's room capture.
 
 | Adapter | Verified upstream interface | Local artifact |
 |---|---|---|
@@ -36,11 +37,20 @@ its output contract checked. Image and text vectors use the same model and L2 no
 
 ## Manual acceptance still required
 
-1. Build the heavy image, inspect `/info`, and download weights into the persistent cache.
-2. Process a room capture on Modal. Confirm plausible metric dimensions, z=0 floor and axis-aligned walls.
+1. Build and push the heavy images, inspect `/info`, and download weights into the provider's cache.
+2. Process a room capture on the configured provider. Confirm plausible metric dimensions, z=0 floor and axis-aligned walls.
 3. Inspect mask alignment with RGB, multi-view Object identities, boxes and evidence crops.
 4. Search visible objects in both English and Vietnamese and check the ranking/highlights.
 5. Record model versions, image digest and observed results before marking GPU quality tickets verified.
 
 No fallback model substitutes for an unavailable dependency or failed inference. The fake pipeline
 is explicitly configured and only validates application/transport behavior.
+
+## Live check log
+
+Live checks are manual and recorded here, separately from local tests. One row per check.
+
+| Date | Provider / Target | Image tag and digest | GPU | Check | Result |
+|---|---|---|---|---|---|
+| | Vast.ai / `vast_recon` | `fake-<sha>` | | fake pipeline end to end, checksums, Workspace delete | not yet run |
+| | Vast.ai / `vast_recon` + `vast_perception` | `recon-<sha>`, `perception-<sha>` | | room capture, acceptance items 2–4 | not yet run |

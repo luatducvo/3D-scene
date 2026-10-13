@@ -58,11 +58,12 @@ Các biến môi trường chính trong `backend/.env`:
 
 - `PIPELINE_CONFIG`: Đường dẫn file cấu hình pipeline:
   - `/app/backend/config/pipeline.fake.yaml`: Chạy thử nghiệm nhanh (dùng fake algorithm, không cần tải model nặng hoặc GPU).
-  - `/app/backend/config/pipeline.fake-gpu.yaml`: Chạy fakes trên Modal.
+  - `/app/backend/config/pipeline.fake-gpu.yaml`: Chạy fakes trên GPU Target đặt trong `GPU_TARGET`.
   - `/app/backend/config/pipeline.yaml`: Chạy với các mô hình AI thật.
 - `HOST_MODELS_DIR`: Thư mục lưu cache weights trên host (mặc định `./models`).
 - `COMPUTE_TOKEN`: Mã token bí mật dùng để bảo vệ endpoint GPU compute.
-- `MODAL_*`, `RUNPOD_*`, `GENERIC_*`: Điền URL/API Key tương ứng nếu bạn chạy compute stage trên dịch vụ GPU đám mây.
+- `RECON_TARGET`, `PERCEPTION_TARGET`, `GPU_TARGET`: Tên Target trong `compute.yaml` cho các GPU Stage; không có provider mặc định, worker từ chối khởi động nếu thiếu. Hướng dẫn Vast.ai: `backend/deploy/vast/README.md`.
+- `VAST_*`, `MODAL_*`, `RUNPOD_*`, `GENERIC_*`: Điền URL/API Key tương ứng nếu bạn chạy compute stage trên dịch vụ GPU đám mây.
 - `HF_TOKEN`: Hugging Face Token (bắt buộc nếu tải các mô hình có bản quyền/gated).
 - `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`: Cấu hình endpoint LLM tương thích OpenAI để trả lời câu hỏi QA.
 - `VLM_BASE_URL`, `VLM_API_KEY`, `VLM_MODEL`: Cấu hình endpoint VLM để trích xuất thuộc tính vật thể.
