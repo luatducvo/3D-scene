@@ -160,10 +160,10 @@ def main():
                                      ("push-compute-image", push_compute_image, "build and push the GPU image")]:
         command = commands.add_parser(name, help=help_text)
         command.add_argument("--image")
-        command.add_argument("--extras", default="", choices=["", "recon", "perception"])
+        command.add_argument("--extras", default="", choices=["", "gpu"])
         command.set_defaults(handler=handler)
     modal = commands.add_parser("deploy-modal", help="deploy scene-compute to Modal (built remotely)")
-    modal.add_argument("--variant", default="fake", choices=["fake", "recon", "perception"])
+    modal.add_argument("--variant", default="fake", choices=["fake", "gpu"])
     modal.set_defaults(handler=deploy_modal)
     args, extra = parser.parse_known_args()
     if extra and args.command != "test":

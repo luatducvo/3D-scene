@@ -62,7 +62,7 @@ Các biến môi trường chính trong `backend/.env`:
   - `/app/backend/config/pipeline.yaml`: Chạy với các mô hình AI thật.
 - `HOST_MODELS_DIR`: Thư mục lưu cache weights trên host (mặc định `./models`).
 - `COMPUTE_TOKEN`: Mã token bí mật dùng để bảo vệ endpoint GPU compute.
-- `RECON_TARGET`, `PERCEPTION_TARGET`, `GPU_TARGET`: Tên Target trong `compute.yaml` cho các GPU Stage; không có provider mặc định, worker từ chối khởi động nếu thiếu. Hướng dẫn Vast.ai: `backend/deploy/vast/README.md`.
+- `GPU_TARGET`: Tên Target trong `compute.yaml` cho mọi GPU Stage (một image GPU duy nhất); không có provider mặc định, worker từ chối khởi động nếu thiếu. Hướng dẫn Vast.ai: `backend/deploy/vast/README.md`.
 - `VAST_*`, `MODAL_*`, `RUNPOD_*`, `GENERIC_*`: Điền URL/API Key tương ứng nếu bạn chạy compute stage trên dịch vụ GPU đám mây.
 - `HF_TOKEN`: Hugging Face Token (bắt buộc nếu tải các mô hình có bản quyền/gated).
 - `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`: Cấu hình endpoint LLM tương thích OpenAI để trả lời câu hỏi QA.
@@ -191,7 +191,7 @@ Sau khi các dịch vụ đã khởi động thành công:
 | Xuất schema OpenAPI sang file json | `uv run tasks.py openapi` |
 | Đồng bộ kiểu dữ liệu OpenAPI sang frontend | `cd frontend && npm run api:sync` |
 | Build image GPU compute | `uv run tasks.py compute-image --image <tag>` |
-| Deploy `scene-compute` lên Modal | `uv run tasks.py deploy-modal --variant [fake\|recon\|perception]` |
+| Deploy `scene-compute` lên Modal | `uv run tasks.py deploy-modal --variant [fake\|gpu]` |
 
 ---
 

@@ -14,21 +14,6 @@ targets:
     chunk_size: 25000000
     startup_timeout: 900
     poll_interval: 3
-  # Real GPU Algorithms need two image variants (numpy conflict between MapAnything and SAM 3).
-  modal_recon:
-    backend: http
-    url: ${MODAL_RECON_URL}
-    token: ${COMPUTE_TOKEN}
-    chunk_size: 25000000
-    startup_timeout: 900
-    poll_interval: 3
-  modal_perception:
-    backend: http
-    url: ${MODAL_PERCEPTION_URL}
-    token: ${COMPUTE_TOKEN}
-    chunk_size: 25000000
-    startup_timeout: 900
-    poll_interval: 3
   runpod_pod:
     backend: http
     url: ${RUNPOD_POD_URL}
@@ -45,17 +30,10 @@ targets:
     chunk_size: 25000000
     startup_timeout: 900
     poll_interval: 3
-  # Vast.ai instances, one per image variant; URLs change with every rented instance.
-  vast_recon:
+  # A rented Vast.ai instance; its URL changes with every rental.
+  vast:
     backend: http
-    url: ${VAST_RECON_URL}
-    token: ${COMPUTE_TOKEN}
-    chunk_size: 25000000
-    startup_timeout: 900
-    poll_interval: 3
-  vast_perception:
-    backend: http
-    url: ${VAST_PERCEPTION_URL}
+    url: ${VAST_URL}
     token: ${COMPUTE_TOKEN}
     chunk_size: 25000000
     startup_timeout: 900

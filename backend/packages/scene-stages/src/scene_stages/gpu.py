@@ -241,22 +241,31 @@ class Sam3Segmentation(StageAlgorithm):
 
     def setup(self):
         _cache()
-        self.model = None
+        self.predictor = None
+        self.half = None
 
     def download_weights(self):
+        self._weights()
+
+    def _weights(self):
         _cache()
         from huggingface_hub import hf_hub_download
-        for filename in ("config.json", "sam3.pt"):
-            hf_hub_download("facebook/sam3", filename)
+        return hf_hub_download("facebook/sam3", "sam3.pt")
 
     def run(self, workspace, params):
-        torch = _cuda()
-        from sam3.model_builder import build_sam3_image_model
-        from sam3.model.sam3_image_processor import Sam3Processor
-        if self.model is None:
-            self.model = build_sam3_image_model(device="cuda")
+        _cuda()
         threshold = float(params.get("score_threshold", .5))
-        processor = Sam3Processor(self.model, device="cuda", confidence_threshold=threshold)
+        half = bool(params.get("half", True))
+        batch_size = int(params.get("prompt_batch_size", 32))
+        if batch_size < 1:
+            raise SceneError("INVALID_PARAMETERS", "prompt_batch_size must be positive")
+        if self.predictor is None or self.half != half:
+            from ultralytics.models.sam import SAM3SemanticPredictor
+            self.predictor = SAM3SemanticPredictor(overrides={
+                "task": "segment", "mode": "predict", "model": self._weights(),
+                "quantize": 16 if half else 32, "save": False, "verbose": False})
+            self.half = half
+        self.predictor.args.conf = threshold
         vocabulary_root = Path(os.environ.get("VOCABULARY_DIR", "backend/config/vocabularies"))
         vocabulary_path = vocabulary_root / params.get("vocabulary_file", "indoor-en.txt")
         if not vocabulary_path.resolve().is_relative_to(vocabulary_root.resolve()):
@@ -272,34 +281,36 @@ class Sam3Segmentation(StageAlgorithm):
         total = 0
         for path in files[::stride]:
             candidates = []
-            with Image.open(path) as source, torch.inference_mode():
-                image = source.convert("RGB")
-                state = processor.set_image(image)
-                for label in vocabulary:
-                    result = processor.set_text_prompt(state=state, prompt=label)
-                    masks = _numpy(result["masks"])
-                    if masks.ndim == 4 and masks.shape[1] == 1:
-                        masks = masks[:, 0]
-                    scores = _numpy(result["scores"]).reshape(-1)
-                    if masks.shape != (len(scores), image.height, image.width):
-                        raise SceneError("INVALID_MODEL_OUTPUT", "SAM 3 mask dimensions differ from RGB")
-                    for mask, score in zip(masks, scores):
-                        binary = mask > .5
-                        if np.isfinite(score) and score >= threshold and binary.any():
-                            candidates.append((float(score), label, binary))
-                kept = []
-                for candidate in sorted(candidates, key=lambda item: item[0], reverse=True):
-                    mask = candidate[2]
-                    if any(np.count_nonzero(mask & item[2]) / np.count_nonzero(mask | item[2])
-                           > .8 for item in kept):
-                        continue
-                    kept.append(candidate)
-                masks = np.stack([item[2] for item in kept]) if kept else np.empty(
-                    (0, image.height, image.width), dtype=bool)
-                np.savez_compressed(workspace.dir("segment/masks") / f"{path.stem}.npz",
-                                    masks=masks, labels=np.asarray([item[1] for item in kept], dtype=str),
-                                    scores=np.asarray([item[0] for item in kept], dtype=np.float32))
-                total += len(kept)
+            with Image.open(path) as source:
+                width, height = source.size
+            # One image encoding per Frame; the Vocabulary is prompted in batches to bound VRAM.
+            self.predictor.set_image(str(path))
+            for offset in range(0, len(vocabulary), batch_size):
+                labels = vocabulary[offset:offset + batch_size]
+                masks, boxes = self.predictor.inference_features(
+                    self.predictor.features, (height, width), text=labels)
+                if masks is None:
+                    continue
+                masks, boxes = _numpy(masks), _numpy(boxes)
+                if masks.shape != (len(boxes), height, width):
+                    raise SceneError("INVALID_MODEL_OUTPUT", "SAM 3 mask dimensions differ from RGB")
+                for mask, score, label in zip(masks, boxes[:, 4], boxes[:, 5].astype(int)):
+                    binary = mask > .5
+                    if np.isfinite(score) and score >= threshold and binary.any():
+                        candidates.append((float(score), labels[label], binary))
+            kept = []
+            for candidate in sorted(candidates, key=lambda item: item[0], reverse=True):
+                mask = candidate[2]
+                if any(np.count_nonzero(mask & item[2]) / np.count_nonzero(mask | item[2])
+                       > .8 for item in kept):
+                    continue
+                kept.append(candidate)
+            masks = np.stack([item[2] for item in kept]) if kept else np.empty(
+                (0, height, width), dtype=bool)
+            np.savez_compressed(workspace.dir("segment/masks") / f"{path.stem}.npz",
+                                masks=masks, labels=np.asarray([item[1] for item in kept], dtype=str),
+                                scores=np.asarray([item[0] for item in kept], dtype=np.float32))
+            total += len(kept)
         return SegmentManifest(num_masks=total, vocabulary_size=len(vocabulary))
 
 

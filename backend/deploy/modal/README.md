@@ -23,11 +23,11 @@ Set `MODAL_COMPUTE_URL` to the printed URL and `COMPUTE_TOKEN` locally. Select
 set `GPU_TARGET=modal`, then run `uv run tasks.py up`. Every GPU Stage of the fake pipeline
 uses `GPU_TARGET`. The default image contains fakes only.
 
-The real pipeline needs two image variants, because MapAnything requires NumPy 2 and SAM 3
-requires NumPy below 2: `uv run tasks.py deploy-modal --variant recon` (MapAnything, GeoCalib) and
-`uv run tasks.py deploy-modal --variant perception` (SAM 3, MetaCLIP 2). Each becomes its own Modal
-app; set `MODAL_RECON_URL` and `MODAL_PERCEPTION_URL` to the printed URLs. Set
-`RECON_TARGET=modal_recon` and `PERCEPTION_TARGET=modal_perception`.
+The real pipeline uses the GPU image, which holds every GPU Algorithm:
+`uv run tasks.py deploy-modal --variant gpu` deploys it as the Modal app `scene-compute-gpu`.
+Set `MODAL_COMPUTE_URL` to the printed URL, select `config/pipeline.yaml` and keep
+`GPU_TARGET=modal`. Choose a GPU with at least 48 GB of VRAM, because every model stays loaded
+(ARCHITECTURE §6.8).
 
 The app uses one GPU container with concurrent HTTP requests so polling remains available during
 a Compute Run. Model downloads persist in the `scene-models` Volume at `/models`; Scene files

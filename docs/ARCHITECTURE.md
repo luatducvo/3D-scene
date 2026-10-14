@@ -307,7 +307,7 @@ dependencies = ["scene-core", "numpy>=2", "pillow>=11", "opencv-python-headless>
 recon-mapanything = ["torch", "torchvision", "mapanything @ git+https://github.com/facebookresearch/map-anything.git"]
 align-geocalib    = ["torch", "geocalib @ git+https://github.com/cvg/GeoCalib.git", "open3d>=0.18"]
 mesh-tsdf         = ["open3d>=0.18"]
-segment-sam3      = ["torch", "sam3 @ git+https://github.com/facebookresearch/sam3.git"]
+segment-sam3      = ["torch", "ultralytics", "clip @ git+https://github.com/ultralytics/CLIP.git"]
 lift-maskclustering = ["torch", "open3d>=0.18", "scikit-learn"]
 embed-metaclip2   = ["torch", "transformers>=4.56"]
 attributes-vlm    = ["openai>=1.50"]
@@ -320,13 +320,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 ```
 
-MapAnything requires NumPy 2 while SAM 3 requires NumPy below 2, so the two extras are declared in `[tool.uv] conflicts` at the workspace root. scene-compute exposes them as two image variants: `recon` (MapAnything, GeoCalib) and `perception` (SAM 3, MetaCLIP 2), deployed as separate compute targets (6.8). The real extras live in `backend/packages/scene-stages/pyproject.toml`; the block above shows the shape, not the exact pins.
+All GPU extras resolve in one environment. SAM 3 runs through Ultralytics, whose NumPy range accepts NumPy 2 as MapAnything requires, so scene-compute has a single `gpu` extra and a single GPU image (6.8, [ADR-0002](ADR-0002-single-gpu-image-ultralytics-sam3.md)). The real extras live in `backend/packages/scene-stages/pyproject.toml`; the block above shows the shape, not the exact pins.
 
 Common commands:
 
 ```bash
 uv sync                                          # whole workspace, light deps
-uv sync --package scene-compute --extra recon    # compute runtime for the recon image variant
+uv sync --package scene-compute --extra gpu      # compute runtime of the GPU image
 uv add --package scene-worker httpx              # add a dependency to one service
 uv run --package scene-api pytest
 ```
@@ -773,24 +773,19 @@ Shared by the compute server and `InProcessBackend`.
 
 ```python
 class Executor:
-    """Loads algorithms lazily, keeps them warm, runs one job at a time per GPU."""
+    """Loads algorithms lazily, keeps every loaded one warm, runs one job at a time per GPU."""
 
-    def __init__(self, data_dir: Path, max_loaded: int = 2):
-        self._data_dir, self._max_loaded = data_dir, max_loaded
-        self._loaded: OrderedDict[str, StageAlgorithm] = OrderedDict()
+    def __init__(self, data_dir: Path):
+        self._data_dir = data_dir
+        self._loaded: dict[str, StageAlgorithm] = {}
         self._lock = threading.Lock()
 
     def get(self, name: str) -> StageAlgorithm:
-        if name in self._loaded:
-            self._loaded.move_to_end(name)
-            return self._loaded[name]
-        while len(self._loaded) >= self._max_loaded:          # free VRAM on a single GPU
-            _, old = self._loaded.popitem(last=False)
-            release(old)
-        algorithm = registry.create("StageAlgorithm", name)
-        algorithm.setup()
-        self._loaded[name] = algorithm
-        return algorithm
+        if name not in self._loaded:                          # never evicted: size the GPU for all models (6.8)
+            algorithm = registry.create("StageAlgorithm", name)
+            algorithm.setup()
+            self._loaded[name] = algorithm
+        return self._loaded[name]
 
     def run(self, name: str, scene_id: str, params: dict) -> dict:
         with self._lock:
@@ -805,7 +800,7 @@ class Executor:
 
 ```python
 app = FastAPI(title="Scene Compute", version="1.0.0", lifespan=lifespan)
-executor = Executor(Path(os.environ.get("DATA_DIR", "/data")), max_loaded=int(os.environ.get("MAX_LOADED_MODELS", "2")))
+executor = Executor(Path(os.environ.get("DATA_DIR", "/data")))
 runs = RunRegistry()                      # in-memory dict + JSON copy under DATA_DIR/runs/
 pool = ThreadPoolExecutor(max_workers=1)  # one GPU job at a time
 ready = threading.Event()
@@ -853,7 +848,7 @@ polls during active Compute Runs. The worker waits through cold starts.
 registry image. Serverless uses the load-balancing product, one worker, and an idle timeout longer
 than polling. The shared compute token is mandatory behind public proxies.
 
-**Vast.ai** — [runbook](../backend/deploy/vast/README.md) rents one instance per image variant by
+**Vast.ai** — [runbook](../backend/deploy/vast/README.md) rents one instance by
 hand from the web console, pulls the image pushed to Docker Hub, and starts the server from the
 On-start script. Each instance has a new URL; for real captures the worker reaches it through an
 SSH tunnel. Instances are destroyed after each session.
@@ -867,19 +862,19 @@ the first provider exercised live; Modal, local GPU, RunPod and generic hosts ar
 development. Remote disks
 are caches; local Scene storage remains authoritative.
 
-### 6.8 Image variants and GPU sizing
+### 6.8 GPU image and sizing
 
-GPU algorithms ship as two image variants because their dependencies conflict (NumPy): `EXTRAS=recon` (MapAnything, GeoCalib) and `EXTRAS=perception` (SAM 3, MetaCLIP 2). Each is deployed as its own target (for example `vast_recon` and `vast_perception`, or `modal_recon` and `modal_perception`) and `pipeline.yaml` assigns stages to them through `RECON_TARGET` and `PERCEPTION_TARGET`. The contract and the code stay identical.
+Every GPU Algorithm ships in one image, `EXTRAS=gpu` (MapAnything, GeoCalib, SAM 3 through Ultralytics, MetaCLIP 2), deployed as one Target per provider (`vast`, `modal`, ...). `pipeline.yaml` assigns every GPU Stage to it through `GPU_TARGET`; a Stage can still be moved by editing its `target`. See [ADR-0002](ADR-0002-single-gpu-image-ultralytics-sam3.md) for the license and VRAM trade-off.
 
 | Algorithm | Suggested GPU | Notes |
 |---|---|---|
 | `recon.mapanything` | 24 GB with `memory_efficient_inference` and ≤ 80 keyframes (the pipeline's `max_keyframes`); 40–80 GB (A100/H100) for more | About 1B parameters |
 | `align.geocalib_ransac` | ≥ 8 GB | |
-| `segment.sam3` | ≥ 16 GB | Gated checkpoint on Hugging Face |
+| `segment.sam3` | ≥ 16 GB | Ultralytics `SAM3SemanticPredictor`; gated `sam3.pt` on Hugging Face |
 | `lift.maskclustering` | ≥ 16 GB | |
 | `embed.metaclip2` | ≥ 16 GB | Also serves query-time text embedding |
 
-On a single GPU, `MAX_LOADED_MODELS` keeps only one or two models in memory at a time.
+The Executor never unloads a model, so all of them stay in VRAM together after a full Job. A GPU Target needs **at least 48 GB of VRAM**; captures with more than 80 keyframes need 80 GB (A100/H100).
 
 ---
 
@@ -902,9 +897,8 @@ extra makes its implementation usable.
 ### 7.2 Pipeline configuration (`config/pipeline.yaml`)
 
 The executable [real pipeline](../backend/config/pipeline.yaml) maps the nine Stage names to
-Algorithm, Target and parameters in processing order. GPU Stages name their Target through
-`${RECON_TARGET}` (recon, align) and `${PERCEPTION_TARGET}` (segment, lift, embed); the fake GPU
-pipeline uses `${GPU_TARGET}`. No provider is the default, so the operator sets these in `.env`;
+Algorithm, Target and parameters in processing order. GPU Stages (recon, align, segment, lift, embed) name their Target through
+`${GPU_TARGET}`, in the real and the fake GPU pipeline alike. No provider is the default, so the operator sets these in `.env`;
 an unset variable stays literal and the worker reports it by name. CPU Stages use `cpu`. The
 config hash excludes the Target, so moving Stages to another provider does not rerun them.
 The [fake GPU example](../backend/config/pipeline.fake-gpu.yaml) exercises the same remote contract
@@ -1071,7 +1065,8 @@ From this stage on, every stage reads poses from `align/`, not `recon/`.
 ### 8.5 2D segmentation — `segment.sam3` (GPU)
 
 - **Reads:** `recon/rgb`. **Writes:** `segment/`.
-- Process every `frame_stride`-th frame. Prompt each concept from `config/vocabularies/<vocabulary_file>` (200–400 English noun phrases).
+- Run SAM 3 through Ultralytics `SAM3SemanticPredictor` with the gated `facebook/sam3` checkpoint, in fp16 unless `half: false`.
+- Process every `frame_stride`-th frame: encode the image once, then prompt the concepts from `config/vocabularies/<vocabulary_file>` (200–400 English noun phrases) in batches of `prompt_batch_size`.
 - Keep masks with score ≥ `score_threshold`; merge masks with IoU > 0.8 within a frame, keeping the higher score.
 
 ### 8.6 2D → 3D lifting — `lift.maskclustering` (GPU)
@@ -1460,10 +1455,8 @@ CORS_ORIGINS=http://localhost:3000
 PIPELINE_CONFIG=/app/config/pipeline.yaml
 COMPUTE_CONFIG=/app/config/compute.yaml
 COMPUTE_TOKEN=                       # shared secret sent as X-Compute-Token to every remote target
-RECON_TARGET=                        # compute.yaml Target names; no provider is the default
-PERCEPTION_TARGET=
-GPU_TARGET=                          # pipeline.fake-gpu.yaml only
-COMPUTE_IMAGE_REPO=<dockerhub-user>/scene-compute   # tags <variant>-<git short sha>
+GPU_TARGET=                          # compute.yaml Target name for every GPU Stage; no provider is the default
+COMPUTE_IMAGE_REPO=<dockerhub-user>/scene-compute   # tags {fake|gpu}-<git short sha>
 
 # Provider keys (only for the targets you use)
 RUNPOD_API_KEY=
@@ -1592,7 +1585,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 The [compute Dockerfile](../backend/docker/compute.Dockerfile) is the single build definition for
 all GPU providers. Build context is the repository root (where `pyproject.toml` and `uv.lock` live).
-Empty `EXTRAS` installs the fake contract pipeline; `recon` or `perception` selects a real GPU variant.
+Empty `EXTRAS` installs the fake contract pipeline; `gpu` installs every real GPU Algorithm.
 Modal builds this file remotely. Other providers consume its published Linux amd64 image.
 
 ### 11.5 Cross-platform tasks
@@ -1668,7 +1661,7 @@ CMD ["node", "server.js"]
 ### 12.1 Replace an algorithm (example: MapAnything → Depth Anything 3)
 
 1. Add `packages/scene-stages/src/scene_stages/recon/depth_anything3.py` with a `StageAlgorithm` named `recon.depth_anything3`, same `reads`, `writes` and `ReconManifest`. If the model is not metric, the class itself must convert to meters; that is part of the contract.
-2. Add an extra `recon-depth-anything3`, include it in the `recon` variant of scene-compute, and add an entry point.
+2. Add an extra `recon-depth-anything3`, include it in the `gpu` extra of scene-compute, and add an entry point.
 3. Set `algorithm: recon.depth_anything3` in `pipeline.yaml`.
 4. Rebuild and redeploy the compute image (`uv run tasks.py up-local-gpu`, or `uv run tasks.py push-compute-image` and redeploy on the provider).
 5. Reprocess with `from_stage: recon`.
@@ -1677,7 +1670,7 @@ No change to the runner, other stages, the API or the frontend.
 
 ### 12.2 Move a stage to another provider
 
-Point `RECON_TARGET` or `PERCEPTION_TARGET` in `.env` at another Target (or change `target` for that stage in `pipeline.yaml`). If the target is new, deploy the image there (6.7) and add its URL and headers to `compute.yaml`. No code changes.
+Point `GPU_TARGET` in `.env` at another Target (or change `target` for that stage in `pipeline.yaml`). If the target is new, deploy the image there (6.7) and add its URL and headers to `compute.yaml`. No code changes.
 
 ### 12.3 Add a provider
 
@@ -1709,13 +1702,13 @@ cd backend
 cp .env.example .env              # LLM_*, VLM_*, COMPUTE_TOKEN, provider keys you need
 uv sync                           # local tooling and tests
 
-# Pick where GPU stages run: RECON_TARGET / PERCEPTION_TARGET (or GPU_TARGET for fakes) in .env
+# Pick where GPU stages run: GPU_TARGET in .env
 
 # A. Local GPU
 uv run tasks.py up-local-gpu
 
 # B. Remote GPU (Vast.ai, Modal, RunPod, any Docker host)
-# Vast.ai: uv run tasks.py push-compute-image [--extras recon|perception], then deploy/vast/README.md
+# Vast.ai: uv run tasks.py push-compute-image [--extras gpu], then deploy/vast/README.md
 uv run tasks.py deploy-modal       # remote build from Dockerfile; no registry push
 # Other providers use the registry image (section 6.7).
 #   and put the endpoint URL in config/compute.yaml

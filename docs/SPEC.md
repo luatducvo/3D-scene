@@ -101,7 +101,7 @@ the Targets before starting the system, and switching provider is a configuratio
 
 ### Compute and operations
 52. As an operator, I want to choose per Stage whether it runs in-process on CPU or on a named GPU target, so that I can place work where it fits.
-53. As an operator, I want to move all GPU Stages to another provider by changing the Target settings (one per image variant), so that switching providers is trivial.
+53. As an operator, I want to move all GPU Stages to another provider by changing one Target setting, so that switching providers is trivial.
 54. As an operator, I want one GPU image that runs unchanged on Modal, RunPod (Pod or Serverless), Vast.ai, a local GPU or any Docker host, so that I never write provider-specific application code.
 55. As an operator using Modal, I want Modal to build the GPU image from the project's own build definition, so that I do not push a 10+ GB image from a home connection.
 56. As an operator, I want the worker to wait through remote cold starts, so that a sleeping GPU container does not fail a Job.
@@ -142,7 +142,7 @@ the Targets before starting the system, and switching provider is a configuratio
 - **Executor lives in scene-core**, so both the GPU server and the worker's in-process backend share it without the worker depending on the GPU server package.
 - **Registration is by package entry points only**, resolved lazily. Groups: one for Stage Algorithms, one for Relation rules. No decorator-based registry. Listing available Algorithms must not import heavy libraries.
 - **Walking skeleton first.** Every layer is wired end-to-end with fake Algorithms before any real model is integrated; real Algorithms then replace fakes Stage by Stage.
-- **No GPU provider is the default.** GPU Stages name their Target through `RECON_TARGET` and `PERCEPTION_TARGET` (`GPU_TARGET` for the fake GPU pipeline); the worker refuses to start when a selected Target is unset or has no URL. Vast.ai, rented by hand, is the first provider exercised live. The Modal deployment builds the image from the same Dockerfile used everywhere; other providers pull the image built locally and pushed to Docker Hub. Modal, local GPU, RunPod and generic Docker hosts are written but not exercised during development. See [VAST-PLAN](VAST-PLAN.md).
+- **No GPU provider is the default.** GPU Stages name their Target through `GPU_TARGET`, in the real and the fake GPU pipeline alike; every real GPU Algorithm ships in one image ([ADR-0002](ADR-0002-single-gpu-image-ultralytics-sam3.md)); the worker refuses to start when a selected Target is unset or has no URL. Vast.ai, rented by hand, is the first provider exercised live. The Modal deployment builds the image from the same Dockerfile used everywhere; other providers pull the image built locally and pushed to Docker Hub. Modal, local GPU, RunPod and generic Docker hosts are written but not exercised during development. See [VAST-PLAN](VAST-PLAN.md).
 - **Task runner** is a stdlib-only Python script invoked through `uv`, replacing the Makefile.
 - **Lift** is an in-house re-implementation of MaskClustering's view-consensus approach (masks → 3D points via aligned depth and poses → mask graph weighted by cross-view consensus → iterative clustering → score×area label voting), not a vendored research repo. The registry key stays `lift.maskclustering`.
 

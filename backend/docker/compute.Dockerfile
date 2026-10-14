@@ -10,7 +10,7 @@ COPY pyproject.toml uv.lock ./
 COPY backend/packages backend/packages
 COPY backend/services backend/services
 COPY backend/config backend/config
-# Empty installs contract fakes; all-gpu opts in to the heavy algorithm dependencies.
+# Empty installs contract fakes; `gpu` installs every heavy GPU Algorithm in one image.
 ARG EXTRAS=""
 RUN if [ -n "$EXTRAS" ]; then uv sync --frozen --no-dev --package scene-compute --extra "$EXTRAS"; \
     else uv sync --frozen --no-dev --package scene-compute; fi \

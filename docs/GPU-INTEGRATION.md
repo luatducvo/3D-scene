@@ -8,7 +8,7 @@ gated SAM 3 access and the user's room capture.
 |---|---|---|
 | MapAnything | `MapAnything.from_pretrained`, `load_images`, `infer`; per-view metric depth, confidence, validity mask, RGB, intrinsics and camera-to-world pose | `recon/rgb/*.png`, `recon/frames/*.npz` |
 | GeoCalib | `GeoCalib().load_image`, `calibrate`, `gravity.vec3d` | aligned Frame archives, transform Manifest and planes |
-| SAM 3 | `build_sam3_image_model`, `Sam3Processor.set_image`, `set_text_prompt`; masks and scores | masks, labels and scores per selected Frame |
+| SAM 3 (Ultralytics) | `SAM3SemanticPredictor(overrides=...)`, `set_image`, `inference_features(features, src_shape, text=[...])`; boolean masks and `(x1, y1, x2, y2, score, class)` boxes | masks, labels and scores per selected Frame |
 | MetaCLIP 2 | Transformers 4.x `AutoModel`, `AutoProcessor`, `get_image_features`, `get_text_features` | normalized 1024-dimensional image/text vectors |
 
 MapAnything's [official README](https://github.com/facebookresearch/map-anything#image-only-inference)
@@ -22,12 +22,16 @@ at zero roll/pitch the vector is `(0,-1,0)`, upward in OpenCV camera axes. The a
 through camera poses, robustly combines estimates, fits horizontal/vertical planes and aligns
 the floor and Manhattan wall directions. Absence of a floor or walls fails clearly.
 
-SAM 3's [setup](https://github.com/facebookresearch/sam3#installation) requires Python >=3.12,
-Torch >=2.7 and CUDA >=12.6; it currently recommends Torch 2.10.0 with CUDA 12.8.
-Its [package metadata](https://github.com/facebookresearch/sam3/blob/main/pyproject.toml) requires
-NumPy >=1.26,<2, which must be respected across the workspace. The compute Dockerfile uses CUDA
-12.8.1. PyTorch/Torchvision pins still require a complete GPU image build and inference check;
-compatible declared versions do not prove every kernel works together.
+SAM 3 runs through [Ultralytics](https://docs.ultralytics.com/models/sam-3/) (AGPL-3.0, see
+[ADR-0002](ADR-0002-single-gpu-image-ultralytics-sam3.md)). The adapter was written against
+`ultralytics==8.4.177`: `SAM3SemanticPredictor.inference_features` filters by `args.conf`, applies
+per-class NMS and returns masks already resized to the source image, with the class column indexing
+the text batch. `quantize: 16` selects fp16. The gated `sam3.pt` comes from `facebook/sam3` through
+`hf_hub_download`. Ultralytics' [CLIP fork](https://github.com/ultralytics/CLIP) is declared as a
+dependency so nothing is installed at runtime. Ultralytics accepts NumPy 2 on Linux, so every GPU
+Algorithm resolves in one environment (NumPy 2.5.4, Torch 2.14.1 on 2026-10-14). The compute
+Dockerfile uses CUDA 12.8.1. PyTorch/Torchvision pins still require a complete GPU image build and
+inference check; compatible declared versions do not prove every kernel works together.
 
 MetaCLIP's [model configuration](https://huggingface.co/facebook/metaclip-2-worldwide-huge-quickgelu/blob/main/config.json)
 sets projection dimension 1024, matching the database. The adapter checks it at runtime.
@@ -37,7 +41,7 @@ its output contract checked. Image and text vectors use the same model and L2 no
 
 ## Manual acceptance still required
 
-1. Build and push the heavy images, inspect `/info`, and download weights into the provider's cache.
+1. Build and push the GPU image, inspect `/info`, and download weights into the provider's cache.
 2. Process a room capture on the configured provider. Confirm plausible metric dimensions, z=0 floor and axis-aligned walls.
 3. Inspect mask alignment with RGB, multi-view Object identities, boxes and evidence crops.
 4. Search visible objects in both English and Vietnamese and check the ranking/highlights.
@@ -52,5 +56,5 @@ Live checks are manual and recorded here, separately from local tests. One row p
 
 | Date | Provider / Target | Image tag and digest | GPU | Check | Result |
 |---|---|---|---|---|---|
-| | Vast.ai / `vast_recon` | `fake-<sha>` | | fake pipeline end to end, checksums, Workspace delete | not yet run |
-| | Vast.ai / `vast_recon` + `vast_perception` | `recon-<sha>`, `perception-<sha>` | | room capture, acceptance items 2–4 | not yet run |
+| | Vast.ai / `vast` | `fake-<sha>` | | fake pipeline end to end, checksums, Workspace delete | not yet run |
+| | Vast.ai / `vast` | `gpu-<sha>` | ≥ 48 GB | room capture, acceptance items 2–4 | not yet run |

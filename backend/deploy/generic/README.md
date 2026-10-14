@@ -6,17 +6,17 @@ does not establish support for every real model.
 
 ## Local Compose profile
 
-From the repository root, use `uv run tasks.py up-local-gpu`. Set `RECON_TARGET` and `PERCEPTION_TARGET`
-(or `GPU_TARGET` for fakes) to `local_gpu`. The compute service shares the Scene data volume with the API and worker,
+From the repository root, use `uv run tasks.py up-local-gpu`. Set `GPU_TARGET` to `local_gpu`
+and `LOCAL_GPU_EXTRAS=gpu` for real Algorithms. The compute service shares the Scene data volume with the API and worker,
 so `shared_storage: true` skips HTTP file transfers. Model weights bind-mount the host cache.
 Check `/ping` from inside the Compose network and inspect `/info`; no public port is required.
 
 ## Publish the portable image
 
-Set `COMPUTE_IMAGE_REPO` to your repository (tags become `<variant>-<git short sha>`) or pass `--image`, and authenticate Docker to that registry. From the repository root,
+Set `COMPUTE_IMAGE_REPO` to your repository (tags become `fake-<git short sha>` or `gpu-<git short sha>`) or pass `--image`, and authenticate Docker to that registry. From the repository root,
 run `uv run tasks.py compute-image` then `uv run tasks.py push-compute-image`.
-The build uses repository-root context and `--platform linux/amd64`. `--extras recon` or
-`--extras perception` builds a real GPU variant; the default image runs contract fakes.
+The build uses repository-root context and `--platform linux/amd64`. `--extras gpu`
+builds the image with every real GPU Algorithm; the default image runs contract fakes.
 Registry credentials stay with Docker, outside the image.
 
 ## Generic host

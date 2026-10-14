@@ -1,6 +1,6 @@
 # Requires real adapters and their optional dependencies; use pipeline.fake.yaml for the skeleton.
-# RECON_TARGET and PERCEPTION_TARGET name the compute Targets for the two image variants (numpy
-# conflict); set both in backend/.env. No provider is the default.
+# GPU_TARGET names the compute Target running the single GPU image; set it in backend/.env.
+# No provider is the default.
 stages:
   ingest:
     algorithm: ingest.opencv
@@ -8,11 +8,11 @@ stages:
     params: {min_keyframes: 10, max_keyframes: 80, video_fps: 3, blur_threshold: 100.0, phash_distance: 6, long_side: 1600}
   recon:
     algorithm: recon.mapanything
-    target: "${RECON_TARGET}"
+    target: "${GPU_TARGET}"
     params: {model_id: facebook/map-anything, memory_efficient_inference: true, confidence_percentile: 10}
   align:
     algorithm: align.geocalib_ransac
-    target: "${RECON_TARGET}"
+    target: "${GPU_TARGET}"
     params: {ransac_threshold_m: 0.02, num_calibration_frames: 20}
   mesh:
     algorithm: mesh.tsdf
@@ -20,15 +20,15 @@ stages:
     params: {voxel_size_m: 0.015, sdf_trunc_m: 0.05, target_faces: 300000}
   segment:
     algorithm: segment.sam3
-    target: "${PERCEPTION_TARGET}"
-    params: {vocabulary_file: indoor-en.txt, score_threshold: 0.5, frame_stride: 2}
+    target: "${GPU_TARGET}"
+    params: {vocabulary_file: indoor-en.txt, score_threshold: 0.5, frame_stride: 2, half: true, prompt_batch_size: 32}
   lift:
     algorithm: lift.maskclustering
-    target: "${PERCEPTION_TARGET}"
+    target: "${GPU_TARGET}"
     params: {min_views: 2, num_best_views: 3}
   embed:
     algorithm: embed.metaclip2
-    target: "${PERCEPTION_TARGET}"
+    target: "${GPU_TARGET}"
     params: {model_id: facebook/metaclip-2-worldwide-huge-quickgelu}
   attributes:
     algorithm: attributes.vlm_api

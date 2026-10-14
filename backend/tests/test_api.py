@@ -147,14 +147,14 @@ def test_delete_cleans_remote_workspaces_and_tolerates_unreachable_targets(tmp_p
 
 
 def test_worker_refuses_to_start_without_configured_gpu_targets(tmp_path, monkeypatch):
-    for name in ("GPU_TARGET", "VAST_RECON_URL"):
+    for name in ("GPU_TARGET", "VAST_URL"):
         monkeypatch.delenv(name, raising=False)
     config = Path(__file__).parents[1]/"config"
     start = lambda: Worker(os.environ["TEST_DATABASE_URL"], tmp_path, PipelineConfig.load(config/"pipeline.fake-gpu.yaml"), ComputeConfig.load(config/"compute.yaml"))
     with pytest.raises(ValueError, match="GPU_TARGET"):
         start()
-    monkeypatch.setenv("GPU_TARGET", "vast_recon")
-    with pytest.raises(ValueError, match="vast_recon.*URL"):
+    monkeypatch.setenv("GPU_TARGET", "vast")
+    with pytest.raises(ValueError, match="vast.*URL"):
         start()
 
 
