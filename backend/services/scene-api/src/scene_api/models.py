@@ -16,6 +16,10 @@ class SceneSummary(BaseModel):
     name:str
     status:SceneStatus
     created_at:datetime
+class StageProgress(BaseModel):
+    done:int
+    total:int
+    unit:str
 class StageRun(BaseModel):
     stage:str
     algorithm:str
@@ -23,6 +27,9 @@ class StageRun(BaseModel):
     config_hash:str
     manifest:dict|None=None
     error:dict|None=None
+    progress:StageProgress|None=None
+    started_at:datetime|None=None
+    updated_at:datetime|None=None
 class SceneAssets(BaseModel):
     mesh_url:str|None=None
     points_url:str|None=None
@@ -52,12 +59,19 @@ class Evidence(BaseModel):
     image_url:str
     frame_id:str
 class ProgressEvent(BaseModel):
-    type:Literal["stage","status"]
+    """`stage` and `status` events carry state; `progress` events carry done/total/unit for one Stage."""
+    type:Literal["stage","status","progress"]
     stage:str|None=None
-    status:str
+    status:str|None=None
     algorithm:str|None=None
     manifest:dict|None=None
     error:dict|None=None
+    progress:StageProgress|None=None
+    started_at:datetime|None=None
+    updated_at:datetime|None=None
+    done:int|None=None
+    total:int|None=None
+    unit:str|None=None
 class QueryEvent(BaseModel):
     type:Literal["tool","delta","final"]
     tool:str|None=None

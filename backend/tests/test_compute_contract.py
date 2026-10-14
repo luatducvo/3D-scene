@@ -43,8 +43,10 @@ def test_remote_fake_stage_roundtrip_skip_failure_and_cleanup(tmp_path):
     with TestClient(app) as client:
         client.event_hooks["request"].append(lambda request: requests.append((request.method, request.url.path)))
         backend = HttpBackend(local, TargetConfig(url="http://testserver", chunk_size=512, poll_interval=.001), client=client)
-        result = backend.run("ingest.fake", "room", {}, ["raw"], ["keyframes"])
+        reports = []
+        result = backend.run("ingest.fake", "room", {"progress_steps": 3}, ["raw"], ["keyframes"], on_progress=reports.append)
         assert result["num_keyframes"] == 1
+        assert reports[-1] == {"done": 3, "total": 3, "unit": "step"}
         assert (local / "scenes/room/keyframes/0000.jpg").read_bytes() == (remote / "scenes/room/keyframes/0000.jpg").read_bytes()
         requests.clear()
         backend.run("ingest.fake", "room", {}, ["raw"], ["keyframes"])

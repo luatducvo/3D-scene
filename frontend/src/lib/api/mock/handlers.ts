@@ -1,10 +1,11 @@
 import { http, HttpResponse } from "msw";
-import type {
-  Scene,
-  SceneObject,
-  ProgressEvent,
-  QueryEvent,
-  Schemas,
+import {
+  progressEvent,
+  type Scene,
+  type SceneObject,
+  type ProgressEvent,
+  type QueryEvent,
+  type Schemas,
 } from "../port";
 import { apiOrigin } from "../http";
 const base = `${apiOrigin}/api/v1/scenes`;
@@ -124,32 +125,31 @@ export const handlers = [
     if (!scene) return missing();
     if (scene.status !== "processing")
       return stream([
-        {
+        progressEvent({
           type: "status",
           status: scene.status,
           stage: null,
           algorithm: null,
           manifest: null,
-          error: null,
-        },
+        }),
       ]);
     const events: ProgressEvent[] = stages.flatMap((stage) => [
-      {
+      progressEvent({
         type: "stage",
         stage,
         status: "running",
-        algorithm: null,
-        manifest: null,
-        error: null,
-      },
-      {
+        started_at: new Date().toISOString(),
+      }),
+      ...[1, 2, 3].map((done) =>
+        progressEvent({ type: "progress", stage, done, total: 3, unit: "step" }),
+      ),
+      progressEvent({
         type: "stage",
         stage,
         status: "done",
         algorithm: null,
         manifest: null,
-        error: null,
-      },
+      }),
     ]);
     scene.status = "ready";
     scene.stage_runs = stages.map((stage) => ({
@@ -160,14 +160,13 @@ export const handlers = [
     }));
     return stream([
       ...events,
-      {
+      progressEvent({
         type: "status",
         status: "ready",
         stage: null,
         algorithm: null,
         manifest: null,
-        error: null,
-      },
+      }),
     ]);
   }),
   http.get(`${base}/:id/objects`, () => HttpResponse.json(objects)),

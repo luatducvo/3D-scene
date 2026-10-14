@@ -71,5 +71,16 @@
     "embed": "Lập chỉ mục tìm kiếm",
     "attributes": "Mô tả đồ vật",
     "graph": "Xác định quan hệ không gian"
+  },
+  "stagesCompleted": "{done}/{total} bước",
+  "etaSoon": "còn chưa tới một phút",
+  "etaMinutes": "còn khoảng {minutes} phút",
+  "etaHours": "còn khoảng {hours} giờ {minutes} phút",
+  "units": {
+    "image": "ảnh",
+    "frame": "khung hình",
+    "mask": "mặt nạ",
+    "object": "đồ vật",
+    "step": "bước"
   }
 }

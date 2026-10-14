@@ -8,8 +8,9 @@ class Repository:
     def __init__(self,url:str): self.url=url
     def connect(self): return psycopg.connect(self.url,row_factory=dict_row)
     def migrate(self):
-        migration=Path(__file__).resolve().parents[4]/"migrations"/"001_init.sql"
-        with self.connect() as conn: conn.execute(migration.read_text())
+        # Every migration is idempotent and runs in name order at each start.
+        with self.connect() as conn:
+            for migration in sorted((Path(__file__).resolve().parents[4]/"migrations").glob("*.sql")):conn.execute(migration.read_text())
     def get_scene(self,scene_id,conn=None,lock=False):
         if conn is None:
             with self.connect() as own: return self.get_scene(scene_id,own,lock)

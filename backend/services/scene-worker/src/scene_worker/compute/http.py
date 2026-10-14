@@ -118,14 +118,18 @@ class HttpBackend:
                 if path.is_file() and path not in expected:
                     path.unlink()
 
-    def run(self, algorithm, scene_id, params, reads, writes):
+    def run(self, algorithm, scene_id, params, reads, writes, on_progress=None):
         self._wait_until_ready()
         if not self.target.shared_storage:
             self._sync_up(scene_id, reads)
         run_id = self._call("POST", "/runs", json={"algorithm": algorithm, "scene_id": scene_id, "params": params}).json()["run_id"]
         deadline = time.monotonic() + 6 * 60 * 60
+        reported = None
         while time.monotonic() < deadline:
             result = self._call("GET", f"/runs/{run_id}").json()
+            if on_progress and result.get("progress") and result["progress"] != reported:
+                reported = result["progress"]
+                on_progress(reported)
             if result["state"] == "failed":
                 error = result.get("error", "Compute Run failed")
                 raise ComputeError(error.get("message", str(error)) if isinstance(error, dict) else error)

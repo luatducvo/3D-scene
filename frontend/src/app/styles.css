@@ -184,6 +184,22 @@ progress {
 .stepper li[data-status="running"] {
   border-color: #f7cb69;
 }
+.job-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stage-progress {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+}
+.stage-progress progress {
+  flex: 1;
+  margin: 4px 0;
+}
 .stepper li[data-status="failed"] {
   border-color: #ef8b8b;
 }

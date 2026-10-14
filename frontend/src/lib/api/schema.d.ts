@@ -430,6 +430,15 @@ export interface components {
             /** Score */
             score: number;
         };
+        /** StageProgress */
+        StageProgress: {
+            /** Done */
+            done: number;
+            /** Total */
+            total: number;
+            /** Unit */
+            unit: string;
+        };
         /** StageRun */
         StageRun: {
             /** Stage */
@@ -451,6 +460,11 @@ export interface components {
             error?: {
                 [key: string]: unknown;
             } | null;
+            progress?: components["schemas"]["StageProgress"] | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
         };
         /** UploadResult */
         UploadResult: {
@@ -470,20 +484,26 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
-        /** ProgressEvent */
+        /**
+         * ProgressEvent
+         * @description `stage` and `status` events carry state; `progress` events carry done/total/unit for one Stage.
+         */
         ProgressEvent: {
             /**
              * Type
              * @enum {string}
              */
-            type: "stage" | "status";
+            type: "stage" | "status" | "progress";
             /**
              * Stage
              * @default null
              */
             stage: string | null;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @default null
+             */
+            status: string | null;
             /**
              * Algorithm
              * @default null
@@ -503,6 +523,33 @@ export interface components {
             error: {
                 [key: string]: unknown;
             } | null;
+            /** @default null */
+            progress: components["schemas"]["StageProgress"] | null;
+            /**
+             * Started At
+             * @default null
+             */
+            started_at: string | null;
+            /**
+             * Updated At
+             * @default null
+             */
+            updated_at: string | null;
+            /**
+             * Done
+             * @default null
+             */
+            done: number | null;
+            /**
+             * Total
+             * @default null
+             */
+            total: number | null;
+            /**
+             * Unit
+             * @default null
+             */
+            unit: string | null;
         };
     };
     responses: never;

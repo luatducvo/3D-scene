@@ -5,7 +5,7 @@ from scene_core.executor import Executor
 from .compute.http import HttpBackend
 class InProcessBackend:
     def __init__(self,data_dir): self.executor=Executor(data_dir)
-    def run(self,algorithm,scene_id,params,reads,writes): return self.executor.run(algorithm,scene_id,params)
+    def run(self,algorithm,scene_id,params,reads,writes,on_progress=None): return self.executor.run(algorithm,scene_id,params,on_progress)
     def invoke(self,algorithm,method,payload): return self.executor.invoke(algorithm,method,payload)
 def backend_for(data_dir,target):
     if target.backend in ("cpu","inprocess"): return InProcessBackend(data_dir)

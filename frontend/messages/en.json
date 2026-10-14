@@ -71,5 +71,16 @@
     "embed": "Index objects for search",
     "attributes": "Describe objects",
     "graph": "Build spatial relations"
+  },
+  "stagesCompleted": "{done} of {total} stages",
+  "etaSoon": "less than a minute left",
+  "etaMinutes": "about {minutes} min left",
+  "etaHours": "about {hours} h {minutes} min left",
+  "units": {
+    "image": "{count, plural, one {image} other {images}}",
+    "frame": "{count, plural, one {frame} other {frames}}",
+    "mask": "{count, plural, one {mask} other {masks}}",
+    "object": "{count, plural, one {object} other {objects}}",
+    "step": "{count, plural, one {step} other {steps}}"
   }
 }

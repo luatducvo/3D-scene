@@ -87,7 +87,7 @@ The only boundary between frontend and backend is `WEB → API` over HTTP. The f
 | 3 | Gravity alignment | `StageAlgorithm` | `align.geocalib_ransac` | GPU target |
 | 4 | Mesh | `StageAlgorithm` | `mesh.tsdf` | `cpu` |
 | 5 | 2D segmentation | `StageAlgorithm` | `segment.sam3` | GPU target |
-| 6 | 2D → 3D lifting | `StageAlgorithm` | `lift.maskclustering` | GPU target |
+| 6 | 2D → 3D lifting | `StageAlgorithm` | `lift.maskclustering` | cpu |
 | 7 | Object embeddings | `StageAlgorithm` | `embed.metaclip2` | GPU target |
 | 8 | Attributes | `StageAlgorithm` | `attributes.vlm_api` | `cpu` (calls an LLM API) |
 | 9 | Scene graph | `StageAlgorithm` | `graph.geometric` | `cpu` |
@@ -562,6 +562,10 @@ class StageAlgorithm(ABC):
     @abstractmethod
     def run(self, workspace: SceneWorkspace, params: dict[str, Any]) -> BaseModel: ...
 
+    def progress(self, done: int, total: int, unit: str) -> None:
+        """Report progress inside run(), e.g. progress(48, 155, "object"). A no-op unless the
+        Executor attached a sink for this run; the Executor never changes run()'s signature."""
+
 class TextEmbedder(ABC):
     @abstractmethod
     def embed_text(self, texts: list[str]) -> np.ndarray: ...
@@ -675,7 +679,7 @@ Rules every deployment of `scene-compute` satisfies:
 | GET | `/workspaces/{scene_id}/files/{path}` | Download a file; supports the standard `Range` header for chunked download |
 | DELETE | `/workspaces/{scene_id}` | Remove a scene workspace on that host |
 | POST | `/runs` | `{algorithm, scene_id, params}` → `202 {run_id}` |
-| GET | `/runs/{run_id}` | `{state: queued\|running\|done\|failed, manifest?, error?, progress?}` |
+| GET | `/runs/{run_id}` | `{state: queued\|running\|done\|failed, manifest?, error?, progress?}`; `progress` is the Algorithm's latest `{done, total, unit}`, which the worker forwards on each poll |
 | POST | `/invoke/{algorithm}/{method}` | Short synchronous call, e.g. `embed_text` (must finish in < 30 s) |
 
 When `shared_storage: true` (local GPU container mounting the same `./data`), the worker skips the file endpoints entirely.
@@ -871,7 +875,6 @@ Every GPU Algorithm ships in one image, `EXTRAS=gpu` (MapAnything, GeoCalib, SAM
 | `recon.mapanything` | 24 GB with `memory_efficient_inference` and ≤ 80 keyframes (the pipeline's `max_keyframes`); 40–80 GB (A100/H100) for more | About 1B parameters |
 | `align.geocalib_ransac` | ≥ 8 GB | |
 | `segment.sam3` | ≥ 16 GB | Ultralytics `SAM3SemanticPredictor`; gated `sam3.pt` on Hugging Face |
-| `lift.maskclustering` | ≥ 16 GB | |
 | `embed.metaclip2` | ≥ 16 GB | Also serves query-time text embedding |
 
 The Executor never unloads a model, so all of them stay in VRAM together after a full Job. A GPU Target needs **at least 48 GB of VRAM**; captures with more than 80 keyframes need 80 GB (A100/H100).
@@ -897,7 +900,7 @@ extra makes its implementation usable.
 ### 7.2 Pipeline configuration (`config/pipeline.yaml`)
 
 The executable [real pipeline](../backend/config/pipeline.yaml) maps the nine Stage names to
-Algorithm, Target and parameters in processing order. GPU Stages (recon, align, segment, lift, embed) name their Target through
+Algorithm, Target and parameters in processing order. GPU Stages (recon, align, segment, embed) name their Target through
 `${GPU_TARGET}`, in the real and the fake GPU pipeline alike. No provider is the default, so the operator sets these in `.env`;
 an unset variable stays literal and the worker reports it by name. CPU Stages use `cpu`. The
 config hash excludes the Target, so moving Stages to another provider does not rerun them.
@@ -919,6 +922,8 @@ WHERE id = (
 )
 RETURNING *;
 ```
+
+A worker that restarts finds Jobs still `running` from its previous process, marks them, their running Stage and their Scene `failed` with code `WORKER_INTERRUPTED`, and emits the matching events, so the Scene can be processed again. This assumes one worker per database, as in the Compose deployment.
 
 - The API inserts a job and runs `NOTIFY jobs_queued`.
 - The worker `LISTEN`s on `jobs_queued` and also polls every 5 s, so a missed notification only delays a job.
@@ -1061,6 +1066,7 @@ From this stage on, every stage reads poses from `align/`, not `recon/`.
 
 - **Reads:** `recon/`, `align/`. **Writes:** `mesh/`.
 - Open3D `ScalableTSDFVolume` with `voxel_size_m` and `sdf_trunc_m`, then `extract_triangle_mesh`, `simplify_quadric_decimation(target_faces)`, export `mesh.glb` (via trimesh) and a downsampled `points.ply`.
+- The volume spans the `bounds_percentile`–(100 − `bounds_percentile`) range of the points on each axis (default 1), plus `2 × sdf_trunc_m`, so sparse far outliers neither inflate it past `max_voxels` nor enter the mesh or `points.ply`. `0` keeps every point. Checked on ScanNet `scene0011_00`: the 1–99 % range of the reconstruction is 8.5 × 6.9 m against 8.75 × 6.72 m for the ground-truth mesh, while all points span 14 × 13 m.
 
 ### 8.5 2D segmentation — `segment.sam3` (GPU)
 
@@ -1069,10 +1075,11 @@ From this stage on, every stage reads poses from `align/`, not `recon/`.
 - Process every `frame_stride`-th frame: encode the image once, then prompt the concepts from `config/vocabularies/<vocabulary_file>` (200–400 English noun phrases) in batches of `prompt_batch_size`.
 - Keep masks with score ≥ `score_threshold`; merge masks with IoU > 0.8 within a frame, keeping the higher score.
 
-### 8.6 2D → 3D lifting — `lift.maskclustering` (GPU)
+### 8.6 2D → 3D lifting — `lift.maskclustering` (cpu)
 
 - **Reads:** `recon/`, `align/`, `segment/`. **Writes:** `instances/`.
 - Implement MaskClustering view consensus in-house: lift masks through aligned depth and poses, build a mask graph weighted by cross-view consensus, and iteratively cluster masks. The research repository is not vendored.
+- Pure NumPy, so it runs in-process on the worker. Agglomeration keeps summed group-to-group affinity and a shared-Frame conflict matrix, updating one row and column per merge. On ScanNet `scene0011_00` (876 masks, 40 Frames) this took 64 s instead of 16 min, with identical `instances.json`.
 - Label each instance by score × area weighted voting over SAM 3 labels. Drop instances seen in fewer than `min_views` views.
 - Select `num_best_views` views by mask area × (1 − border contact ratio); save crops with 15 % padding.
 
@@ -1087,6 +1094,7 @@ From this stage on, every stage reads poses from `align/`, not `recon/`.
 - **Reads:** `instances/`. **Writes:** `attributes/`.
 - Sends 1–3 crops per object to an OpenAI-compatible vision model and asks for JSON: `{color: [], material: [], state: [], label_vi: ""}`.
 - Endpoint and model come from `VLM_BASE_URL`, `VLM_API_KEY`, `VLM_MODEL`; a local server works as well as a cloud API.
+- Each request has a total deadline of `request_timeout_s` (default 90), checked while streaming the body because some endpoints send keep-alive bytes that reset socket timeouts, and is retried `max_retries` times (default 2) on timeouts, transport errors, 429 and 5xx. An Object still without an answer is recorded in `attributes/errors.json`; other 4xx responses fail the Stage.
 
 ### 8.9 Scene graph — `graph.geometric` (cpu)
 
@@ -1209,12 +1217,19 @@ The files endpoint only serves whitelisted subdirectories and rejects path trave
 **Progress** (`GET …/events`, consumed with `EventSource`). On connect the API first sends the current state from `stage_runs`, then streams live events:
 
 ```jsonc
-{"type": "stage", "stage": "recon", "state": "running", "index": 1, "total": 9}
-{"type": "stage", "stage": "recon", "state": "done", "index": 1, "total": 9}
-{"type": "stage", "stage": "mesh", "state": "skipped", "index": 3, "total": 9}
+{"type": "stage", "stage": "attributes", "status": "running", "started_at": "…", "updated_at": "…"}
+{"type": "progress", "stage": "attributes", "done": 48, "total": 155, "unit": "object"}
+{"type": "stage", "stage": "attributes", "status": "done", "started_at": "…", "updated_at": "…"}
+{"type": "stage", "stage": "mesh", "status": "skipped"}
 {"type": "status", "status": "ready"}
-{"type": "status", "status": "failed", "error": "..."}
+{"type": "status", "status": "failed", "error": {...}}
 ```
+
+The worker stores and emits `progress` at most every 2 seconds per Stage and always emits the final
+report (`done == total`). The latest report and the Stage start time live in `stage_runs.progress`
+and `stage_runs.started_at` (`migrations/002_stage_progress.sql`), so the replay on connect carries
+them. Stages that report: ingest (image), align, mesh and segment (frame), lift (mask), embed and
+attributes (object); recon and graph report nothing and show an indeterminate bar.
 
 **Answers** (`POST …/queries`, read with `fetch` and a `ReadableStream`):
 
@@ -1420,7 +1435,7 @@ export const sceneLayers: Record<string, SceneLayer> = {
 
 1. **New scene:** three capture tips (walk along the walls, shoot at two heights, turn the lights on), then a dropzone for photos or a video.
 2. **Upload:** a Web Worker scores sharpness and exposure for each image (green / amber / red badge); upload shows progress; a "Process" button starts the pipeline.
-3. **Processing:** `StageStepper` follows SSE and shows plain-language stage names.
+3. **Processing:** `StageStepper` follows SSE and shows plain-language stage names, a Job bar where every Stage weighs 1/9 and the running one adds its reported share, elapsed time per Stage, and for the running Stage a bar with "done/total unit" plus a linear time estimate once 5 % and 10 s have passed.
 4. **Viewer:** full-screen 3D canvas, a search bar on top, a side panel (bottom sheet on mobile) with "Objects" and "Ask" tabs, and a two-point measuring tool. Tapping an object shows its name, size, evidence photos and suggested questions.
 5. **Answer:** text answer, highlighted objects, camera fly-to and evidence images.
 
@@ -1628,12 +1643,12 @@ To run the frontend in mock mode without the backend, create the network first (
 ### 11.8 Frontend `Dockerfile`
 
 ```dockerfile
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_API_MODE=http
@@ -1642,7 +1657,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine
+FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/.next/standalone ./

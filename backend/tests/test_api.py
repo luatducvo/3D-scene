@@ -169,3 +169,35 @@ def test_search_reports_unavailable_compute_target(client, monkeypatch):
         response=client.get(prefix+"/search",params={"q":"chair"})
         assert response.status_code==503,target
         assert response.json()["error"]["code"]=="COMPUTE_UNAVAILABLE"
+
+
+def test_worker_start_fails_jobs_interrupted_by_a_restart(client):
+    prefix=uploaded(client);scene=prefix.rsplit("/",1)[1];runner=worker(client)
+    assert client.post(prefix+"/process",json={}).status_code==202
+    with runner.repo.connect() as conn:  # a worker died mid-Stage
+        conn.execute("UPDATE jobs SET status='running',started_at=now() WHERE scene_id=%s",(scene,))
+        conn.execute("INSERT INTO stage_runs(scene_id,stage,algorithm,config_hash,status) VALUES(%s,'attributes','attributes.fake','x','running')",(scene,))
+    worker(client).recover_interrupted()
+    detail=client.get(prefix).json()
+    assert detail["status"]=="failed"
+    assert detail["failure"]["code"]=="WORKER_INTERRUPTED" and detail["failure"]["stage"]=="attributes"
+    assert next(s for s in detail["stage_runs"] if s["stage"]=="attributes")["status"]=="failed"
+    assert client.post(prefix+"/process",json={}).status_code==202
+    assert runner.run_once() and client.get(prefix).json()["status"]=="ready"
+
+
+def test_stage_progress_is_throttled_stored_and_replayed(client):
+    prefix=uploaded(client);scene=prefix.rsplit("/",1)[1];runner=worker(client)
+    runner.pipeline.stages["mesh"].params["progress_steps"]=500
+    client.post(prefix+"/process",json={});runner.run_once()
+    with runner.repo.connect() as conn:
+        events=[r["data"] for r in conn.execute("SELECT data FROM scene_events WHERE scene_id=%s AND event='progress' ORDER BY id",(scene,)).fetchall()]
+    mesh=[e for e in events if e["stage"]=="mesh"]
+    assert [(e["done"],e["total"],e["unit"]) for e in mesh]==[(0,500,"step"),(500,500,"step")]
+    runs={s["stage"]:s for s in client.get(prefix).json()["stage_runs"]}
+    assert runs["mesh"]["progress"]=={"done":500,"total":500,"unit":"step"}
+    assert all(s["started_at"] for s in runs.values())
+    import json
+    replay=[json.loads(line[6:]) for line in client.get(prefix+"/events").text.splitlines() if line.startswith("data: ")]
+    mesh_replay=next(e for e in replay if e.get("stage")=="mesh")
+    assert mesh_replay["progress"]=={"done":500,"total":500,"unit":"step"} and mesh_replay["started_at"]

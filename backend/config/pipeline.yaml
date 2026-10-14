@@ -17,14 +17,14 @@ stages:
   mesh:
     algorithm: mesh.tsdf
     target: cpu
-    params: {voxel_size_m: 0.015, sdf_trunc_m: 0.05, target_faces: 300000}
+    params: {voxel_size_m: 0.02, sdf_trunc_m: 0.05, bounds_percentile: 1, target_faces: 300000}
   segment:
     algorithm: segment.sam3
     target: "${GPU_TARGET}"
     params: {vocabulary_file: indoor-en.txt, score_threshold: 0.5, frame_stride: 2, half: true, prompt_batch_size: 32}
   lift:
     algorithm: lift.maskclustering
-    target: "${GPU_TARGET}"
+    target: cpu
     params: {min_views: 2, num_best_views: 3}
   embed:
     algorithm: embed.metaclip2

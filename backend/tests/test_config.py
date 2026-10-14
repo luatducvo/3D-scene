@@ -18,8 +18,9 @@ def test_compute_config_expands_environment_and_tolerates_unset_values(tmp_path,
 def test_pipeline_targets_come_from_environment(monkeypatch):
     from scene_core.config import PipelineConfig
     monkeypatch.setenv("GPU_TARGET", "vast")
-    for name in ("pipeline.yaml", "pipeline.fake-gpu.yaml"):
-        stages = PipelineConfig.load(f"backend/config/{name}").stages
-        assert {stages[s].target for s in ("recon", "align", "segment", "lift", "embed")} == {"vast"}, name
-    assert stages["ingest"].target == "cpu"
-    assert PipelineConfig.load("backend/config/pipeline.yaml").stages["ingest"].params["max_keyframes"] == 80
+    real = PipelineConfig.load("backend/config/pipeline.yaml").stages
+    assert {real[s].target for s in ("recon", "align", "segment", "embed")} == {"vast"}
+    assert real["lift"].target == real["ingest"].target == "cpu"
+    assert real["ingest"].params["max_keyframes"] == 80
+    fake = PipelineConfig.load("backend/config/pipeline.fake-gpu.yaml").stages
+    assert {fake[s].target for s in ("recon", "align", "segment", "lift", "embed")} == {"vast"}

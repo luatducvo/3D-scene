@@ -9,7 +9,10 @@ import { StageStepper, stages } from "../../../../components/StageStepper";
 import { ObjectList } from "../../../../components/ObjectList";
 import { ChatPanel } from "../../../../components/ChatPanel";
 import { sceneApi } from "../../../../lib/api";
-import type { ProgressEvent } from "../../../../lib/api/port";
+import {
+  progressEvent,
+  type ProgressEvent,
+} from "../../../../lib/api/port";
 import { useViewer } from "../../../../lib/store/viewerStore";
 const SceneCanvas = dynamic(
   () => import("../../../../components/viewer/SceneCanvas"),
@@ -63,7 +66,7 @@ export default function ScenePage({
         Object.fromEntries(
           scene.data.stage_runs.map((run) => [
             run.stage,
-            { ...run, type: "stage" } as ProgressEvent,
+            progressEvent({ ...run, type: "stage" }),
           ]),
         ),
       );
@@ -73,6 +76,19 @@ export default function ScenePage({
     return sceneApi.subscribeProgress(sceneId, (event) => {
       if (event.type === "stage" && event.stage)
         setEvents((previous) => ({ ...previous, [event.stage!]: event }));
+      if (event.type === "progress" && event.stage && event.total != null)
+        setEvents((previous) => ({
+          ...previous,
+          [event.stage!]: {
+            ...(previous[event.stage!] ??
+              progressEvent({ type: "stage", stage: event.stage })),
+            progress: {
+              done: event.done ?? 0,
+              total: event.total!,
+              unit: event.unit ?? "",
+            },
+          },
+        }));
       if (event.type === "status")
         void client.invalidateQueries({ queryKey: ["scene", sceneId] });
     });

@@ -31,15 +31,23 @@ class TSDFMesh(StageAlgorithm):
         if not clouds:
             raise ValueError("No valid reconstructed depth points")
         cloud = np.concatenate(clouds)
-        origin = cloud.min(axis=0) - 2 * truncation
-        shape = np.ceil((cloud.max(axis=0) + 2 * truncation - origin) / voxel).astype(int) + 1
+        # Bound the volume by per-axis percentiles so a few far outliers do not inflate it;
+        # depth outside the volume is never integrated.
+        percentile = float(params.get("bounds_percentile", 1))
+        if not 0 <= percentile < 50:
+            raise ValueError("Require 0 <= bounds_percentile < 50")
+        low, high = np.percentile(cloud, [percentile, 100 - percentile], axis=0)
+        cloud = cloud[np.all((cloud >= low) & (cloud <= high), axis=1)]
+        origin = low - 2 * truncation
+        shape = np.ceil((high + 2 * truncation - origin) / voxel).astype(int) + 1
         total = int(np.prod(shape))
         if total > int(params.get("max_voxels", 32_000_000)):
             raise ValueError("TSDF volume exceeds max_voxels; increase voxel_size_m or reject reconstruction outliers")
         sums = np.zeros(total, np.float32)
         weights = np.zeros(total, np.float32)
         colors = np.zeros((total, 3), np.float32)
-        for path in frame_files:
+        for done, path in enumerate(frame_files):
+            self.progress(done, len(frame_files), "frame")
             with np.load(path, allow_pickle=False) as data:
                 frame = dict(data)
             with Image.open(workspace.path(f"recon/rgb/{path.stem}.png")) as image:
@@ -67,6 +75,7 @@ class TSDFMesh(StageAlgorithm):
                 sums[chosen] += np.clip(sdf[keep] / truncation, -1, 1) * weight
                 weights[chosen] += weight
                 colors[chosen] += rgb[y[keep], x[keep]] * weight[:, None]
+        self.progress(len(frame_files), len(frame_files), "frame")
         tsdf = np.ones(total, np.float32)
         observed = weights > 0
         tsdf[observed] = sums[observed] / weights[observed]

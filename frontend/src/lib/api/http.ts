@@ -72,6 +72,7 @@ export const httpSceneApi: SceneApi = {
     const handler = (event: MessageEvent) => receive(JSON.parse(event.data));
     source.addEventListener("stage", handler);
     source.addEventListener("status", handler);
+    source.addEventListener("progress", handler);
     source.onmessage = handler;
     return () => source.close();
   },

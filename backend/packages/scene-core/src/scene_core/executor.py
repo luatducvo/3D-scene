@@ -9,11 +9,13 @@ class Executor:
         if name not in self._instances:
             instance=self.registry.resolve(name)();instance.setup();self._instances[name]=instance
         return self._instances[name]
-    def run(self,algorithm:str,scene_id:str,params:dict)->dict:
+    def run(self,algorithm:str,scene_id:str,params:dict,on_progress=None)->dict:
         with self._lock:
             instance=self.algorithm(algorithm)
             workspace=SceneWorkspace(self.data_dir,scene_id)
-            result=instance.manifest_type.model_validate(instance.run(workspace,params))
+            instance._progress=on_progress
+            try:result=instance.manifest_type.model_validate(instance.run(workspace,params))
+            finally:instance._progress=None
             for output in instance.writes:
                 workspace.dir(output).joinpath("manifest.json").write_text(result.model_dump_json(indent=2),encoding="utf-8")
             return result.model_dump(mode="json")

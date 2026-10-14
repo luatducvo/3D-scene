@@ -50,6 +50,7 @@ class OpenCVIngest(StageAlgorithm):
                 else:
                     candidates.append((source, source.name))
             for index, (source, label) in enumerate(candidates):
+                self.progress(index, len(candidates), "image")
                 try:
                     with Image.open(source) as original:
                         image = ImageOps.exif_transpose(original).convert("RGB")
@@ -74,6 +75,7 @@ class OpenCVIngest(StageAlgorithm):
                         accepted.append(path)
                 except (UnidentifiedImageError, OSError):
                     rejected["invalid"].append(label)
+            self.progress(len(candidates), len(candidates), "image")
             selected = np.linspace(0, len(accepted) - 1, min(len(accepted), maximum), dtype=int) if accepted else []
             for index, source_index in enumerate(selected):
                 (output / f"{index:04d}.jpg").write_bytes(accepted[source_index].read_bytes())

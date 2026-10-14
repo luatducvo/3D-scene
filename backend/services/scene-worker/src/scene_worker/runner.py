@@ -1,4 +1,4 @@
-import logging
+import logging,time
 import numpy as np
 from psycopg.types.json import Jsonb
 from scene_core.contracts import SceneWorkspace,STAGES
@@ -19,6 +19,22 @@ class Worker:
         no_url=sorted(t for t in used if self.compute.targets[t].missing_url)
         if no_url:raise ValueError(f"compute Targets {no_url} have no URL; set their URL variables in backend/.env")
         self.backends={name:backend_for(data_dir,self.compute.targets[name]) for name in used}
+    def recover_interrupted(self):
+        """Fail Jobs left running by a previous worker process, so their Scenes can be processed again.
+
+        Assumes one worker per database, as in the Compose deployment.
+        """
+        with self.repo.connect() as conn:
+            for job in conn.execute("SELECT * FROM jobs WHERE status='running'").fetchall():
+                stage=conn.execute("SELECT stage FROM stage_runs WHERE scene_id=%s AND status='running'",(job["scene_id"],)).fetchone()
+                failure={"stage":stage["stage"] if stage else "publish","code":"WORKER_INTERRUPTED","message":"The worker restarted while this Job was running; process the Scene again","details":{}}
+                if stage:
+                    conn.execute("UPDATE stage_runs SET status='failed',error=%s WHERE scene_id=%s AND stage=%s",(Jsonb(failure),job["scene_id"],stage["stage"]))
+                    self.repo.event(conn,job["scene_id"],"stage",{"stage":stage["stage"],"status":"failed","error":failure})
+                conn.execute("UPDATE jobs SET status='failed',finished_at=now(),error=%s WHERE id=%s",(Jsonb(failure),job["id"]))
+                conn.execute("UPDATE scenes SET status='failed',failure=%s WHERE id=%s",(Jsonb(failure),job["scene_id"]))
+                self.repo.event(conn,job["scene_id"],"status",{"status":"failed","error":failure})
+                logging.warning("Job %s was interrupted at %s; marked failed",job["id"],failure["stage"])
     def run_once(self):
         with self.repo.connect() as conn:
             job=conn.execute("SELECT * FROM jobs WHERE status='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1").fetchone()
@@ -37,7 +53,7 @@ class Worker:
                 if skip:
                     self._stage(job,stage,config,"skipped",previous["manifest"]);continue
                 force=True;self._stage(job,stage,config,"running")
-                manifest=self.backends[config.target].run(config.algorithm,str(job["scene_id"]),config.params,algorithm.reads,algorithm.writes)
+                manifest=self.backends[config.target].run(config.algorithm,str(job["scene_id"]),config.params,algorithm.reads,algorithm.writes,on_progress=self._reporter(job,stage))
                 self._stage(job,stage,config,"done",manifest)
             self.publish(job["scene_id"],workspace)
             with self.repo.connect() as conn:
@@ -56,9 +72,21 @@ class Worker:
                 self.repo.event(conn,job["scene_id"],"status",{"status":"failed","error":failure})
         return True
     def _stage(self,job,stage,config,status,manifest=None):
+        # A running Stage restarts its clock and clears progress; later states keep both.
         with self.repo.connect() as conn:
-            conn.execute("INSERT INTO stage_runs(scene_id,stage,algorithm,config_hash,status,manifest) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT(scene_id,stage) DO UPDATE SET algorithm=EXCLUDED.algorithm,config_hash=EXCLUDED.config_hash,status=EXCLUDED.status,manifest=EXCLUDED.manifest,error=NULL,updated_at=now()",(job["scene_id"],stage,config.algorithm,config.config_hash(),status,Jsonb(manifest)))
-            self.repo.event(conn,job["scene_id"],"stage",{"stage":stage,"algorithm":config.algorithm,"status":status,"manifest":manifest})
+            row=conn.execute("INSERT INTO stage_runs(scene_id,stage,algorithm,config_hash,status,manifest,started_at) VALUES(%s,%s,%s,%s,%s,%s,now()) ON CONFLICT(scene_id,stage) DO UPDATE SET algorithm=EXCLUDED.algorithm,config_hash=EXCLUDED.config_hash,status=EXCLUDED.status,manifest=EXCLUDED.manifest,error=NULL,updated_at=now(),started_at=CASE WHEN EXCLUDED.status='running' OR stage_runs.started_at IS NULL THEN now() ELSE stage_runs.started_at END,progress=CASE WHEN EXCLUDED.status='running' THEN NULL ELSE stage_runs.progress END RETURNING started_at,updated_at",(job["scene_id"],stage,config.algorithm,config.config_hash(),status,Jsonb(manifest))).fetchone()
+            self.repo.event(conn,job["scene_id"],"stage",{"stage":stage,"algorithm":config.algorithm,"status":status,"manifest":manifest,"started_at":row["started_at"].isoformat(),"updated_at":row["updated_at"].isoformat()})
+    def _reporter(self,job,stage,interval=2.0):
+        """Store and announce Stage progress at most every interval seconds, always including the last report."""
+        last=[float("-inf")]
+        def report(progress):
+            now=time.monotonic()
+            if progress["done"]<progress["total"] and now-last[0]<interval:return
+            last[0]=now
+            with self.repo.connect() as conn:
+                conn.execute("UPDATE stage_runs SET progress=%s WHERE scene_id=%s AND stage=%s",(Jsonb(progress),job["scene_id"],stage))
+                self.repo.event(conn,job["scene_id"],"progress",{"stage":stage,**progress})
+        return report
     def publish(self,scene_id,workspace):
         graph=SceneGraph.model_validate_json(workspace.path("graph/scene_graph.json").read_text())
         with np.load(workspace.path("embeddings/objects.npz"),allow_pickle=False) as data:

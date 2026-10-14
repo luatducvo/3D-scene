@@ -156,6 +156,7 @@ class GeoCalibAlignment(StageAlgorithm):
         selected = set(np.linspace(0, len(files) - 1, min(count, len(files)), dtype=int))
         vectors, clouds = [], []
         for index, path in enumerate(files):
+            self.progress(index, len(files), "frame")
             with np.load(path, allow_pickle=False) as data:
                 frame = dict(data)
             clouds.append(_world_points(frame, max(1, int(params.get("point_stride", 8)))))
@@ -165,6 +166,7 @@ class GeoCalibAlignment(StageAlgorithm):
                 # GeoCalib's zero-roll/pitch vector is (0,-1,0): up in OpenCV camera axes.
                 camera_up = _numpy(result["gravity"].vec3d).reshape(-1, 3)[0]
                 vectors.append(frame["pose"][:3, :3] @ camera_up)
+        self.progress(len(files), len(files), "frame")
         vectors = np.asarray(vectors)
         if not np.isfinite(vectors).all():
             raise SceneError("ALIGNMENT_FAILED", "Invalid gravity estimate")
@@ -279,7 +281,9 @@ class Sam3Segmentation(StageAlgorithm):
         if stride < 1:
             raise SceneError("INVALID_PARAMETERS", "frame_stride must be positive")
         total = 0
-        for path in files[::stride]:
+        selected = files[::stride]
+        for done, path in enumerate(selected):
+            self.progress(done, len(selected), "frame")
             candidates = []
             with Image.open(path) as source:
                 width, height = source.size
@@ -311,6 +315,7 @@ class Sam3Segmentation(StageAlgorithm):
                                 masks=masks, labels=np.asarray([item[1] for item in kept], dtype=str),
                                 scores=np.asarray([item[0] for item in kept], dtype=np.float32))
             total += len(kept)
+        self.progress(len(selected), len(selected), "frame")
         return SegmentManifest(num_masks=total, vocabulary_size=len(vocabulary))
 
 
@@ -366,7 +371,8 @@ class MetaClipEmbeddings(StageAlgorithm):
         torch = self._load(params.get("model_id"))
         instances = json.loads(workspace.path("instances/instances.json").read_text(encoding="utf-8"))
         ids, vectors = [], []
-        for instance in instances:
+        for done, instance in enumerate(instances):
+            self.progress(done, len(instances), "object")
             crops, weights = [], []
             for index, view in enumerate(instance["best_views"]):
                 path = workspace.path(f"instances/crops/{instance['id']}_{index}.jpg")
@@ -384,6 +390,7 @@ class MetaClipEmbeddings(StageAlgorithm):
                 raise SceneError("INVALID_MODEL_OUTPUT", "Object embedding has zero norm")
             ids.append(instance["id"])
             vectors.append(vector / norm)
+        self.progress(len(instances), len(instances), "object")
         array = np.asarray(vectors, dtype=np.float32).reshape(-1, 1024)
         np.savez_compressed(workspace.dir("embeddings") / "objects.npz",
                             ids=np.asarray(ids, dtype=str), vectors=array)

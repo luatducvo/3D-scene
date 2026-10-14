@@ -11,7 +11,10 @@ class Fake(StageAlgorithm):
     def run(self,w,p):
         if p.get("delay"): time.sleep(p["delay"])
         if p.get("fail"): raise SceneError("FAKE_STAGE_FAILED",str(p["fail"]))
-        return self.transform(w,p)
+        steps=int(p.get("progress_steps",1));self.progress(0,steps,"step")
+        result=self.transform(w,p)
+        for done in range(1,steps+1):self.progress(done,steps,"step")
+        return result
 class IngestFake(Fake):
     name="ingest.fake";stage="ingest";manifest_type=IngestManifest;reads=["raw"];writes=["keyframes"]
     def transform(self,w,p):

@@ -81,7 +81,10 @@ def create_app(data_dir: Path | str | None = None, *, token: str | None = None,
         with lock:
             record(run_id, {**runs[run_id], "state": "running"})
         try:
-            manifest = get_executor().run(body.algorithm, body.scene_id, body.params)
+            def report(progress):
+                with lock:
+                    runs[run_id] = {**runs[run_id], "progress": progress}
+            manifest = get_executor().run(body.algorithm, body.scene_id, body.params, on_progress=report)
             result = {"state": "done", "manifest": manifest}
         except Exception as exc:
             result = {"state": "failed", "error": {"code": getattr(exc, "code", "COMPUTE_FAILED"), "message": str(exc)}}

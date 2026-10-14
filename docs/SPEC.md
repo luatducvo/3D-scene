@@ -50,7 +50,7 @@ the Targets before starting the system, and switching provider is a configuratio
 
 ### Processing
 11. As a user, I want to press Process once and have every Stage run automatically, so that I do not orchestrate anything by hand.
-12. As a user, I want to see live progress per Stage (running, done, skipped, failed) in plain language, so that I know what the system is doing.
+12. As a user, I want to see live progress per Stage (running, done, skipped, failed) in plain language, with an overall bar, elapsed time, and for a long Stage how far it has got and roughly how long remains, so that I know what the system is doing and that it has not stalled.
 13. As a user, I want to reconnect to a Scene page mid-processing and immediately see the current state, so that refreshing the browser loses nothing.
 14. As a user, I want a second Process request on a busy Scene to be refused, so that only one Job per Scene ever runs.
 15. As a user, I want an ingest report listing which files were rejected and why (blur, exposure, duplicate), so that I learn how to capture better.
@@ -158,7 +158,7 @@ the Targets before starting the system, and switching provider is a configuratio
 - Versioned under `/api/v1`; OpenAPI exported from the API models is the source of truth and is committed; the frontend generates types from it.
 - Endpoints as in the architecture doc §9.2. Questions use `POST /scenes/{scene_id}/queries` (the doc's sequence diagram saying `/query` is a typo).
 - Error body `{"error": {"code", "message"}}`, UPPER_SNAKE_CASE codes, matching HTTP status. Codes introduced here: `SCENE_LOCKED`, `SCENE_BUSY`, `NOT_ENOUGH_KEYFRAMES` (surfaced as the Scene's failure), `COMPUTE_UNAVAILABLE` (HTTP 503 when the embed Stage's Target is unset or unreachable for a query).
-- Progress SSE replays current Stage Run state on connect, then streams `stage` and `status` events. Answer SSE streams `tool`, `delta`, `final` (`answer`, `object_ids`, `evidence`).
+- Progress SSE replays current Stage Run state (including the latest progress and start time) on connect, then streams `stage`, `progress` and `status` events. Answer SSE streams `tool`, `delta`, `final` (`answer`, `object_ids`, `evidence`).
 - All file URLs are absolute and issued by the API; the files endpoint serves only whitelisted subfolders and rejects traversal.
 - Units are SI; coordinates are z-up with floor at z = 0.
 

@@ -123,7 +123,8 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
                 stages=conn.execute("SELECT * FROM stage_runs WHERE scene_id=%s",(scene_id,)).fetchall()
                 cursor=conn.execute("SELECT COALESCE(MAX(id),0) AS id FROM scene_events WHERE scene_id=%s",(scene_id,)).fetchone()["id"]
             for stage in sorted(stages,key=lambda s:STAGES.index(s["stage"])):
-                payload={k:stage[k] for k in ("stage","status","algorithm","manifest","error")}
+                payload={k:stage[k] for k in ("stage","status","algorithm","manifest","error","progress")}
+                payload.update({k:stage[k].isoformat() if stage[k] else None for k in ("started_at","updated_at")})
                 yield "event: stage\ndata: "+json.dumps({"type":"stage",**payload})+"\n\n"
             yield "event: status\ndata: "+json.dumps({"type":"status","status":scene["status"]})+"\n\n"
             if scene["status"]!="processing":return

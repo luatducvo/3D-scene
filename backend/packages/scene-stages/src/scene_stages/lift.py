@@ -36,6 +36,43 @@ def support(points, frame, mask, tolerance):
     return float(mask[y[consistent], x[consistent]].mean())
 
 
+def _agglomerate(affinity, node_frames, threshold):
+    """Greedily merge the pair of groups with the highest mean pairwise affinity above threshold.
+
+    Groups sharing a Frame never merge. Each group is stored at the index of its lowest member and
+    keeps the summed affinity to every other group, so a merge updates one row instead of
+    rescanning every member pair. Ties go to the lowest (first, second) group index.
+    """
+    count = len(node_frames)
+    if not count:
+        return []
+    frame_ids = {frame: index for index, frame in enumerate(dict.fromkeys(node_frames))}
+    seen = np.zeros((count, len(frame_ids)))
+    seen[np.arange(count), [frame_ids[frame] for frame in node_frames]] = 1
+    conflict = seen @ seen.T > 0
+    totals = affinity.astype(float).copy()
+    sizes = np.ones(count)
+    alive = np.ones(count, bool)
+    members = {i: {i} for i in range(count)}
+    upper = np.triu(np.ones((count, count), bool), 1)
+    while True:
+        allowed = upper & alive[:, None] & alive[None, :] & ~conflict
+        mean = np.where(allowed, totals / np.outer(sizes, sizes), -np.inf)
+        flat = int(np.argmax(mean))
+        if not mean.flat[flat] > threshold:
+            break
+        first, second = divmod(flat, count)
+        totals[first] += totals[second]
+        totals[:, first] += totals[:, second]
+        totals[first, first] = 0
+        sizes[first] += sizes[second]
+        conflict[first] |= conflict[second]
+        conflict[:, first] |= conflict[:, second]
+        alive[second] = False
+        members[first] |= members.pop(second)
+    return [members[i] for i in sorted(members)]
+
+
 class MaskClustering(StageAlgorithm):
     name, stage = "lift.maskclustering", "lift"
     reads, writes = ["segment", "align", "recon"], ["instances"]
@@ -59,33 +96,18 @@ class MaskClustering(StageAlgorithm):
                         continue
                     _, unique = np.unique(np.floor(points / voxel).astype(np.int64), axis=0, return_index=True)
                     nodes.append({"frame": frame_id, "index": index, "mask": mask, "label": str(label), "score": float(score), "points": points[unique]})
-        groups = [{i} for i in range(len(nodes))]
-        affinity = {}
+        affinity = np.zeros((len(nodes), len(nodes)))
         for i, a in enumerate(nodes):
+            self.progress(i, len(nodes), "mask")
             for j in range(i + 1, len(nodes)):
                 b = nodes[j]
                 if a["frame"] == b["frame"]:
                     continue
                 forward = support(a["points"], frames[b["frame"]], b["mask"], float(params.get("depth_tolerance_m", .05)))
                 reverse = support(b["points"], frames[a["frame"]], a["mask"], float(params.get("depth_tolerance_m", .05)))
-                affinity[i, j] = min(forward, reverse)
-        threshold = float(params.get("consensus_threshold", .5))
-        # Iterative agglomeration uses mean evidence across mask pairs, not label equality.
-        while True:
-            best, pair = threshold, None
-            for i, first in enumerate(groups):
-                for j in range(i + 1, len(groups)):
-                    second = groups[j]
-                    if {nodes[k]["frame"] for k in first} & {nodes[k]["frame"] for k in second}:
-                        continue
-                    scores = [affinity.get(tuple(sorted((a, b))), 0) for a in first for b in second]
-                    score = float(np.mean(scores))
-                    if score > best:
-                        best, pair = score, (i, j)
-            if pair is None:
-                break
-            i, j = pair
-            groups[i] |= groups.pop(j)
+                affinity[i, j] = affinity[j, i] = min(forward, reverse)
+        self.progress(len(nodes), len(nodes), "mask")
+        groups = _agglomerate(affinity, [node["frame"] for node in nodes], float(params.get("consensus_threshold", .5)))
         instances = []
         for group in groups:
             members = [nodes[i] for i in sorted(group)]
