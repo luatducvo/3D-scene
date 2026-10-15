@@ -2,38 +2,24 @@ import { http, HttpResponse } from "msw";
 import {
   progressEvent,
   type Scene,
-  type SceneObject,
   type ProgressEvent,
   type QueryEvent,
   type Schemas,
 } from "../port";
 import { apiOrigin } from "../http";
+import { demoObjects, roomPointCloud } from "./room";
 const base = `${apiOrigin}/api/v1/scenes`;
-const objects: SceneObject[] = [
-  {
-    id: "chair-1",
-    label: "chair",
-    box: { center: [1, 1, 0.5], size: [0.6, 0.6, 1], yaw: 0 },
-    attributes: { color: ["blue"] },
-    best_views: [],
-  },
-  {
-    id: "table-1",
-    label: "table",
-    box: { center: [0, 0, 0.4], size: [1.5, 1, 0.8], yaw: 0 },
-    attributes: { material: ["wood"] },
-    best_views: [],
-  },
-];
+const objects = demoObjects;
+const demoAssets = { points_url: `${apiOrigin}/api/v1/mock/room.ply` };
 const scenes = new Map<string, Scene>([
   [
     "demo",
     {
       id: "demo",
-      name: "Demo room",
+      name: "Phòng khách · Demo",
       status: "ready",
       created_at: new Date().toISOString(),
-      assets: {},
+      assets: demoAssets,
       stage_runs: [],
     },
   ],
@@ -73,6 +59,13 @@ const stream = (events: (ProgressEvent | QueryEvent)[]) =>
     { headers: { "Content-Type": "text/event-stream" } },
   );
 export const handlers = [
+  http.get(
+    `${apiOrigin}/api/v1/mock/room.ply`,
+    () =>
+      new HttpResponse(roomPointCloud(), {
+        headers: { "Content-Type": "application/octet-stream" },
+      }),
+  ),
   http.get(base, () => HttpResponse.json([...scenes.values()])),
   http.post(base, async ({ request }) => {
     const { name } = (await request.json()) as { name: string };
@@ -116,6 +109,11 @@ export const handlers = [
   http.post(`${base}/:id/process`, ({ params }) => {
     const scene = scenes.get(String(params.id));
     if (!scene) return missing();
+    if (scene.status === "processing")
+      return HttpResponse.json(
+        { error: { code: "SCENE_BUSY", message: "Processing is active" } },
+        { status: 409 },
+      );
     scene.status = "processing";
     scene.stage_runs = [];
     return HttpResponse.json({ job_id: "mock-job" });
@@ -141,7 +139,13 @@ export const handlers = [
         started_at: new Date().toISOString(),
       }),
       ...[1, 2, 3].map((done) =>
-        progressEvent({ type: "progress", stage, done, total: 3, unit: "step" }),
+        progressEvent({
+          type: "progress",
+          stage,
+          done,
+          total: 3,
+          unit: "step",
+        }),
       ),
       progressEvent({
         type: "stage",
@@ -152,6 +156,7 @@ export const handlers = [
       }),
     ]);
     scene.status = "ready";
+    scene.assets = demoAssets;
     scene.stage_runs = stages.map((stage) => ({
       stage,
       status: "done",
@@ -175,7 +180,13 @@ export const handlers = [
     return HttpResponse.json(
       q
         ? objects
-            .filter((o) => o.label.includes(q))
+            .filter((o) =>
+              [
+                o.label,
+                o.label_vi || "",
+                ...Object.values(o.attributes || {}).flat(),
+              ].some((value) => value.toLowerCase().includes(q)),
+            )
             .map((object) => ({ object, score: 1 }))
         : [],
     );
@@ -185,7 +196,10 @@ export const handlers = [
   ),
   http.post(`${base}/:id/queries`, async ({ params, request }) => {
     const body = (await request.json()) as Schemas["QueryRequest"];
-    const answer = "1 chair";
+    const vietnamese = /[à-ỹ]|bao|phòng|sofa.*bàn/i.test(body.question);
+    const answer = vietnamese
+      ? "Đây là scene mẫu với một sofa, một bàn cà phê và một chậu cây. Vùng liên quan đã được tô sáng trong không gian 3D."
+      : "This sample scene contains a sofa, a coffee table and a plant. The relevant region is highlighted in 3D.";
     const history = messages.get(String(params.id)) || [];
     history.push(
       {
@@ -197,7 +211,7 @@ export const handlers = [
       {
         id: history.length + 2,
         role: "assistant",
-        content: { answer, object_ids: ["chair-1"], evidence: [] },
+        content: { answer, object_ids: ["sofa-1"], evidence: [] },
         created_at: new Date().toISOString(),
       },
     );
@@ -224,7 +238,7 @@ export const handlers = [
         answer,
         tool: null,
         delta: null,
-        object_ids: ["chair-1"],
+        object_ids: ["sofa-1"],
         evidence: [],
       },
     ]);

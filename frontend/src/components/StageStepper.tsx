@@ -52,10 +52,14 @@ export function StageStepper({
     return status === "running" ? sum + fraction(events[stage]) : sum;
   }, 0);
   return (
-    <section>
+    <section className="processing-progress" aria-live="polite">
       <h2>{t("progress")}</h2>
       <div className="job-progress">
-        <progress aria-label={t("progress")} value={completed} max={stages.length} />
+        <progress
+          aria-label={t("progress")}
+          value={completed}
+          max={stages.length}
+        />
         <span>
           {t("stagesCompleted", {
             done: format.number(completed, { maximumFractionDigits: 1 }),
@@ -64,7 +68,7 @@ export function StageStepper({
         </span>
       </div>
       <ol className="stepper">
-        {stages.map((stage) => {
+        {stages.map((stage, index) => {
           const event = events[stage],
             status = event?.status || "pending",
             started = event?.started_at ? Date.parse(event.started_at) : NaN,
@@ -80,17 +84,25 @@ export function StageStepper({
           if (status === "running" && progress && progress.done > 0) {
             const share = fraction(event);
             if (share >= 0.05 && share < 1 && elapsed >= 10_000) {
-              const minutes = Math.round((elapsed * (1 - share)) / share / 60_000);
+              const minutes = Math.round(
+                (elapsed * (1 - share)) / share / 60_000,
+              );
               estimate =
                 minutes < 1
                   ? t("etaSoon")
                   : minutes < 60
                     ? t("etaMinutes", { minutes })
-                    : t("etaHours", { hours: Math.floor(minutes / 60), minutes: minutes % 60 });
+                    : t("etaHours", {
+                        hours: Math.floor(minutes / 60),
+                        minutes: minutes % 60,
+                      });
             }
           }
           return (
             <li key={stage} data-status={status}>
+              <span className="stage-number" aria-hidden="true">
+                {status === "done" ? "✓" : index + 1}
+              </span>
               <span>{t(`stages.${stage}`)}</span>
               <strong>
                 {t(`status.${status}`)}

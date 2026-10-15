@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { useGLTF } from "@react-three/drei";
+import { Edges, useGLTF } from "@react-three/drei";
 import { useLoader, type ThreeEvent } from "@react-three/fiber";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
+import { Box3 } from "three";
 import type { SceneObject, Schemas } from "../../../lib/api/port";
 import { useViewer } from "../../../lib/store/viewerStore";
 export type SceneLayerProps = {
@@ -17,19 +18,19 @@ function measurePick(e: ThreeEvent<MouseEvent>) {
 function PointCloudAsset({ url }: { url: string }) {
   const geometry = useLoader(PLYLoader, url),
     measuring = useViewer((s) => s.measuring),
+    pointSize = useViewer((s) => s.pointSize),
     setBounds = useViewer((s) => s.setBounds);
   useEffect(() => {
     geometry.computeBoundingBox();
     const box = geometry.boundingBox;
     if (box) setBounds({ min: box.min.toArray(), max: box.max.toArray() });
-    return () => setBounds(null);
   }, [geometry, setBounds]);
   const colored = geometry.hasAttribute("color");
   return (
     // Only listen while measuring: raycasting millions of points on every click is expensive.
     <points geometry={geometry} onClick={measuring ? measurePick : undefined}>
       <pointsMaterial
-        size={0.012}
+        size={pointSize}
         sizeAttenuation
         vertexColors={colored}
         color={colored ? "#ffffff" : "#9fb3bb"}
@@ -45,26 +46,28 @@ export function PointCloudLayer({ assets }: SceneLayerProps) {
 }
 function MeshAsset({ url }: { url: string }) {
   const { scene } = useGLTF(url);
+  useEffect(() => {
+    if (!useViewer.getState().bounds) {
+      const box = new Box3().setFromObject(scene);
+      if (!box.isEmpty())
+        useViewer
+          .getState()
+          .setBounds({ min: box.min.toArray(), max: box.max.toArray() });
+    }
+  }, [scene]);
   return <primitive object={scene} onClick={measurePick} />;
 }
 export function MeshLayer({ assets }: SceneLayerProps) {
   const visible = useViewer((s) => s.layers.mesh);
   if (assets.mesh_url)
     return visible ? <MeshAsset url={assets.mesh_url} /> : null;
-  // Without any reconstruction asset, a placeholder floor keeps measuring usable.
-  return assets.points_url ? null : (
-    <mesh onClick={measurePick} position={[0, 0, -0.05]}>
-      <boxGeometry args={[5, 5, 0.1]} />
-      <meshStandardMaterial color="#718089" />
-    </mesh>
-  );
+  return null;
 }
 export function ObjectBoxesLayer({ objects }: SceneLayerProps) {
   const ids = useViewer((s) => s.highlightedIds),
     select = useViewer((s) => s.select),
     measuring = useViewer((s) => s.measuring),
     visible = useViewer((s) => s.layers.boxes);
-  if (!visible) return null;
   return (
     <>
       {objects.map((o) => (
@@ -80,12 +83,14 @@ export function ObjectBoxesLayer({ objects }: SceneLayerProps) {
           }}
         >
           <boxGeometry args={o.box.size as [number, number, number]} />
-          <meshBasicMaterial
-            color={ids.includes(o.id) ? "#f7cb69" : "#75c6b1"}
-            wireframe
-            transparent
-            opacity={ids.includes(o.id) ? 1 : 0.35}
-          />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          {(visible || ids.includes(o.id)) && (
+            <Edges
+              color={ids.includes(o.id) ? "#9ee8c4" : "#496a60"}
+              lineWidth={ids.includes(o.id) ? 2 : 1}
+              raycast={() => {}}
+            />
+          )}
         </mesh>
       ))}
     </>

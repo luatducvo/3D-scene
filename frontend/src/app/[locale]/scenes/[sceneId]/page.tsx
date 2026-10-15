@@ -1,20 +1,20 @@
 "use client";
 import { use, useEffect, useState } from "react";
-import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Header } from "../../../../components/Header";
 import { UploadDropzone } from "../../../../components/UploadDropzone";
 import { StageStepper, stages } from "../../../../components/StageStepper";
-import { ObjectList } from "../../../../components/ObjectList";
-import { ChatPanel } from "../../../../components/ChatPanel";
+import { SceneExplorer } from "../../../../components/SceneExplorer";
+import { StatusBadge } from "../../../../components/StatusBadge";
+import { IngestReport } from "../../../../components/IngestReport";
+import { Modal } from "../../../../components/Modal";
 import { sceneApi } from "../../../../lib/api";
 import { progressEvent, type ProgressEvent } from "../../../../lib/api/port";
 import { useViewer } from "../../../../lib/store/viewerStore";
-const SceneCanvas = dynamic(
-  () => import("../../../../components/viewer/SceneCanvas"),
-  { ssr: false },
-);
+
 export default function ScenePage({
   params,
 }: {
@@ -22,41 +22,27 @@ export default function ScenePage({
 }) {
   const { sceneId } = use(params),
     t = useTranslations(),
+    locale = useLocale(),
+    router = useRouter(),
     client = useQueryClient();
   const scene = useQuery({
     queryKey: ["scene", sceneId],
     queryFn: () => sceneApi.getScene(sceneId),
   });
-  const objects = useQuery({
-    queryKey: ["objects", sceneId],
-    queryFn: () => sceneApi.listObjects(sceneId),
-    enabled: scene.data?.status === "ready",
-  });
   const [events, setEvents] = useState<Record<string, ProgressEvent>>({}),
     [stage, setStage] = useState(""),
-    [tab, setTab] = useState("objects"),
-    [suggestion, setSuggestion] = useState(""),
-    [search, setSearch] = useState(""),
-    [query, setQuery] = useState("");
-  const measuring = useViewer((s) => s.measuring),
-    layers = useViewer((s) => s.layers);
-  const searchResult = useQuery({
-    queryKey: ["search", sceneId, query],
-    queryFn: () => sceneApi.searchObjects(sceneId, query),
-    enabled: !!query.trim() && scene.data?.status === "ready",
-  });
-  useEffect(() => {
-    const timeout = setTimeout(() => setQuery(search), 300);
-    return () => clearTimeout(timeout);
-  }, [search]);
-  useEffect(() => {
-    if (!query.trim()) useViewer.getState().highlight([]);
-    else if (searchResult.data)
-      useViewer.getState().highlight(searchResult.data.map((h) => h.object.id));
-  }, [query, searchResult.data]);
+    [settings, setSettings] = useState(false),
+    [confirmDelete, setConfirmDelete] = useState(false),
+    [uploading, setUploading] = useState(false);
   useEffect(() => {
     useViewer.getState().clear();
-    return () => useViewer.getState().clear();
+    setEvents({});
+    setSettings(false);
+    setStage("");
+    return () => {
+      useViewer.getState().clear();
+      useViewer.getState().setBounds(null);
+    };
   }, [sceneId]);
   useEffect(() => {
     if (scene.data?.stage_runs)
@@ -93,174 +79,245 @@ export default function ScenePage({
   }, [sceneId, scene.data?.status, client]);
   const process = useMutation({
     mutationFn: () => sceneApi.startProcessing(sceneId, stage || undefined),
-    onSuccess: () => {
+    onSuccess: async () => {
       setEvents({});
-      return client.invalidateQueries({ queryKey: ["scene", sceneId] });
+      setSettings(false);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["scene", sceneId] }),
+        client.invalidateQueries({ queryKey: ["scenes"] }),
+        client.invalidateQueries({ queryKey: ["objects", sceneId] }),
+      ]);
+    },
+  });
+  const remove = useMutation({
+    mutationFn: () => sceneApi.deleteScene(sceneId),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["scenes"] });
+      router.push(`/${locale}`);
     },
   });
   if (scene.isLoading)
     return (
       <>
         <Header />
-        <p className="page">{t("loading")}</p>
+        <main className="page loading-state" role="status">
+          {t("loading")}
+        </main>
       </>
     );
   if (!scene.data)
     return (
       <>
         <Header />
-        <p role="alert">{String(scene.error)}</p>
+        <main className="page">
+          <p role="alert">{String(scene.error)}</p>
+          <button onClick={() => void scene.refetch()}>{t("ui.retry")}</button>
+        </main>
       </>
     );
-  const data = scene.data;
+  const data = scene.data,
+    active = data.status === "processing" || process.isPending;
+  const stageChoice = (
+    <>
+      <label className="field-label" htmlFor="from-stage">
+        {t("rerun")}
+      </label>
+      <select
+        id="from-stage"
+        value={stage}
+        onChange={(e) => setStage(e.target.value)}
+        disabled={active}
+      >
+        <option value="">{t("allStages")}</option>
+        {stages.map((s) => (
+          <option key={s} value={s}>
+            {t(`stages.${s}`)}
+          </option>
+        ))}
+      </select>
+      <p className="caption muted">{t("ui.rerunDescription")}</p>
+    </>
+  );
   return (
     <>
-      <Header />
+      <Header
+        sceneName={data.name}
+        actions={
+          <button
+            className="quiet"
+            onClick={() => {
+              setSettings(true);
+              setConfirmDelete(false);
+            }}
+          >
+            {t("ui.options")}
+          </button>
+        }
+      />
       {data.status === "ready" ? (
-        <main className="explorer">
-          <div className="viewport">
-            <SceneCanvas
-              sceneId={sceneId}
-              assets={data.assets || {}}
-              objects={objects.data || []}
-            />
-            <div className="viewer-toolbar">
-              <input
-                aria-label={t("search")}
-                placeholder={t("search")}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <button
-                aria-pressed={measuring}
-                onClick={() => useViewer.getState().setMeasuring(!measuring)}
-              >
-                {t("measure")}
-              </button>
-              <button onClick={() => useViewer.getState().clear()}>
-                {t("clear")}
-              </button>
-              {(["points", "mesh", "boxes"] as const)
-                .filter((layer) => layer !== "mesh" || data.assets?.mesh_url)
-                .map((layer) => (
-                  <button
-                    key={layer}
-                    aria-pressed={layers[layer]}
-                    className={layers[layer] ? "selected" : "subtle"}
-                    onClick={() => useViewer.getState().toggleLayer(layer)}
-                  >
-                    {t(`layers.${layer}`)}
-                  </button>
-                ))}
-              {measuring && <span>{t("measureHint")}</span>}
-              {searchResult.error && (
-                <p role="alert">{String(searchResult.error)}</p>
-              )}
-            </div>
-          </div>
-          <aside className="side-panel">
-            <h1>{data.name}</h1>
-            <div className="tabs">
-              {["objects", "ask"].map((key) => (
-                <button
-                  aria-pressed={tab === key}
-                  className={tab === key ? "selected" : "subtle"}
-                  key={key}
-                  onClick={() => setTab(key)}
-                >
-                  {t(key)}
-                </button>
-              ))}
-            </div>
-            {tab === "objects" ? (
-              <ObjectList
-                objects={objects.data || []}
-                onQuestion={(q) => {
-                  setSuggestion(q);
-                  setTab("ask");
-                }}
-              />
-            ) : (
-              <ChatPanel sceneId={sceneId} suggestion={suggestion} />
-            )}
-            <details>
-              <summary>{t("rerun")}</summary>
-              <select value={stage} onChange={(e) => setStage(e.target.value)}>
-                <option value="">{t("allStages")}</option>
-                {stages.map((s) => (
-                  <option key={s} value={s}>
-                    {t(`stages.${s}`)}
-                  </option>
-                ))}
-              </select>
-              <button
-                disabled={process.isPending}
-                onClick={() => process.mutate()}
-              >
-                {t("process")}
-              </button>
-            </details>
-            {process.error && <p role="alert">{String(process.error)}</p>}
-            {data.ingest_report && (
-              <details>
-                <summary>{t("report")}</summary>
-                <pre>{JSON.stringify(data.ingest_report, null, 2)}</pre>
-              </details>
-            )}
-          </aside>
-        </main>
+        <SceneExplorer key={sceneId} scene={data} />
       ) : (
-        <main className="page narrow">
-          <h1>{data.name}</h1>
-          <p className="badge">{t(`status.${data.status}`)}</p>
-          {["created", "uploaded"].includes(data.status) && (
-            <UploadDropzone
-              sceneId={sceneId}
-              onUploaded={() =>
-                void client.invalidateQueries({ queryKey: ["scene", sceneId] })
-              }
-            />
-          )}
-          <StageStepper events={events} />
-          {data.failure && (
-            <p role="alert">
-              {t(`stages.${data.failure.stage}`)}: {data.failure.code} —{" "}
-              {data.failure.message}
+        <main className="page">
+          <div className="page-heading">
+            <p className="eyebrow">{data.name}</p>
+            <h1>
+              {t(
+                data.status === "processing"
+                  ? "ui.processingTitle"
+                  : data.status === "failed"
+                    ? "ui.failedTitle"
+                    : "ui.reviewTitle",
+              )}
+            </h1>
+            <p className="muted">
+              {t(
+                data.status === "processing"
+                  ? "ui.processingSubtitle"
+                  : data.status === "failed"
+                    ? "locked"
+                    : "ui.reviewSubtitle",
+              )}
             </p>
+            <StatusBadge status={data.status} />
+          </div>
+          <div className="processing-layout">
+            <section className="card work-card">
+              {(data.status === "created" || data.status === "uploaded") && (
+                <UploadDropzone
+                  sceneId={sceneId}
+                  onBusyChange={setUploading}
+                  onUploaded={() =>
+                    void client.invalidateQueries({
+                      queryKey: ["scene", sceneId],
+                    })
+                  }
+                />
+              )}
+              {(data.status === "processing" ||
+                data.status === "failed" ||
+                Object.keys(events).length > 0) && (
+                <StageStepper events={events} />
+              )}
+              {data.failure && (
+                <div className="error-card" role="alert">
+                  <strong>{t(`stages.${data.failure.stage}`)}</strong>
+                  <p>{data.failure.message}</p>
+                  <small>{data.failure.code}</small>
+                </div>
+              )}
+              {data.status === "uploaded" && (
+                <div className="process-actions">
+                  <p className="muted">{t("ui.uploadReady")}</p>
+                  <button
+                    disabled={uploading || process.isPending}
+                    onClick={() => process.mutate()}
+                  >
+                    {t("process")}
+                  </button>
+                </div>
+              )}
+              {data.status === "failed" && (
+                <div className="process-actions">
+                  <Link className="button" href={`/${locale}/scenes/new`}>
+                    {t("newScene")}
+                  </Link>
+                  <button
+                    className="secondary"
+                    onClick={() => setSettings(true)}
+                  >
+                    {t("rerun")}
+                  </button>
+                </div>
+              )}
+              {process.error && <p role="alert">{String(process.error)}</p>}
+            </section>
+            <aside className="card processing-summary">
+              <div className="summary-illustration">
+                <img src="/design/capture.svg" alt="" />
+              </div>
+              <h2>{data.name}</h2>
+              <StatusBadge status={data.status} />
+              {data.ingest_report && (
+                <details open>
+                  <summary>{t("report")}</summary>
+                  <IngestReport report={data.ingest_report} />
+                </details>
+              )}
+              {active && (
+                <p className="caption muted">{t("ui.publicationNotice")}</p>
+              )}
+            </aside>
+          </div>
+          <Link className="button secondary back-library" href={`/${locale}`}>
+            {t("ui.backLibrary")}
+          </Link>
+        </main>
+      )}
+      {settings && (
+        <Modal
+          title={t("ui.sceneSettings")}
+          onClose={() => {
+            if (!remove.isPending) setSettings(false);
+          }}
+        >
+          <h3>{data.name}</h3>
+          <StatusBadge status={data.status} />
+          {(data.status === "ready" || data.status === "failed") && (
+            <section className="settings-section">
+              {stageChoice}
+              <button disabled={active} onClick={() => process.mutate()}>
+                {t("ui.rerunAction")}
+              </button>
+              {process.error && <p role="alert">{String(process.error)}</p>}
+            </section>
+          )}
+          {active && <p className="muted">{t("busy")}</p>}
+          {data.status === "ready" && (
+            <p className="caption muted">{t("locked")}</p>
           )}
           {data.ingest_report && (
-            <details open>
+            <details>
               <summary>{t("report")}</summary>
-              <pre>{JSON.stringify(data.ingest_report, null, 2)}</pre>
+              <IngestReport report={data.ingest_report} />
             </details>
           )}
-          {data.status === "processing" ? (
-            <p>{t("busy")}</p>
-          ) : (
-            <>
-              <select
-                aria-label={t("rerun")}
-                value={stage}
-                onChange={(e) => setStage(e.target.value)}
-              >
-                <option value="">{t("allStages")}</option>
-                {stages.map((s) => (
-                  <option value={s} key={s}>
-                    {t(`stages.${s}`)}
-                  </option>
-                ))}
-              </select>
+          <section className="settings-section danger-section">
+            <h3>{t("ui.deleteScene")}</h3>
+            <p>{t("ui.deleteDescription")}</p>
+            {confirmDelete ? (
+              <>
+                <p className="field-label">
+                  {t("ui.deleteConfirmation", { name: data.name })}
+                </p>
+                <div className="action-row">
+                  <button
+                    className="secondary"
+                    disabled={remove.isPending}
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    {t("ui.keepScene")}
+                  </button>
+                  <button
+                    className="danger"
+                    disabled={active || remove.isPending}
+                    onClick={() => remove.mutate()}
+                  >
+                    {t("ui.deleteForever")}
+                  </button>
+                </div>
+              </>
+            ) : (
               <button
-                disabled={data.status === "created" || process.isPending}
-                onClick={() => process.mutate()}
+                className="danger"
+                disabled={active || uploading}
+                onClick={() => setConfirmDelete(true)}
               >
-                {t("process")}
+                {t("ui.deleteScene")}
               </button>
-              {data.status === "failed" && <p>{t("locked")}</p>}
-            </>
-          )}
-          {process.error && <p role="alert">{String(process.error)}</p>}
-        </main>
+            )}
+            {remove.error && <p role="alert">{String(remove.error)}</p>}
+          </section>
+        </Modal>
       )}
     </>
   );
