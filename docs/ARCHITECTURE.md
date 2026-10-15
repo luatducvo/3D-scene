@@ -89,7 +89,7 @@ The only boundary between frontend and backend is `WEB → API` over HTTP. The f
 | 5 | 2D segmentation | `StageAlgorithm` | `segment.sam3` | GPU target |
 | 6 | 2D → 3D lifting | `StageAlgorithm` | `lift.maskclustering` | cpu |
 | 7 | Object embeddings | `StageAlgorithm` | `embed.metaclip2` | GPU target |
-| 8 | Attributes | `StageAlgorithm` | `attributes.vlm_api` | `cpu` (calls an LLM API) |
+| 8 | Attributes | `StageAlgorithm` | `attributes.none` ([ADR-0004](ADR-0004-skip-vlm-attributes.md)); `attributes.vlm_api` available | `cpu` |
 | 9 | Scene graph | `StageAlgorithm` | `graph.geometric` | `cpu` |
 
 At query time, the API uses:
@@ -1052,10 +1052,15 @@ From this stage on, every stage reads poses from `align/`, not `recon/`.
 
 ### 8.8 Attributes — `attributes.vlm_api` (cpu)
 
+The configured pipeline runs `attributes.none` instead, which writes an empty entry per Instance and calls no endpoint; see [ADR-0004](ADR-0004-skip-vlm-attributes.md). The VLM Algorithm below is kept for switching back.
+
+
 - **Reads:** `instances/`. **Writes:** `attributes/`.
 - Sends 1–3 crops per object to an OpenAI-compatible vision model and asks for JSON: `{color: [], material: [], state: [], label_vi: ""}`.
 - Endpoint and model come from `VLM_BASE_URL`, `VLM_API_KEY`, `VLM_MODEL`; a local server works as well as a cloud API.
-- Each request has a total deadline of `request_timeout_s` (default 90), checked while streaming the body because some endpoints send keep-alive bytes that reset socket timeouts, and is retried `max_retries` times (default 2) on timeouts, transport errors, 429 and 5xx. An Object still without an answer is recorded in `attributes/errors.json`; other 4xx responses fail the Stage.
+- Each request has a total deadline of `request_timeout_s` (default 90), checked while streaming the body because some endpoints send keep-alive bytes that reset socket timeouts, and is retried `max_retries` times (default 2) on timeouts, transport errors, 429 and 5xx. An Object still without an answer is recorded in `attributes/errors.json`; other 4xx responses fail the Stage. 429 and 5xx wait before retrying (`Retry-After` when given, otherwise 1 s, 2 s, … capped at 10 s).
+- Objects are described in parallel with up to `concurrency` requests in flight (default 8); `attributes.json` and `errors.json` keep the Instance order.
+- Optional params: `max_crops` (default 3), `max_tokens`, and `extra_body`, a mapping merged into every request body for provider-specific options such as OpenRouter's `reasoning: {enabled: false}` or `provider: {sort: throughput}`.
 
 ### 8.9 Scene graph — `graph.geometric` (cpu)
 

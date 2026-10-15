@@ -191,11 +191,109 @@ Sau khi các dịch vụ đã khởi động thành công:
 | Xuất schema OpenAPI sang file json | `uv run tasks.py openapi` |
 | Đồng bộ kiểu dữ liệu OpenAPI sang frontend | `cd frontend && npm run api:sync` |
 | Build image GPU compute | `uv run tasks.py compute-image --image <tag>` |
+| Build và push image GPU compute lên Docker Hub | `uv run tasks.py push-compute-image --extras gpu` (xem [mục 7](#7-build-và-push-image-gpu-lên-docker-hub)) |
 | Deploy `scene-compute` lên Modal | `uv run tasks.py deploy-modal --variant [fake\|gpu]` |
 
 ---
 
-## 7. Xử lý sự cố thường gặp (Troubleshooting)
+## 7. Build và push image GPU lên Docker Hub
+
+Image `scene-compute` (build từ `backend/docker/compute.Dockerfile`) là image mà các GPU provider như Vast.ai, RunPod hoặc một Docker host bất kỳ sẽ kéo về để chạy. Modal **không** cần bước này vì Modal tự build image từ source (`uv run tasks.py deploy-modal`).
+
+Có hai biến thể, chọn bằng `--extras`:
+
+| Biến thể | Cờ | Nội dung | Tag mặc định |
+|---|---|---|---|
+| **fake** | *(không truyền `--extras`)* | Chỉ chứa contract fakes, nhẹ, dùng để kiểm tra kết nối với provider. | `fake-<git short sha>` |
+| **gpu** | `--extras gpu` | Chứa toàn bộ GPU Algorithm thật (Depth Anything 3, GeoCalib, SAM 3, MetaCLIP 2) trong một image duy nhất ([ADR-0002](docs/ADR-0002-single-gpu-image-ultralytics-sam3.md)). Dung lượng > 10 GB. | `gpu-<git short sha>` |
+
+### 7.1. Chuẩn bị
+
+1. Có tài khoản Docker Hub và tạo repository, ví dụ `<dockerhub-user>/scene-compute`.
+   - Vast.ai cần repository **public** (xem `backend/deploy/vast/README.md`). Nếu dùng repository private, phải khai báo thông tin đăng nhập registry trên provider.
+2. Đăng nhập Docker Hub. Nên dùng **Personal Access Token** (tạo tại Docker Hub → Account settings → Personal access tokens) thay cho mật khẩu:
+   ```bash
+   docker login -u <dockerhub-user>
+   ```
+   Thông tin đăng nhập được Docker lưu trên máy, không đi vào image.
+3. Khai báo repository trong `backend/.env`:
+   ```dotenv
+   COMPUTE_IMAGE_REPO=<dockerhub-user>/scene-compute
+   ```
+4. Máy build **không cần GPU**. Image luôn được build cho `linux/amd64`; trên máy ARM (Apple Silicon) Docker sẽ build qua giả lập nên chậm hơn đáng kể.
+5. Chừa đủ dung lượng đĩa cho Docker (image GPU > 10 GB, cộng thêm build cache). Kiểm tra bằng `uv run tasks.py disk-usage`.
+
+### 7.2. Build và push bằng task runner (khuyên dùng)
+
+Chạy từ thư mục gốc repository:
+
+```bash
+# Chỉ build image GPU (chưa push), để kiểm tra trước:
+uv run tasks.py compute-image --extras gpu
+
+# Build và push image GPU lên Docker Hub:
+uv run tasks.py push-compute-image --extras gpu
+
+# Build và push image fake (để thử kết nối provider trước khi dùng image GPU nặng):
+uv run tasks.py push-compute-image
+```
+
+`push-compute-image` tự build lại image rồi mới push, nên không cần chạy `compute-image` trước. Khi xong, lệnh in ra tag và digest, ví dụ:
+
+```text
+Pushed <dockerhub-user>/scene-compute:gpu-f7ce62a
+Digest <dockerhub-user>/scene-compute@sha256:...
+```
+
+Hãy ghi lại digest này cùng kết quả live GPU check, và dùng tag cố định (`gpu-<sha>`) hoặc digest khi cấu hình template trên provider, không dùng `latest`.
+
+> **Lưu ý về tag:** tag được sinh từ commit `HEAD` hiện tại (`git rev-parse --short HEAD`), nhưng build context là thư mục làm việc. Hãy commit thay đổi trước khi build để tag phản ánh đúng mã nguồn bên trong image.
+
+Muốn đặt tag tùy ý (bỏ qua `COMPUTE_IMAGE_REPO`), truyền `--image`:
+
+```bash
+uv run tasks.py push-compute-image --extras gpu --image <dockerhub-user>/scene-compute:gpu-v1
+```
+
+### 7.3. Lệnh Docker tương đương (không dùng `uv`)
+
+Từ thư mục gốc repository (build context phải là thư mục gốc):
+
+```bash
+docker build --platform linux/amd64 -f backend/docker/compute.Dockerfile --build-arg EXTRAS=gpu -t <dockerhub-user>/scene-compute:gpu-<tag> .
+```
+
+```bash
+docker push <dockerhub-user>/scene-compute:gpu-<tag>
+```
+
+Với image fake, bỏ `--build-arg EXTRAS=gpu` (hoặc để `EXTRAS=` rỗng).
+
+### 7.4. Kiểm tra image đã push
+
+```bash
+docker manifest inspect <dockerhub-user>/scene-compute:gpu-<tag>
+```
+
+Chạy thử trên máy có GPU NVIDIA và NVIDIA Container Toolkit:
+
+```bash
+docker run --rm --gpus all -p 127.0.0.1:9000:9000 <dockerhub-user>/scene-compute:gpu-<tag>
+```
+
+Sau đó mở `http://localhost:9000/ping` (trả về `{"ready": true}`) và `http://localhost:9000/info` để xem danh sách Algorithm có trong image.
+
+### 7.5. Bước tiếp theo
+
+Dùng tag hoặc digest vừa push để cấu hình provider và đặt `GPU_TARGET` trong `backend/.env`:
+
+- Vast.ai: `backend/deploy/vast/README.md`
+- RunPod: `backend/deploy/runpod/README.md`
+- Docker host bất kỳ: `backend/deploy/generic/README.md`
+
+---
+
+## 8. Xử lý sự cố thường gặp (Troubleshooting)
 
 - **Lỗi `network scene-net declared as external, but could not be found` khi bật Frontend:**
   - *Nguyên nhân:* Frontend yêu cầu mạng `scene-net` đã được tạo bởi backend.
@@ -205,6 +303,11 @@ Sau khi các dịch vụ đã khởi động thành công:
   - *Khắc phục:* Cài đặt NVIDIA Container Toolkit hoặc khởi động hệ thống mà không dùng flag GPU: chạy `uv run tasks.py up` thay vì `up-local-gpu`.
 - **Lỗi `SCENE_LOCKED` hoặc `SCENE_BUSY` khi gọi API:**
   - Theo thiết kế vòng đời Scene, một Scene đang trong tiến trình xử lý Job thì không nhận thêm file tải lên hoặc lệnh xử lý mới cùng lúc. Hãy chờ Job hiện tại hoàn tất hoặc kiểm tra log của `scene-worker`.
+- **Lỗi `Pass --image or set COMPUTE_IMAGE_REPO in backend/.env` khi build image GPU:**
+  - *Khắc phục:* Đặt `COMPUTE_IMAGE_REPO=<dockerhub-user>/scene-compute` trong `backend/.env` (thay hẳn placeholder `<dockerhub-user>`), hoặc truyền `--image`.
+- **Lỗi `denied: requested access to the resource is denied` khi push:**
+  - *Nguyên nhân:* Chưa `docker login`, token không có quyền ghi, hoặc tên user/namespace trong tag khác tài khoản đang đăng nhập.
+  - *Khắc phục:* Chạy lại `docker login -u <dockerhub-user>` với token có quyền *Read & Write* và kiểm tra tag bắt đầu bằng đúng `<dockerhub-user>/`.
 - **Thay đổi file cấu hình `pipeline.yaml` hoặc `compute.yaml` không có hiệu lực:**
   - Khởi động lại các container để nạp cấu hình mới:
     ```bash
@@ -213,7 +316,7 @@ Sau khi các dịch vụ đã khởi động thành công:
 
 ---
 
-## 8. Tài liệu tham khảo thêm
+## 9. Tài liệu tham khảo thêm
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): Kiến trúc hệ thống chi tiết, thiết kế module và storage layout.
 - [docs/SPEC.md](docs/SPEC.md): Đặc tả yêu cầu kỹ thuật và user stories.

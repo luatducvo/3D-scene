@@ -188,7 +188,7 @@ Each ends in something runnable in the browser.
 - **M2:** the same flow with fake GPU Stages targeting a configured remote Target completes; files round-trip by checksum; a Target that is not yet ready is waited for, not failed (including cold starts on providers that scale to zero).
 - **M3:** the user's room capture produces a mesh where the floor is at z ≈ 0, walls are axis-aligned and a known dimension (e.g. a door's height ≈ 2 m) is plausible; rejected files are listed by reason.
 - **M4:** searching a visible object by an English or Vietnamese phrase ranks it in the top results and highlights it.
-- **M5:** every Object has a box, labels in both languages and attributes; relations shown for an Object agree with what is visible.
+- **M5:** every Object has a box, labels in both languages and attributes; relations shown for an Object agree with what is visible. Amended by [ADR-0004](ADR-0004-skip-vlm-attributes.md): the pipeline skips VLM attributes, so Objects have no `label_vi` or attributes, and user stories 30 (attributes) and 38 are not served.
 - **M6:** a question in Vietnamese is answered in Vietnamese, cites Object ids, highlights them and flies the camera; distances in the answer equal the tool's output.
 - **M7/M8:** features listed above are present; M8 targets are documented but not required to be exercised.
 - Judgement of reconstruction and perception quality is qualitative (no benchmarks).
