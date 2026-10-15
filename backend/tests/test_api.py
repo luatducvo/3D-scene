@@ -24,6 +24,8 @@ def uploaded(client):
 
 def test_scene_upload_delete(client):
     prefix=uploaded(client)
+    raw=sorted(p.name for p in (client.app.state.data_dir/"scenes"/prefix.rsplit("/",1)[1]/"raw").iterdir())
+    assert [name.rsplit("-",1)[0] for name in raw]==["one","two"]
     assert client.post(prefix+"/uploads",files={"files":("bad.txt",b"x","text/plain")}).status_code==415
     assert client.delete(prefix).status_code==204
     assert client.get(prefix).json()["error"]["code"]=="SCENE_NOT_FOUND"

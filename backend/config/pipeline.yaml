@@ -7,9 +7,9 @@ stages:
     target: cpu
     params: {min_keyframes: 10, max_keyframes: 80, video_fps: 3, blur_threshold: 100.0, phash_distance: 6, long_side: 1600}
   recon:
-    algorithm: recon.mapanything
+    algorithm: recon.da3
     target: "${GPU_TARGET}"
-    params: {model_id: facebook/map-anything, memory_efficient_inference: true, confidence_percentile: 10}
+    params: {model_id: depth-anything/DA3NESTED-GIANT-LARGE-1.1, process_res: 504, use_ray_pose: true, ref_view_strategy: saddle_balanced, confidence_percentile: 10}
   align:
     algorithm: align.geocalib_ransac
     target: "${GPU_TARGET}"
@@ -17,7 +17,7 @@ stages:
   mesh:
     algorithm: mesh.tsdf
     target: cpu
-    params: {voxel_size_m: 0.02, sdf_trunc_m: 0.05, bounds_percentile: 1, target_faces: 300000}
+    params: {voxel_size_m: 0.02, sdf_trunc_m: 0.05, bounds_percentile: 1, points_confidence_percentile: 40, points_edge_threshold: 0.05, points_voxel_m: 0.01, max_points: 3000000}
   segment:
     algorithm: segment.sam3
     target: "${GPU_TARGET}"

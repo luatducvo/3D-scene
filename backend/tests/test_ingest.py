@@ -27,3 +27,17 @@ def test_quality_report_metadata_and_minimum(tmp_path):
         OpenCVIngest().run(workspace, {"min_keyframes": 10})
     assert error.value.code == "NOT_ENOUGH_KEYFRAMES"
     assert error.value.details["rejection_counts"]["duplicate"] == 1
+
+
+def test_keyframes_follow_capture_order(tmp_path):
+    workspace = SceneWorkspace(tmp_path, "order")
+    raw = workspace.dir("raw")
+    rng = np.random.default_rng(7)
+    shades = {}
+    for frame in (10, 2, 1):
+        image = Image.fromarray(rng.integers(30, 220, (64, 64, 3), dtype=np.uint8))
+        image.save(raw / f"frame-{frame}-a1b2c3d4.png")
+        shades[frame] = np.asarray(image, float).mean()
+    OpenCVIngest().run(workspace, {"min_keyframes": 3})
+    kept = [np.asarray(Image.open(workspace.path(f"keyframes/{i:04d}.jpg")), float).mean() for i in range(3)]
+    assert np.allclose(kept, [shades[1], shades[2], shades[10]], atol=2)

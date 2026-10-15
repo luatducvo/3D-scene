@@ -1,10 +1,71 @@
-"""CPU projective TSDF fusion with color integration and marching cubes extraction."""
+"""CPU dense colored point cloud and projective TSDF fusion with marching cubes extraction."""
 import numpy as np
 from PIL import Image
 
 from scene_core.contracts import MeshManifest
 from scene_core.ports import StageAlgorithm
-from .lift import unproject
+
+
+def write_ply(path, points, colors):
+    """Binary little-endian PLY with float32 positions and 8-bit colors, as loaded by the viewer."""
+    vertex = np.empty(len(points), dtype=[("x", "<f4"), ("y", "<f4"), ("z", "<f4"),
+                                          ("red", "u1"), ("green", "u1"), ("blue", "u1")])
+    for index, axis in enumerate("xyz"):
+        vertex[axis] = points[:, index]
+    for index, channel in enumerate(("red", "green", "blue")):
+        vertex[channel] = colors[:, index]
+    header = ("ply\nformat binary_little_endian 1.0\n"
+              f"element vertex {len(vertex)}\n"
+              "property float x\nproperty float y\nproperty float z\n"
+              "property uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n")
+    with open(path, "wb") as output:
+        output.write(header.encode("ascii"))
+        output.write(vertex.tobytes())
+
+
+def voxel_downsample(points, colors, voxel):
+    """Average positions and colors of the points falling in each voxel."""
+    keys = np.floor(points / voxel).astype(np.int64)
+    keys -= keys.min(axis=0)
+    extent = keys.max(axis=0) + 1
+    # One integer per voxel keeps the unique pass a fast one-dimensional sort.
+    flat = (keys[:, 0] * extent[1] + keys[:, 1]) * extent[2] + keys[:, 2]
+    _, inverse, counts = np.unique(flat, return_inverse=True, return_counts=True)
+    mean = lambda values: np.bincount(inverse, weights=values, minlength=len(counts)) / counts
+    return (np.column_stack([mean(points[:, axis]) for axis in range(3)]).astype(np.float32),
+            np.column_stack([mean(colors[:, channel].astype(np.float64)) for channel in range(3)]))
+
+
+def depth_edges(depth, threshold):
+    """Pixels whose depth jumps by more than `threshold` (relative) to a 4-neighbor.
+
+    Such pixels interpolate between a foreground object and the background behind it and float in
+    the air as streaks ("flying pixels") when seen from another view.
+    """
+    padded = np.pad(depth, 1, mode="edge")
+    neighbors = np.stack([padded[:-2, 1:-1], padded[2:, 1:-1], padded[1:-1, :-2], padded[1:-1, 2:]])
+    # Pixels without depth (0) are not neighbors, so masked regions do not erode their border.
+    jump = np.where(neighbors > 0, np.abs(neighbors - depth), 0).max(axis=0)
+    return jump > threshold * np.maximum(depth, 1e-6)
+
+
+def colored_points(frames, rgbs, min_confidence, edge_threshold=0):
+    """Back-project every confident, non-edge pixel of every aligned Frame into the aligned world."""
+    clouds, colors = [], []
+    for frame, rgb in zip(frames, rgbs):
+        valid = np.isfinite(frame["depth"]) & (frame["depth"] > 0) & np.isfinite(frame["conf"]) & (frame["conf"] >= min_confidence)
+        if edge_threshold > 0:
+            valid &= ~depth_edges(np.where(valid, frame["depth"], 0), edge_threshold)
+        y, x = np.nonzero(valid)
+        if not len(y):
+            continue
+        rays = np.column_stack([x, y, np.ones(len(x))]) @ np.linalg.inv(frame["K"]).T
+        camera = rays * frame["depth"][y, x, None]
+        clouds.append((camera @ frame["pose"][:3, :3].T + frame["pose"][:3, 3]).astype(np.float32))
+        colors.append(rgb[y, x])
+    if not clouds:
+        raise ValueError("No valid reconstructed depth points")
+    return np.concatenate(clouds), np.concatenate(colors)
 
 
 class TSDFMesh(StageAlgorithm):
@@ -21,23 +82,43 @@ class TSDFMesh(StageAlgorithm):
         if voxel <= 0 or truncation < voxel:
             raise ValueError("Require positive voxel_size_m and sdf_trunc_m >= voxel_size_m")
         frame_files = sorted(workspace.path("align/frames").glob("*.npz"))
-        clouds = []
+        if not frame_files:
+            raise ValueError("No aligned Frames")
+        frames, rgbs = [], []
         for path in frame_files:
-            with np.load(path, allow_pickle=False) as frame:
-                valid = np.isfinite(frame["depth"]) & (frame["depth"] > 0) & (frame["conf"] > float(params.get("min_confidence", 0)))
-                cloud = unproject(frame["depth"], frame["K"], frame["pose"], valid)
-                if len(cloud):
-                    clouds.append(cloud[::max(1, len(cloud) // 10000)])
-        if not clouds:
+            with np.load(path, allow_pickle=False) as data:
+                frame = dict(data)
+            with Image.open(workspace.path(f"recon/rgb/{path.stem}.png")) as image:
+                rgb = np.asarray(image.convert("RGB"))
+            if rgb.shape[:2] != frame["depth"].shape:
+                raise ValueError("RGB and depth must have the same model resolution")
+            frames.append(frame)
+            rgbs.append(rgb)
+        # Keep the confident part of the depth, as Depth Anything 3's own point cloud export does.
+        confidence = np.concatenate([frame["conf"][np.isfinite(frame["depth"]) & (frame["depth"] > 0)] for frame in frames])
+        confidence = confidence[np.isfinite(confidence)]
+        if not len(confidence):
             raise ValueError("No valid reconstructed depth points")
-        cloud = np.concatenate(clouds)
+        points_percentile = float(params.get("points_confidence_percentile", 40))
+        if not 0 <= points_percentile < 100:
+            raise ValueError("Require 0 <= points_confidence_percentile < 100")
+        cloud, cloud_colors = colored_points(frames, rgbs, float(np.percentile(confidence, points_percentile)),
+                                             float(params.get("points_edge_threshold", .05)))
         # Bound the volume by per-axis percentiles so a few far outliers do not inflate it;
         # depth outside the volume is never integrated.
         percentile = float(params.get("bounds_percentile", 1))
         if not 0 <= percentile < 50:
             raise ValueError("Require 0 <= bounds_percentile < 50")
         low, high = np.percentile(cloud, [percentile, 100 - percentile], axis=0)
-        cloud = cloud[np.all((cloud >= low) & (cloud <= high), axis=1)]
+        inside = np.all((cloud >= low) & (cloud <= high), axis=1)
+        cloud, cloud_colors = cloud[inside], cloud_colors[inside]
+        points_voxel = float(params.get("points_voxel_m", .01))
+        if points_voxel > 0:
+            cloud, cloud_colors = voxel_downsample(cloud, cloud_colors, points_voxel)
+        max_points = int(params.get("max_points", 3_000_000))
+        if len(cloud) > max_points:
+            keep = np.sort(np.random.default_rng(0).choice(len(cloud), max_points, replace=False))
+            cloud, cloud_colors = cloud[keep], cloud_colors[keep]
         origin = low - 2 * truncation
         shape = np.ceil((high + 2 * truncation - origin) / voxel).astype(int) + 1
         total = int(np.prod(shape))
@@ -46,15 +127,9 @@ class TSDFMesh(StageAlgorithm):
         sums = np.zeros(total, np.float32)
         weights = np.zeros(total, np.float32)
         colors = np.zeros((total, 3), np.float32)
-        for done, path in enumerate(frame_files):
-            self.progress(done, len(frame_files), "frame")
-            with np.load(path, allow_pickle=False) as data:
-                frame = dict(data)
-            with Image.open(workspace.path(f"recon/rgb/{path.stem}.png")) as image:
-                rgb = np.asarray(image.convert("RGB"))
+        for done, (frame, rgb) in enumerate(zip(frames, rgbs)):
+            self.progress(done, len(frames), "frame")
             h, w = frame["depth"].shape
-            if rgb.shape[:2] != (h, w):
-                raise ValueError("RGB and depth must have the same model resolution")
             for start in range(0, total, 100_000):
                 indices = np.arange(start, min(start + 100_000, total))
                 world = np.column_stack(np.unravel_index(indices, tuple(shape))) * voxel + origin
@@ -75,7 +150,7 @@ class TSDFMesh(StageAlgorithm):
                 sums[chosen] += np.clip(sdf[keep] / truncation, -1, 1) * weight
                 weights[chosen] += weight
                 colors[chosen] += rgb[y[keep], x[keep]] * weight[:, None]
-        self.progress(len(frame_files), len(frame_files), "frame")
+        self.progress(len(frames), len(frames), "frame")
         tsdf = np.ones(total, np.float32)
         observed = weights > 0
         tsdf[observed] = sums[observed] / weights[observed]
@@ -88,5 +163,6 @@ class TSDFMesh(StageAlgorithm):
         mesh = trimesh.Trimesh(vertices=vertices + origin, faces=faces, vertex_colors=vertex_colors, process=False)
         output = workspace.dir("mesh")
         mesh.export(output / "mesh.glb")
-        trimesh.PointCloud(cloud).export(output / "points.ply")
-        return MeshManifest(mesh_file="mesh/mesh.glb", points_file="mesh/points.ply", num_faces=len(mesh.faces))
+        write_ply(output / "points.ply", cloud, np.clip(np.rint(cloud_colors), 0, 255).astype(np.uint8))
+        return MeshManifest(mesh_file="mesh/mesh.glb", points_file="mesh/points.ply",
+                            num_faces=len(mesh.faces), num_points=len(cloud))

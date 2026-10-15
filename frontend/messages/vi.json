@@ -45,7 +45,7 @@
   "tool": "Đang dùng công cụ: {tool}",
   "measure": "Đo khoảng cách",
   "clear": "Xóa phép đo",
-  "measureHint": "Chọn hai điểm trên mô hình",
+  "measureHint": "Chọn hai điểm trong căn phòng",
   "suggestWhere": "{object} ở đâu?",
   "suggestColor": "{object} có màu gì?",
   "suggestNear": "Có gì gần {object}?",
@@ -82,5 +82,10 @@
     "mask": "mặt nạ",
     "object": "đồ vật",
     "step": "bước"
+  },
+  "layers": {
+    "points": "Đám mây điểm",
+    "mesh": "Lưới bề mặt",
+    "boxes": "Khung vật thể"
   }
 }

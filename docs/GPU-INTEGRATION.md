@@ -6,15 +6,18 @@ gated SAM 3 access and the user's room capture.
 
 | Adapter | Verified upstream interface | Local artifact |
 |---|---|---|
-| MapAnything | `MapAnything.from_pretrained`, `load_images`, `infer`; per-view metric depth, confidence, validity mask, RGB, intrinsics and camera-to-world pose | `recon/rgb/*.png`, `recon/frames/*.npz` |
+| Depth Anything 3 | `DepthAnything3.from_pretrained`, `inference(images, use_ray_pose, ref_view_strategy, process_res, process_res_method)`; `Prediction.depth`, `conf`, `extrinsics` (world-to-camera), `intrinsics`, `processed_images`, `is_metric` | `recon/rgb/*.png`, `recon/frames/*.npz` |
 | GeoCalib | `GeoCalib().load_image`, `calibrate`, `gravity.vec3d` | aligned Frame archives, transform Manifest and planes |
 | SAM 3 (Ultralytics) | `SAM3SemanticPredictor(overrides=...)`, `set_image`, `inference_features(features, src_shape, text=[...])`; boolean masks and `(x1, y1, x2, y2, score, class)` boxes | masks, labels and scores per selected Frame |
 | MetaCLIP 2 | Transformers 4.x `AutoModel`, `AutoProcessor`, `get_image_features`, `get_text_features` | normalized 1024-dimensional image/text vectors |
 
-MapAnything's [official README](https://github.com/facebookresearch/map-anything#image-only-inference)
-documents the inference arguments and output keys. Its outputs are already metric; the adapter
-records the scaling factor without scaling depth or translation twice. Invalid geometry is masked.
-The project leaves Torch and CUDA versions unpinned.
+Depth Anything 3's [README](https://github.com/ByteDance-Seed/Depth-Anything-3) and its
+`api.py`/`specs.py` define the inference arguments and the `Prediction` fields. The adapter uses
+`depth-anything/DA3NESTED-GIANT-LARGE-1.1` (CC BY-NC 4.0), whose depth and poses are already metric;
+it refuses a Prediction with `is_metric` unset. Extrinsics are OpenCV world-to-camera and are
+inverted to camera-to-world poses. The least confident 10 % of pixels and invalid depth are masked.
+DA3 pins `numpy<2` and depends on xformers, which fixes the Torch version (Torch 2.14.1, xformers
+0.0.35, NumPy 1.26.4 on 2026-10-15). See [ADR-0003](ADR-0003-depth-anything-3-point-cloud.md).
 
 GeoCalib's [inference example](https://github.com/cvg/GeoCalib#setup-and-demo) defines the model call.
 Its [Gravity class](https://github.com/cvg/GeoCalib/blob/main/geocalib/gravity.py) exposes `vec3d`;
@@ -28,9 +31,8 @@ SAM 3 runs through [Ultralytics](https://docs.ultralytics.com/models/sam-3/) (AG
 per-class NMS and returns masks already resized to the source image, with the class column indexing
 the text batch. `quantize: 16` selects fp16. The gated `sam3.pt` comes from `facebook/sam3` through
 `hf_hub_download`. Ultralytics' [CLIP fork](https://github.com/ultralytics/CLIP) is declared as a
-dependency so nothing is installed at runtime. Ultralytics accepts NumPy 2 on Linux, so every GPU
-Algorithm resolves in one environment (NumPy 2.5.4, Torch 2.14.1 on 2026-10-14). The compute
-Dockerfile uses CUDA 12.8.1. PyTorch/Torchvision pins still require a complete GPU image build and
+dependency so nothing is installed at runtime. Every GPU Algorithm resolves in one environment. The compute
+Dockerfile uses CUDA 12.8.1. NumPy 1.26.4 (required by Depth Anything 3) also satisfies Ultralytics. PyTorch/Torchvision pins still require a complete GPU image build and
 inference check; compatible declared versions do not prove every kernel works together.
 
 MetaCLIP's [model configuration](https://huggingface.co/facebook/metaclip-2-worldwide-huge-quickgelu/blob/main/config.json)
@@ -42,7 +44,7 @@ its output contract checked. Image and text vectors use the same model and L2 no
 ## Manual acceptance still required
 
 1. Build and push the GPU image, inspect `/info`, and download weights into the provider's cache.
-2. Process a room capture on the configured provider. Confirm plausible metric dimensions, z=0 floor and axis-aligned walls.
+2. Process a room capture on the configured provider. Confirm a dense, complete colored point cloud in the viewer, plausible metric dimensions, z=0 floor and axis-aligned walls.
 3. Inspect mask alignment with RGB, multi-view Object identities, boxes and evidence crops.
 4. Search visible objects in both English and Vietnamese and check the ranking/highlights.
 5. Record model versions, image digest and observed results before marking GPU quality tickets verified.

@@ -1,6 +1,8 @@
 # ADR-0002: One GPU image, SAM 3 through Ultralytics
 
-Status: accepted. Date: 2026-10-14.
+Status: accepted. Date: 2026-10-14. Amended 2026-10-15 by [ADR-0003](ADR-0003-depth-anything-3-point-cloud.md):
+MapAnything is replaced by Depth Anything 3, which requires NumPy < 2; Ultralytics, GeoCalib and
+MetaCLIP 2 accept that, so the single image stands.
 
 ## Context
 

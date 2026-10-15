@@ -55,7 +55,7 @@ The fake image installs no heavy Algorithms, so the download step only prints `s
 
 Filter: verified, on-demand (not interruptible), 1 GPU, CUDA ≥ 12.8 (the image uses CUDA 12.8.1),
 reliability > 98%, enough disk. VRAM: GPU image ≥ 48 GB (every model stays loaded after it first
-runs; MapAnything uses memory-efficient inference and at most 80 keyframes), fake any GPU. Sort by price. An interruptible
+runs; Depth Anything 3 sees at most 80 keyframes in one pass), fake any GPU. Sort by price. An interruptible
 instance reclaimed during a Compute Run fails the Job; there is no transparent recovery.
 
 ## 5. Connect

@@ -9,10 +9,7 @@ import { StageStepper, stages } from "../../../../components/StageStepper";
 import { ObjectList } from "../../../../components/ObjectList";
 import { ChatPanel } from "../../../../components/ChatPanel";
 import { sceneApi } from "../../../../lib/api";
-import {
-  progressEvent,
-  type ProgressEvent,
-} from "../../../../lib/api/port";
+import { progressEvent, type ProgressEvent } from "../../../../lib/api/port";
 import { useViewer } from "../../../../lib/store/viewerStore";
 const SceneCanvas = dynamic(
   () => import("../../../../components/viewer/SceneCanvas"),
@@ -41,7 +38,8 @@ export default function ScenePage({
     [suggestion, setSuggestion] = useState(""),
     [search, setSearch] = useState(""),
     [query, setQuery] = useState("");
-  const measuring = useViewer((s) => s.measuring);
+  const measuring = useViewer((s) => s.measuring),
+    layers = useViewer((s) => s.layers);
   const searchResult = useQuery({
     queryKey: ["search", sceneId, query],
     queryFn: () => sceneApi.searchObjects(sceneId, query),
@@ -142,6 +140,18 @@ export default function ScenePage({
               <button onClick={() => useViewer.getState().clear()}>
                 {t("clear")}
               </button>
+              {(["points", "mesh", "boxes"] as const)
+                .filter((layer) => layer !== "mesh" || data.assets?.mesh_url)
+                .map((layer) => (
+                  <button
+                    key={layer}
+                    aria-pressed={layers[layer]}
+                    className={layers[layer] ? "selected" : "subtle"}
+                    onClick={() => useViewer.getState().toggleLayer(layer)}
+                  >
+                    {t(`layers.${layer}`)}
+                  </button>
+                ))}
               {measuring && <span>{t("measureHint")}</span>}
               {searchResult.error && (
                 <p role="alert">{String(searchResult.error)}</p>

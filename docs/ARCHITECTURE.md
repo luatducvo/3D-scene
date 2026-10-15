@@ -2,7 +2,7 @@
 
 > Turns RGB photos or a short video of a room, captured with a phone, into a metric-scale 3D scene with open-vocabulary objects and a scene graph. Users can then ask about it in natural language (Vietnamese or English).
 >
-> - **Baseline reconstruction:** MapAnything.
+> - **Baseline reconstruction:** Depth Anything 3 (`DA3NESTED-GIANT-LARGE-1.1`), shown as a dense colored point cloud.
 > - **Design:** SOLID. Every capability is a replaceable component chosen in configuration.
 > - **Deployment:** local, single user. Docker Compose for everything; `uv` manages Python, `npm` manages the Next.js frontend.
 > - **Storage:** system state (scene files and PostgreSQL) lives in named Docker volumes, so `docker compose down -v` returns the system to a fresh, empty state. Only the model weight cache is bind-mounted to the host (`./models`) to avoid re-downloading tens of gigabytes. Users keep their original photos on their own computer. No Redis, no object store.
@@ -83,7 +83,7 @@ The only boundary between frontend and backend is `WEB → API` over HTTP. The f
 | # | Stage | Port | Default algorithm | Default target |
 |---|---|---|---|---|
 | 1 | Ingest + quality check | `StageAlgorithm` | `ingest.opencv` | `cpu` (in-process) |
-| 2 | 3D reconstruction | `StageAlgorithm` | `recon.mapanything` | GPU target |
+| 2 | 3D reconstruction | `StageAlgorithm` | `recon.da3` | GPU target |
 | 3 | Gravity alignment | `StageAlgorithm` | `align.geocalib_ransac` | GPU target |
 | 4 | Mesh | `StageAlgorithm` | `mesh.tsdf` | `cpu` |
 | 5 | 2D segmentation | `StageAlgorithm` | `segment.sam3` | GPU target |
@@ -161,9 +161,9 @@ All names are descriptive English. No product codename appears in code; the depl
 |---|---|---|
 | Directories, repositories, Docker services, Python distributions, npm package | kebab-case | `scene-worker`, `scene-stages` |
 | Python modules and packages | snake_case | `scene_core.ports` |
-| Python classes | PascalCase | `MapAnythingReconstruction` |
+| Python classes | PascalCase | `DepthAnything3Reconstruction` |
 | Python functions, variables | snake_case | `load_scene_graph` |
-| Algorithm registry keys | `<stage>.<method>` lowercase | `recon.mapanything` |
+| Algorithm registry keys | `<stage>.<method>` lowercase | `recon.da3` |
 | TypeScript variables, functions | camelCase | `subscribeProgress` |
 | React components, TS types | PascalCase | `SceneCanvas`, `SceneDetail` |
 | Environment variables | UPPER_SNAKE_CASE | `DATA_DIR` |
@@ -223,7 +223,7 @@ backend/
 │       ├── pyproject.toml         # one optional extra per heavy algorithm
 │       └── src/scene_stages/
 │           ├── ingest/opencv.py
-│           ├── recon/mapanything.py
+│           ├── recon/da3.py
 │           ├── align/geocalib_ransac.py
 │           ├── mesh/tsdf.py
 │           ├── segment/sam3.py
@@ -301,10 +301,10 @@ members = ["packages/*", "services/*"]
 name = "scene-stages"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["scene-core", "numpy>=2", "pillow>=11", "opencv-python-headless>=4.10", "trimesh>=4"]
+dependencies = ["scene-core", "numpy>=1.26", "pillow>=11", "opencv-python-headless>=4.10", "trimesh>=4"]
 
 [project.optional-dependencies]
-recon-mapanything = ["torch", "torchvision", "mapanything @ git+https://github.com/facebookresearch/map-anything.git"]
+recon-da3         = ["torch", "torchvision", "depth-anything-3 @ git+https://github.com/ByteDance-Seed/Depth-Anything-3.git"]
 align-geocalib    = ["torch", "geocalib @ git+https://github.com/cvg/GeoCalib.git", "open3d>=0.18"]
 mesh-tsdf         = ["open3d>=0.18"]
 segment-sam3      = ["torch", "ultralytics", "clip @ git+https://github.com/ultralytics/CLIP.git"]
@@ -320,7 +320,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 ```
 
-All GPU extras resolve in one environment. SAM 3 runs through Ultralytics, whose NumPy range accepts NumPy 2 as MapAnything requires, so scene-compute has a single `gpu` extra and a single GPU image (6.8, [ADR-0002](ADR-0002-single-gpu-image-ultralytics-sam3.md)). The real extras live in `backend/packages/scene-stages/pyproject.toml`; the block above shows the shape, not the exact pins.
+All GPU extras resolve in one environment. Depth Anything 3 requires NumPy < 2 and xformers; SAM 3 through Ultralytics, GeoCalib and MetaCLIP 2 accept that, so scene-compute has a single `gpu` extra and a single GPU image (6.8, [ADR-0002](ADR-0002-single-gpu-image-ultralytics-sam3.md)). The real extras live in `backend/packages/scene-stages/pyproject.toml`; the block above shows the shape, not the exact pins.
 
 Common commands:
 
@@ -411,8 +411,9 @@ class AlignManifest(BaseModel):
 
 class MeshManifest(BaseModel):
     mesh_file: str                          # mesh/mesh.glb
-    points_file: str                        # mesh/points.ply
+    points_file: str                        # mesh/points.ply, dense colored point cloud
     num_faces: int
+    num_points: int
 
 class SegmentManifest(BaseModel):
     num_masks: int
@@ -465,7 +466,7 @@ Model cache on the host:
 
 ```
 models/                          # HOST_MODELS_DIR → /models
-├── hf/                          # HF_HOME: Hugging Face weights (MapAnything, SAM 3, Meta CLIP 2...)
+├── hf/                          # HF_HOME: Hugging Face weights (Depth Anything 3, SAM 3, Meta CLIP 2...)
 └── torch/                       # TORCH_HOME: torch.hub weights (e.g. GeoCalib)
 ```
 
@@ -547,7 +548,7 @@ from pydantic import BaseModel
 # ---------- Algorithms ----------
 class StageAlgorithm(ABC):
     """A pure transformation of a scene workspace. Runtime-agnostic."""
-    name: ClassVar[str]                          # registry key, e.g. "recon.mapanything"
+    name: ClassVar[str]                          # registry key, e.g. "recon.da3"
     stage: ClassVar[str]                         # e.g. "recon"
     manifest_type: ClassVar[type[BaseModel]]
     reads: ClassVar[list[str]]                   # workspace subdirs consumed
@@ -868,11 +869,11 @@ are caches; local Scene storage remains authoritative.
 
 ### 6.8 GPU image and sizing
 
-Every GPU Algorithm ships in one image, `EXTRAS=gpu` (MapAnything, GeoCalib, SAM 3 through Ultralytics, MetaCLIP 2), deployed as one Target per provider (`vast`, `modal`, ...). `pipeline.yaml` assigns every GPU Stage to it through `GPU_TARGET`; a Stage can still be moved by editing its `target`. See [ADR-0002](ADR-0002-single-gpu-image-ultralytics-sam3.md) for the license and VRAM trade-off.
+Every GPU Algorithm ships in one image, `EXTRAS=gpu` (Depth Anything 3, GeoCalib, SAM 3 through Ultralytics, MetaCLIP 2), deployed as one Target per provider (`vast`, `modal`, ...). `pipeline.yaml` assigns every GPU Stage to it through `GPU_TARGET`; a Stage can still be moved by editing its `target`. See [ADR-0002](ADR-0002-single-gpu-image-ultralytics-sam3.md) for the license and VRAM trade-off.
 
 | Algorithm | Suggested GPU | Notes |
 |---|---|---|
-| `recon.mapanything` | 24 GB with `memory_efficient_inference` and ≤ 80 keyframes (the pipeline's `max_keyframes`); 40–80 GB (A100/H100) for more | About 1B parameters |
+| `recon.da3` | ≥ 40 GB for ≤ 80 keyframes at `process_res` 504 (the pipeline's `max_keyframes`); 80 GB (A100/H100) for more | 1.4B parameters, all views in one pass |
 | `align.geocalib_ransac` | ≥ 8 GB | |
 | `segment.sam3` | ≥ 16 GB | Ultralytics `SAM3SemanticPredictor`; gated `sam3.pt` on Hugging Face |
 | `embed.metaclip2` | ≥ 16 GB | Also serves query-time text embedding |
@@ -892,7 +893,7 @@ extra makes its implementation usable.
 
 ```toml
 [project.entry-points."scene_stages"]
-"recon.mapanything" = "scene_stages.recon.mapanything:MapAnythingReconstruction"
+"recon.da3" = "scene_stages.gpu:DepthAnything3Reconstruction"
 [project.entry-points."scene_relations"]
 "on" = "scene_stages.graph.relations.on:OnRule"
 ```
@@ -989,67 +990,26 @@ Each section lists the contract that every replacement algorithm must honor.
 Ingest defaults to `min_keyframes: 10`. Fewer usable Keyframes fails early with
 `NOT_ENOUGH_KEYFRAMES` and rejection counts for blur, exposure and duplicates.
 
-### 8.2 Reconstruction — `recon.mapanything` (GPU)
+### 8.2 Reconstruction — `recon.da3` (GPU)
 
 - **Reads:** `keyframes/`. **Writes:** `recon/`.
-- **Contract:** `recon/rgb/*.png` at model resolution; `recon/frames/*.npz` with `depth` (H,W, meters), `conf` (H,W), `pose` (camera-to-world 4×4, meters), `K` (3×3). Any world frame is allowed; the align stage normalizes it.
+- **Contract:** `recon/rgb/*.png` at model resolution; `recon/frames/*.npz` with `depth` (H,W, meters), `conf` (H,W), `pose` (camera-to-world 4×4, meters), `K` (3×3). Any world frame is allowed; the align stage normalizes it. Pixels without usable depth have `depth = conf = 0`.
+- Model: [Depth Anything 3](https://github.com/ByteDance-Seed/Depth-Anything-3) `depth-anything/DA3NESTED-GIANT-LARGE-1.1` (1.4B parameters, CC BY-NC 4.0). The nested checkpoint predicts any-view depth and poses already in meters, so no scale conversion is applied. A non-metric checkpoint fails with `INVALID_MODEL_OUTPUT` unless `require_metric: false`.
+- All Keyframes go through **one** `inference()` call, so every view shares one world frame; ingest's `max_keyframes` (80) bounds VRAM.
+- Parameters: `process_res` (504, the model's training resolution), `process_res_method` (`upper_bound_resize`), `use_ray_pose` (true: poses from the ray head, more accurate than the camera head), `ref_view_strategy` (`saddle_balanced`), `confidence_percentile` (10: the least confident pixels across all views are masked).
+- DA3 returns OpenCV world-to-camera `extrinsics` (N×3×4); the adapter stores their inverse as `pose`. `processed_images`, `depth`, `conf` and `intrinsics` share the processed resolution.
 
 ```python
-class MapAnythingReconstruction(StageAlgorithm):
-    name = "recon.mapanything"
-    stage = "recon"
-    manifest_type = ReconManifest
-    reads = ["keyframes"]
-    writes = ["recon"]
-
-    def __init__(self, model_id: str = "facebook/map-anything"):
-        self.model_id = model_id
-
-    def setup(self) -> None:
-        from mapanything.models import MapAnything
-        self.model = MapAnything.from_pretrained(self.model_id).to("cuda").eval()
-
-    def run(self, workspace: SceneWorkspace, params: dict) -> ReconManifest:
-        import numpy as np
-        from PIL import Image
-        from mapanything.utils.image import load_images
-
-        frame_files = sorted(workspace.dir("keyframes").glob("*.jpg"))
-        views = load_images(str(workspace.dir("keyframes")))
-        predictions = self.model.infer(
-            views,
-            memory_efficient_inference=params.get("memory_efficient_inference", True),
-            use_amp=True, amp_dtype="bf16",
-            apply_mask=True, mask_edges=True,
-            apply_confidence_mask=True,
-            confidence_percentile=params.get("confidence_percentile", 10),
-        )
-
-        rgb_dir, frames_dir = workspace.dir("recon", "rgb"), workspace.dir("recon", "frames")
-        frame_ids: list[str] = []
-        for path, pred in zip(frame_files, predictions):
-            frame_id = path.stem
-            frame_ids.append(frame_id)
-            image = (pred["img_no_norm"][0].cpu().numpy() * 255).astype("uint8")
-            Image.fromarray(image).save(rgb_dir / f"{frame_id}.png")
-            np.savez_compressed(
-                frames_dir / f"{frame_id}.npz",
-                depth=pred["depth_z"][0].squeeze(-1).float().cpu().numpy(),
-                conf=pred["conf"][0].float().cpu().numpy(),
-                pose=pred["camera_poses"][0].float().cpu().numpy(),
-                K=pred["intrinsics"][0].float().cpu().numpy(),
-            )
-
-        height, width = image.shape[:2]
-        return ReconManifest(
-            num_frames=len(frame_ids),
-            frame_ids=frame_ids,
-            metric_scale=float(predictions[0]["metric_scaling_factor"].mean()),
-            image_size=(width, height),
-        )
+prediction = model.inference(
+    [str(path) for path in keyframes],
+    use_ray_pose=True, ref_view_strategy="saddle_balanced",
+    process_res=504, process_res_method="upper_bound_resize",
+)
+# prediction.depth (N,H,W) m · conf (N,H,W) · extrinsics (N,3,4) w2c · intrinsics (N,3,3)
+# processed_images (N,H,W,3) uint8 · is_metric · scale_factor
 ```
 
-> Output keys and `infer()` arguments follow the MapAnything README. Check them against the installed version.
+> The inference arguments and `Prediction` fields follow DA3's `api.py` and `specs.py`. Check them against the installed commit.
 
 ### 8.3 Gravity alignment — `align.geocalib_ransac` (GPU)
 
@@ -1065,7 +1025,8 @@ From this stage on, every stage reads poses from `align/`, not `recon/`.
 ### 8.4 Mesh — `mesh.tsdf` (cpu)
 
 - **Reads:** `recon/`, `align/`. **Writes:** `mesh/`.
-- Open3D `ScalableTSDFVolume` with `voxel_size_m` and `sdf_trunc_m`, then `extract_triangle_mesh`, `simplify_quadric_decimation(target_faces)`, export `mesh.glb` (via trimesh) and a downsampled `points.ply`.
+- **Point cloud** (`points.ply`, the viewer's primary layer): back-project every pixel of every aligned Frame whose confidence is at least the `points_confidence_percentile` (default 40) of all valid pixels, as DA3's own point cloud export does, colored from `recon/rgb`. Pixels whose depth jumps by more than `points_edge_threshold` (default 0.05, relative) to a valid 4-neighbor are dropped: they float between a foreground object and the wall behind it. Average positions and colors per `points_voxel_m` voxel (default 0.01; `0` keeps every point), then subsample to `max_points` (default 3,000,000) with a fixed seed. Written as binary little-endian PLY: float32 `x y z`, uint8 `red green blue`.
+- **Mesh** (`mesh.glb`): NumPy projective TSDF fusion with `voxel_size_m` and `sdf_trunc_m`, confidence-weighted color integration, scikit-image marching cubes, exported via trimesh.
 - The volume spans the `bounds_percentile`–(100 − `bounds_percentile`) range of the points on each axis (default 1), plus `2 × sdf_trunc_m`, so sparse far outliers neither inflate it past `max_voxels` nor enter the mesh or `points.ply`. `0` keeps every point. Checked on ScanNet `scene0011_00`: the 1–99 % range of the reconstruction is 8.5 × 6.9 m against 8.75 × 6.72 m for the ground-truth mesh, while all points span 14 × 13 m.
 
 ### 8.5 2D segmentation — `segment.sam3` (GPU)
@@ -1424,10 +1385,13 @@ export type SceneLayer = React.ComponentType<SceneLayerProps>;
 
 // viewer/layers/index.ts — a new rendering method is a new entry
 export const sceneLayers: Record<string, SceneLayer> = {
-  mesh: MeshLayer,
+  points: PointCloudLayer,          // default: dense colored point cloud from points.ply
+  mesh: MeshLayer,                  // TSDF mesh, off by default
   boxes: ObjectBoxesLayer,
 };
 ```
+
+The viewer store keeps per-layer visibility (`points` and `boxes` on, `mesh` off) and the toolbar toggles it. `PointCloudLayer` frames the camera on the cloud's bounds once loaded and only listens for clicks while measuring, with a 2 cm raycast threshold.
 
 `SearchBar` and `ChatPanel` only write `highlightedIds` to the store; `ObjectBoxesLayer` reads it to draw highlights and fly the camera.
 
@@ -1673,11 +1637,11 @@ CMD ["node", "server.js"]
 
 ## 12. Extending and replacing components
 
-### 12.1 Replace an algorithm (example: MapAnything → Depth Anything 3)
+### 12.1 Replace an algorithm (example: another reconstruction method)
 
-1. Add `packages/scene-stages/src/scene_stages/recon/depth_anything3.py` with a `StageAlgorithm` named `recon.depth_anything3`, same `reads`, `writes` and `ReconManifest`. If the model is not metric, the class itself must convert to meters; that is part of the contract.
-2. Add an extra `recon-depth-anything3`, include it in the `gpu` extra of scene-compute, and add an entry point.
-3. Set `algorithm: recon.depth_anything3` in `pipeline.yaml`.
+1. Add a `StageAlgorithm` such as `recon.mymethod` in `packages/scene-stages/src/scene_stages/`, with the same `reads`, `writes` and `ReconManifest` as `recon.da3`. If the model is not metric, the class itself must convert to meters; that is part of the contract.
+2. Add an extra `recon-mymethod`, include it in the `gpu` extra of scene-compute, and add an entry point.
+3. Set `algorithm: recon.mymethod` in `pipeline.yaml`.
 4. Rebuild and redeploy the compute image (`uv run tasks.py up-local-gpu`, or `uv run tasks.py push-compute-image` and redeploy on the provider).
 5. Reprocess with `from_stage: recon`.
 

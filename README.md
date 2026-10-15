@@ -22,7 +22,7 @@ Hệ thống được chia thành hai nhóm dịch vụ chính kết nối với
 
 - **`scene-data`** (Docker named volume): Gắn tại `/data` trong container. Chứa dữ liệu làm việc của các Scene (`/data/scenes/{scene_id}/raw`, kết quả từng Stage) và bản ghi compute run.
 - **`postgres-data`** (Docker named volume): Gắn tại `/var/lib/postgresql/data`. Lưu trữ database PostgreSQL.
-- **`./models`** (Host bind-mount): Thư mục cache trọng số mô hình AI trên máy host (MapAnything, SAM 3, CLIP...). Thư mục này **không bị xóa** khi chạy lệnh reset volume (`down -v`), giúp tránh việc tải lại hàng chục GB weights.
+- **`./models`** (Host bind-mount): Thư mục cache trọng số mô hình AI trên máy host (Depth Anything 3, SAM 3, CLIP...). Thư mục này **không bị xóa** khi chạy lệnh reset volume (`down -v`), giúp tránh việc tải lại hàng chục GB weights.
 
 ---
 

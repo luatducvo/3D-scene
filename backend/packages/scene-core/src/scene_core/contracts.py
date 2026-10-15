@@ -32,6 +32,7 @@ class MeshManifest(BaseModel):
     mesh_file:str
     points_file:str
     num_faces:int
+    num_points:int=0
 class SegmentManifest(BaseModel):
     num_masks:int
     vocabulary_size:int

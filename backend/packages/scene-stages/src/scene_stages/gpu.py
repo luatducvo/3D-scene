@@ -32,13 +32,13 @@ def _numpy(value):
     return value.detach().float().cpu().numpy()
 
 
-class MapAnythingReconstruction(StageAlgorithm):
-    name = "recon.mapanything"
+class DepthAnything3Reconstruction(StageAlgorithm):
+    name = "recon.da3"
     stage = "recon"
     manifest_type = ReconManifest
     reads = ["keyframes"]
     writes = ["recon"]
-    model_id = "facebook/map-anything"
+    model_id = "depth-anything/DA3NESTED-GIANT-LARGE-1.1"
 
     def setup(self):
         _cache()
@@ -51,53 +51,60 @@ class MapAnythingReconstruction(StageAlgorithm):
 
     def run(self, workspace, params):
         torch = _cuda()
-        from mapanything.models import MapAnything
-        from mapanything.utils.image import load_images
+        from depth_anything_3.api import DepthAnything3
 
         model_id = params.get("model_id", self.model_id)
         if self.model is None or model_id != self.model_id:
-            self.model = MapAnything.from_pretrained(model_id).to("cuda").eval()
+            self.model = DepthAnything3.from_pretrained(model_id).to("cuda").eval()
             self.model_id = model_id
         files = sorted(workspace.path("keyframes").glob("*.jpg"))
         if not files:
             raise SceneError("NOT_ENOUGH_KEYFRAMES", "Reconstruction requires Keyframes")
-        views = load_images([str(path) for path in files])
+        self.progress(0, 1, "batch")
+        # Every Keyframe goes through one forward pass so all views share one metric world frame.
         with torch.inference_mode():
-            predictions = self.model.infer(
-                views, memory_efficient_inference=params.get("memory_efficient_inference", True),
-                minibatch_size=params.get("minibatch_size", 1), use_amp=True, amp_dtype="bf16",
-                apply_mask=True, mask_edges=True, apply_confidence_mask=True,
-                confidence_percentile=float(params.get("confidence_percentile", 10)),
+            prediction = self.model.inference(
+                [str(path) for path in files],
+                use_ray_pose=bool(params.get("use_ray_pose", True)),
+                ref_view_strategy=params.get("ref_view_strategy", "saddle_balanced"),
+                process_res=int(params.get("process_res", 504)),
+                process_res_method=params.get("process_res_method", "upper_bound_resize"),
             )
-        if len(predictions) != len(files):
-            raise SceneError("INVALID_MODEL_OUTPUT", "Reconstruction dropped an input Frame")
-        image_size = None
-        scales = []
-        for path, result in zip(files, predictions):
-            depth = _numpy(result["depth_z"])[0, ..., 0]
-            confidence = _numpy(result["conf"])[0]
-            pose = _numpy(result["camera_poses"])[0]
-            intrinsics = _numpy(result["intrinsics"])[0]
-            rgb = _numpy(result["img_no_norm"])[0]
-            valid = _numpy(result["mask"])[0, ..., 0] > 0
-            if (depth.ndim != 2 or confidence.shape != depth.shape
-                    or rgb.shape != (*depth.shape, 3) or valid.shape != depth.shape
-                    or pose.shape != (4, 4) or intrinsics.shape != (3, 3)
-                    or not np.isfinite(pose).all() or not np.isfinite(intrinsics).all()):
-                raise SceneError("INVALID_MODEL_OUTPUT", "MapAnything output violates Frame shapes")
-            valid &= np.isfinite(depth) & (depth > 0) & np.isfinite(confidence)
-            depth = np.where(valid, depth, 0).astype(np.float32)
-            confidence = np.where(valid, confidence, 0).astype(np.float32)
-            Image.fromarray((np.clip(rgb, 0, 1) * 255).astype(np.uint8)).save(
-                workspace.dir("recon/rgb") / f"{path.stem}.png")
-            np.savez_compressed(workspace.dir("recon/frames") / f"{path.stem}.npz",
-                                depth=depth, conf=confidence, pose=pose, K=intrinsics)
-            image_size = (depth.shape[1], depth.shape[0])
-            scales.append(float(_numpy(result["metric_scaling_factor"]).mean()))
-        if not np.isfinite(scales).all() or min(scales) <= 0:
-            raise SceneError("INVALID_MODEL_OUTPUT", "Invalid metric scaling factor")
-        return ReconManifest(num_frames=len(files), frame_ids=[path.stem for path in files],
-                             metric_scale=float(np.mean(scales)), image_size=image_size)
+        if params.get("require_metric", True) and not prediction.is_metric:
+            raise SceneError("INVALID_MODEL_OUTPUT", f"{model_id} does not predict metric depth")
+        depth = np.asarray(prediction.depth, dtype=np.float32)
+        confidence = np.asarray(prediction.conf, dtype=np.float32)
+        extrinsics = np.asarray(prediction.extrinsics, dtype=np.float64)
+        intrinsics = np.asarray(prediction.intrinsics, dtype=np.float64)
+        rgb = np.asarray(prediction.processed_images)
+        count = len(files)
+        if (depth.ndim != 3 or len(depth) != count or confidence.shape != depth.shape
+                or rgb.shape != (*depth.shape, 3) or intrinsics.shape != (count, 3, 3)
+                or extrinsics.shape not in ((count, 3, 4), (count, 4, 4))
+                or not np.isfinite(extrinsics).all() or not np.isfinite(intrinsics).all()):
+            raise SceneError("INVALID_MODEL_OUTPUT", "Depth Anything 3 output violates Frame shapes")
+        valid = np.isfinite(depth) & (depth > 0) & np.isfinite(confidence)
+        if not valid.any():
+            raise SceneError("INVALID_MODEL_OUTPUT", "Depth Anything 3 returned no valid depth")
+        # Drop the least confident pixels; the point cloud applies its own stricter threshold.
+        percentile = float(params.get("confidence_percentile", 10))
+        valid &= confidence >= np.percentile(confidence[valid], percentile)
+        if rgb.dtype != np.uint8:
+            rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8)
+        for index, path in enumerate(files):
+            world_to_camera = np.eye(4)
+            world_to_camera[:3] = extrinsics[index, :3]
+            Image.fromarray(rgb[index]).save(workspace.dir("recon/rgb") / f"{path.stem}.png")
+            np.savez_compressed(
+                workspace.dir("recon/frames") / f"{path.stem}.npz",
+                depth=np.where(valid[index], depth[index], 0).astype(np.float32),
+                conf=np.where(valid[index], confidence[index], 0).astype(np.float32),
+                pose=np.linalg.inv(world_to_camera), K=intrinsics[index])
+        self.progress(1, 1, "batch")
+        scale = prediction.scale_factor
+        return ReconManifest(num_frames=count, frame_ids=[path.stem for path in files],
+                             metric_scale=float(scale) if scale is not None else 1.0,
+                             image_size=(depth.shape[2], depth.shape[1]))
 
 
 def _rotation_to_up(up):

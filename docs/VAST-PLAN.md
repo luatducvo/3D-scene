@@ -46,7 +46,7 @@ replace the recon/perception pair; the decisions below reflect the amendment.
 - Known limit: search needs the GPU instance running.
 
 ### Pipeline
-- `ingest.max_keyframes` becomes 80 so MapAnything fits 24 GB with memory-efficient inference.
+- `ingest.max_keyframes` is 80 so Depth Anything 3 sees every Keyframe in one forward pass on a 48 GB GPU.
 
 ### Vocabulary
 - GLOSSARY is unchanged. Docs say "scene-compute on Target `vast`", never "GPU worker"

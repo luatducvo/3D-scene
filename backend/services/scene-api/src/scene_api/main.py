@@ -1,4 +1,4 @@
-import json,os,shutil,uuid
+import json,os,re,shutil,uuid
 from pathlib import Path
 from contextlib import asynccontextmanager
 import httpx
@@ -88,7 +88,9 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
             saved=[]
             try:
                 for upload in files:
-                    name=uuid.uuid4().hex+Path(upload.filename).suffix.lower()
+                    # The original stem keeps capture order for ingest; the suffix keeps names unique.
+                    stem=re.sub(r"[^A-Za-z0-9_-]","_",Path(upload.filename).stem)[:80]
+                    name=f"{stem}-{uuid.uuid4().hex[:8]}{Path(upload.filename).suffix.lower()}"
                     with (folder/name).open("wb") as dest:
                         shutil.copyfileobj(upload.file,dest,length=1024*1024)
                     saved.append(name)

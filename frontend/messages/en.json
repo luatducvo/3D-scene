@@ -45,7 +45,7 @@
   "tool": "Using tool: {tool}",
   "measure": "Measure",
   "clear": "Clear measurement",
-  "measureHint": "Select two points on the mesh",
+  "measureHint": "Select two points in the room",
   "suggestWhere": "Where is {object}?",
   "suggestColor": "What color is {object}?",
   "suggestNear": "What is near {object}?",
@@ -82,5 +82,10 @@
     "mask": "{count, plural, one {mask} other {masks}}",
     "object": "{count, plural, one {object} other {objects}}",
     "step": "{count, plural, one {step} other {steps}}"
+  },
+  "layers": {
+    "points": "Point cloud",
+    "mesh": "Mesh",
+    "boxes": "Object boxes"
   }
 }

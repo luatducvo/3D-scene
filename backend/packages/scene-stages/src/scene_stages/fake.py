@@ -5,6 +5,7 @@ from PIL import Image
 from scene_core.contracts import *
 from scene_core.ports import StageAlgorithm
 from scene_core.errors import SceneError
+from .mesh import write_ply
 
 OBJECTS=[{"id":"chair-1","label":"chair","label_vi":"ghế","box":{"center":[1,1,0.5],"size":[0.5,0.5,1],"yaw":0},"attributes":{"color":["red"],"material":["wood"]},"best_views":[{"frame_id":"0000","bbox":[0,0,16,16],"score":1}]},{"id":"table-1","label":"table","label_vi":"bàn","box":{"center":[2,1,0.4],"size":[1,1,0.8],"yaw":0},"attributes":{"color":["brown"],"material":["wood"]},"best_views":[{"frame_id":"0000","bbox":[0,0,16,16],"score":1}]}]
 class Fake(StageAlgorithm):
@@ -44,8 +45,12 @@ class MeshFake(Fake):
         js=json.dumps(doc,separators=(",",":")).encode();js+=b" "*((-len(js))%4)
         glb=struct.pack("<III",0x46546c67,2,12+8+len(js)+8+len(binary))+struct.pack("<II",len(js),0x4e4f534a)+js+struct.pack("<II",len(binary),0x004e4942)+binary
         w.dir("mesh").joinpath("mesh.glb").write_bytes(glb)
-        w.path("mesh/points.ply").write_text("ply\nformat ascii 1.0\nelement vertex 8\nproperty float x\nproperty float y\nproperty float z\nend_header\n"+"\n".join(" ".join(map(str,v)) for v in vertices))
-        return MeshManifest(mesh_file="mesh/mesh.glb",points_file="mesh/points.ply",num_faces=8)
+        # The same five faces as a colored point cloud on a 5 cm grid.
+        u,v=(g.ravel() for g in np.meshgrid(np.linspace(0,1,81),np.linspace(0,1,81)));zero=np.zeros_like(u)
+        faces=[(np.column_stack([4*u,3*v,zero]),(150,120,90)),(np.column_stack([zero,3*u,2.5*v]),(200,200,190)),(np.column_stack([4*u,zero,2.5*v]),(185,190,200)),(np.column_stack([4*u,3+zero,2.5*v]),(185,190,200)),(np.column_stack([4+zero,3*u,2.5*v]),(200,200,190))]
+        points=np.concatenate([f for f,_ in faces]);colors=np.concatenate([np.tile(c,(len(f),1)) for f,c in faces]).astype(np.uint8)
+        write_ply(w.path("mesh/points.ply"),points,colors)
+        return MeshManifest(mesh_file="mesh/mesh.glb",points_file="mesh/points.ply",num_faces=8,num_points=len(points))
 class SegmentFake(Fake):
     name="segment.fake";stage="segment";manifest_type=SegmentManifest;reads=["recon"];writes=["segment"]
     def transform(self,w,p):

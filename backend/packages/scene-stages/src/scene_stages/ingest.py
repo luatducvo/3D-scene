@@ -1,5 +1,6 @@
 """CPU RGB ingest with upright, metadata-free keyframes and an explicit rejection report."""
 import json
+import re
 import subprocess
 import tempfile
 
@@ -9,6 +10,11 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from scene_core.contracts import IngestManifest
 from scene_core.errors import SceneError
 from scene_core.ports import StageAlgorithm
+
+
+def capture_order(path):
+    """Natural order, so frame-2 precedes frame-10 and ScanNet frames keep their sequence."""
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", path.name)]
 
 
 def perceptual_hash(image):
@@ -36,7 +42,7 @@ class OpenCVIngest(StageAlgorithm):
             old.unlink()
         rejected = {"blur": [], "exposure": [], "duplicate": [], "invalid": []}
         accepted, hashes = [], []
-        raw_files = sorted(p for p in workspace.path("raw").iterdir() if p.is_file())
+        raw_files = sorted((p for p in workspace.path("raw").iterdir() if p.is_file()), key=capture_order)
         with tempfile.TemporaryDirectory() as temporary:
             from pathlib import Path
             temporary = Path(temporary)

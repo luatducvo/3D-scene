@@ -64,7 +64,7 @@ the Targets before starting the system, and switching provider is a configuratio
 21. As a user, I want the reconstruction to be in meters, so that sizes and distances are real.
 22. As a user, I want the room aligned with gravity, floor at height zero and walls along the axes, so that the viewer feels natural and "above/under/on" are meaningful.
 23. As a user, I want the ceiling height estimated when visible, so that I can ask about room dimensions.
-24. As a user, I want a textured mesh of the room in the viewer, so that I can orbit and zoom around it.
+24. As a user, I want a complete, dense colored point cloud of the room in the viewer (with the mesh as an optional layer), so that I can orbit and zoom around it.
 25. As a user, I want EXIF orientation applied and metadata (including GPS) stripped from working copies, so that photos are upright and my location is not stored.
 26. As a user, I want a short video to be split into frames automatically, so that video and photos are equally usable.
 
@@ -176,7 +176,7 @@ Each ends in something runnable in the browser.
 - **M0** Repo reset (uv workspace replaces the scaffold), task runner, glossary, ADR-0001, architecture doc brought in line with this spec.
 - **M1** Walking skeleton: all services, database, SSE and a minimal UI, running fake Algorithms on CPU.
 - **M2** Compute contract + GPU server deployed on a remote provider (Vast.ai first), fake GPU Stages running remotely.
-- **M3** Real ingest, reconstruction, alignment and mesh; mesh viewer; ingest report.
+- **M3** Real ingest, reconstruction (Depth Anything 3), alignment, point cloud and mesh; point cloud viewer; ingest report.
 - **M4** Real segmentation, lifting and embeddings; free-text search.
 - **M5** Real attributes and Scene Graph; publish; object list, boxes, object detail.
 - **M6** QA agent and chat.
@@ -231,6 +231,6 @@ Additional pure unit tests only for numeric geometry: box fitting, footprint ove
 ## Further Notes
 - Environment: Windows 11 host with Git Bash, Docker with the NVIDIA runtime, an RTX 3050 6 GB (insufficient for every GPU Stage), no `make`, no GitHub CLI.
 - Prerequisites the user must provide: a Vast.ai account with credit, a public Docker Hub repository for the GPU images, a Hugging Face token and gated access to SAM 3 (both available), and an OpenAI-compatible cloud API key for LLM and VLM.
-- Verify before integrating: Hugging Face model ids, MapAnything's inference arguments and output keys, the embedding model's output dimension, Modal's support for building from a Dockerfile together with web-server, concurrency and startup-timeout options, and torch version compatibility across GPU dependency groups.
+- Verify before integrating: Hugging Face model ids, Depth Anything 3's inference arguments and `Prediction` fields, the embedding model's output dimension, Modal's support for building from a Dockerfile together with web-server, concurrency and startup-timeout options, and torch version compatibility across GPU dependency groups.
 - The user commits changes; implementing agents only edit files.
 - No issue tracker is configured, so this spec lives in the repository rather than as a `ready-for-agent` issue. Running `/setup-matt-pocock-skills` later would allow publishing it as one.
