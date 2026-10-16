@@ -83,6 +83,7 @@ os.environ["DATA_DIR"] = "/content/data"        # Data scene tạm để ở SSD
 os.environ["MODELS_DIR"] = MODELS_DIR          # Weights lưu vĩnh viễn trên Drive
 os.environ["HF_HOME"] = f"{MODELS_DIR}/hf"
 os.environ["TORCH_HOME"] = f"{MODELS_DIR}/torch"
+os.environ["MODELS_PIPELINE_CONFIG"] = "/content/3D-scene/backend/config/pipeline.yaml"
 
 # Thêm HF_TOKEN nếu cần cho các weights yêu cầu access (như SAM 3)
 # os.environ["HF_TOKEN"] = "hf_xxx"
