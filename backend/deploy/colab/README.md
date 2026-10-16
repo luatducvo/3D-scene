@@ -61,20 +61,33 @@ Chạy cell sau trên Colab để cài đặt `uv`, Python 3.12 và tải mã ng
   !uv sync --python 3.12 --package scene-compute --extra gpu
   ```
 
-### Bước 2.4: Tải trước weights mô hình (Tùy chọn nhưng khuyên dùng)
+### Bước 2.4: Mount Google Drive để lưu trữ Model Weights (Khuyên dùng)
 
-Tải weights về thư mục `/content/models` trên Colab để khi chạy Stage đầu tiên không bị delay:
+Các mô hình AI (Depth Anything 3, SAM 3, MetaCLIP 2, GeoCalib) có dung lượng khá lớn (> 10 GB). Ổ đĩa `/content` của Colab sẽ bị xóa sạch mỗi khi phiên làm việc bị ngắt. **Bằng cách gắn (mount) Google Drive**, toàn bộ model weights sẽ được tải và lưu vĩnh viễn trên Drive của bạn:
+- Lần đầu: Tải weights về Google Drive (khoảng vài phút).
+- Các lần sau: Chỉ cần mount Drive là có thể chạy ngay lập tức, không tốn thời gian tải lại!
 
-```bash
+```python
+# Gắn kết nối với Google Drive của bạn
+from google.colab import drive
+drive.mount('/content/drive')
+
 import os
-os.environ["DATA_DIR"] = "/content/data"
-os.environ["MODELS_DIR"] = "/content/models"
-os.environ["HF_HOME"] = "/content/models/hf"
-os.environ["TORCH_HOME"] = "/content/models/torch"
+# Tạo thư mục lưu weights trên Google Drive
+DRIVE_DIR = "/content/drive/MyDrive/3D-scene"
+MODELS_DIR = f"{DRIVE_DIR}/models"
+os.makedirs(MODELS_DIR, exist_ok=True)
+
+# Thiết lập biến môi trường trỏ vào Google Drive
+os.environ["DATA_DIR"] = "/content/data"        # Data scene tạm để ở SSD Colab cho nhanh
+os.environ["MODELS_DIR"] = MODELS_DIR          # Weights lưu vĩnh viễn trên Drive
+os.environ["HF_HOME"] = f"{MODELS_DIR}/hf"
+os.environ["TORCH_HOME"] = f"{MODELS_DIR}/torch"
 
 # Thêm HF_TOKEN nếu cần cho các weights yêu cầu access (như SAM 3)
 # os.environ["HF_TOKEN"] = "hf_xxx"
 
+# Tải weights về Drive (chỉ cần chạy lần đầu tiên)
 !uv run --python 3.12 python -m scene_compute.download_models
 ```
 
@@ -123,12 +136,15 @@ print("="*60)
 import os
 token = "my-secret-token" # Đặt token bảo mật tùy ý
 
+# Thư mục models trên Google Drive
+MODELS_DIR = "/content/drive/MyDrive/3D-scene/models"
+
 os.environ["COMPUTE_TOKEN"] = token
 os.environ["PORT"] = "9000"
 os.environ["DATA_DIR"] = "/content/data"
-os.environ["MODELS_DIR"] = "/content/models"
-os.environ["HF_HOME"] = "/content/models/hf"
-os.environ["TORCH_HOME"] = "/content/models/torch"
+os.environ["MODELS_DIR"] = MODELS_DIR
+os.environ["HF_HOME"] = f"{MODELS_DIR}/hf"
+os.environ["TORCH_HOME"] = f"{MODELS_DIR}/torch"
 os.environ["CHUNK_SIZE_MB"] = "25"
 
 !uv run --python 3.12 uvicorn scene_compute.server:app --host 0.0.0.0 --port 9000
