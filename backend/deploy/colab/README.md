@@ -148,6 +148,9 @@ os.environ["HF_HOME"] = f"{MODELS_DIR}/hf"
 os.environ["TORCH_HOME"] = f"{MODELS_DIR}/torch"
 os.environ["CHUNK_SIZE_MB"] = "25"
 
+# Giải phóng cổng 9000 nếu có tiến trình uvicorn cũ đang chạy ngầm
+!pkill -9 -f uvicorn || true
+
 !uv run --python 3.12 uvicorn scene_compute.server:app --host 0.0.0.0 --port 9000
 ```
 
