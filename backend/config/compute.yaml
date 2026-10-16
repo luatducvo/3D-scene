@@ -45,3 +45,11 @@ targets:
     chunk_size: 25000000
     startup_timeout: 900
     poll_interval: 3
+  colab:
+    backend: http
+    url: ${COLAB_URL}
+    token: ${COMPUTE_TOKEN}
+    chunk_size: 25000000
+    startup_timeout: 900
+    poll_interval: 3
+
