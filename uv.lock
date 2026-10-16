@@ -19,6 +19,15 @@ members = [
 ]
 
 [[package]]
+name = "addict"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/ef/fd7649da8af11d93979831e8f1f8097e85e82d5bfeabc8c68b39175d8e75/addict-2.4.0.tar.gz", hash = "sha256:b3b2210e0e067a281f5646c8c5db92e99b7231ea8b0eb5f74dbdf9e259d4e494", size = 9186, upload-time = "2020-11-21T16:21:31.416Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6a/00/b08f23b7d7e1e14ce01419a467b583edbb93c6cdb8654e54a9cc579cd61f/addict-2.4.0-py3-none-any.whl", hash = "sha256:249bb56bbfd3cdc2a004ea0ff4c2b6ddc84d53bc2194761636eb314d5cfa5dfc", size = 3832, upload-time = "2020-11-21T16:21:29.588Z" },
+]
+
+[[package]]
 name = "annotated-doc"
 version = "0.0.5"
 source = { registry = "https://pypi.org/simple" }
@@ -2367,6 +2376,7 @@ mesh-tsdf = [
     { name = "trimesh" },
 ]
 recon-da3 = [
+    { name = "addict" },
     { name = "depth-anything-3" },
     { name = "huggingface-hub" },
     { name = "torch" },
@@ -2381,6 +2391,7 @@ segment-sam3 = [
 
 [package.metadata]
 requires-dist = [
+    { name = "addict", marker = "extra == 'recon-da3'" },
     { name = "clip", marker = "extra == 'segment-sam3'", git = "https://github.com/ultralytics/CLIP.git" },
     { name = "depth-anything-3", marker = "extra == 'recon-da3'", git = "https://github.com/ByteDance-Seed/Depth-Anything-3.git" },
     { name = "geocalib", marker = "extra == 'align-geocalib'", git = "https://github.com/cvg/GeoCalib.git" },

@@ -27,6 +27,9 @@ def test_quality_report_metadata_and_minimum(tmp_path):
         OpenCVIngest().run(workspace, {"min_keyframes": 10})
     assert error.value.code == "NOT_ENOUGH_KEYFRAMES"
     assert error.value.details["rejection_counts"]["duplicate"] == 1
+    unfiltered = OpenCVIngest().run(workspace, {"min_keyframes": 4, "quality_filter": False})
+    assert unfiltered.num_keyframes == 4
+    assert not any(unfiltered.rejected.values())
 
 
 def test_keyframes_follow_capture_order(tmp_path):

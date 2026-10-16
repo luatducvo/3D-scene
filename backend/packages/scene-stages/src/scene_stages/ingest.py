@@ -35,6 +35,8 @@ class OpenCVIngest(StageAlgorithm):
         minimum = int(params.get("min_keyframes", 10))
         maximum = int(params.get("max_keyframes", 120))
         fps = float(params.get("video_fps", 3))
+        # quality_filter: false keeps every readable frame; only unreadable files are rejected.
+        quality_filter = bool(params.get("quality_filter", True))
         if minimum < 1 or maximum < minimum or fps <= 0:
             raise ValueError("Require 1 <= min_keyframes <= max_keyframes and positive video_fps")
         output = workspace.dir("keyframes")
@@ -62,15 +64,15 @@ class OpenCVIngest(StageAlgorithm):
                         image = ImageOps.exif_transpose(original).convert("RGB")
                         image.thumbnail((int(params.get("long_side", 1600)),) * 2)
                         gray = np.asarray(image.convert("L"), dtype=float)
-                        if np.mean((gray < 10) | (gray > 245)) > 0.25:
+                        if quality_filter and np.mean((gray < 10) | (gray > 245)) > 0.25:
                             rejected["exposure"].append(label)
                             continue
                         laplacian = -4 * gray[1:-1, 1:-1] + gray[:-2, 1:-1] + gray[2:, 1:-1] + gray[1:-1, :-2] + gray[1:-1, 2:]
-                        if not laplacian.size or laplacian.var() < float(params.get("blur_threshold", 100)):
+                        if quality_filter and (not laplacian.size or laplacian.var() < float(params.get("blur_threshold", 100))):
                             rejected["blur"].append(label)
                             continue
                         signature = perceptual_hash(image)
-                        if any(np.count_nonzero(signature != previous) < int(params.get("phash_distance", 6)) for previous in hashes):
+                        if quality_filter and any(np.count_nonzero(signature != previous) < int(params.get("phash_distance", 6)) for previous in hashes):
                             rejected["duplicate"].append(label)
                             continue
                         hashes.append(signature)

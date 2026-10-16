@@ -5,7 +5,7 @@ stages:
   ingest:
     algorithm: ingest.opencv
     target: cpu
-    params: {min_keyframes: 10, max_keyframes: 80, video_fps: 3, blur_threshold: 100.0, phash_distance: 6, long_side: 1600}
+    params: {min_keyframes: 10, max_keyframes: 80, video_fps: 3, quality_filter: false, blur_threshold: 100.0, phash_distance: 6, long_side: 1600}
   recon:
     algorithm: recon.da3
     target: "${GPU_TARGET}"

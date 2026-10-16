@@ -873,12 +873,12 @@ Every GPU Algorithm ships in one image, `EXTRAS=gpu` (Depth Anything 3, GeoCalib
 
 | Algorithm | Suggested GPU | Notes |
 |---|---|---|
-| `recon.da3` | ≥ 40 GB for ≤ 80 keyframes at `process_res` 504 (the pipeline's `max_keyframes`); 80 GB (A100/H100) for more | 1.4B parameters, all views in one pass |
+| `recon.da3` | ≥ 40 GB for ≤ 80 keyframes at `process_res` 504; 80 GB (A100/H100) for more, up to the pipeline's `max_keyframes` (200) | 1.4B parameters, all views in one pass |
 | `align.geocalib_ransac` | ≥ 8 GB | |
 | `segment.sam3` | ≥ 16 GB | Ultralytics `SAM3SemanticPredictor`; gated `sam3.pt` on Hugging Face |
 | `embed.metaclip2` | ≥ 16 GB | Also serves query-time text embedding |
 
-The Executor never unloads a model, so all of them stay in VRAM together after a full Job. A GPU Target needs **at least 48 GB of VRAM**; captures with more than 80 keyframes need 80 GB (A100/H100).
+The Executor never unloads a model, so all of them stay in VRAM together after a full Job. A GPU Target needs **at least 48 GB of VRAM**; captures with more than 80 keyframes (the pipeline allows 200) need 80 GB (A100/H100).
 
 ---
 
@@ -983,7 +983,7 @@ Each section lists the contract that every replacement algorithm must honor.
 - **Reads:** `raw/`. **Writes:** `keyframes/`.
 - Images: apply EXIF orientation, strip metadata (including GPS), resize the long side to `long_side`.
 - Video: extract frames with `ffmpeg -vf fps={video_fps}`.
-- Reject blurry frames (variance of Laplacian < `blur_threshold`), badly exposed frames (> 25 % of pixels below 10 or above 245), and duplicates (perceptual hash distance < `phash_distance`).
+- Reject blurry frames (variance of Laplacian < `blur_threshold`), badly exposed frames (> 25 % of pixels below 10 or above 245), and duplicates (perceptual hash distance < `phash_distance`). `quality_filter: false` skips all three and keeps every readable frame; `pipeline.yaml` sets it.
 - If more than `max_keyframes` remain, sample uniformly in time.
 - The manifest lists rejected files by reason; the UI shows them.
 
@@ -995,7 +995,7 @@ Ingest defaults to `min_keyframes: 10`. Fewer usable Keyframes fails early with
 - **Reads:** `keyframes/`. **Writes:** `recon/`.
 - **Contract:** `recon/rgb/*.png` at model resolution; `recon/frames/*.npz` with `depth` (H,W, meters), `conf` (H,W), `pose` (camera-to-world 4×4, meters), `K` (3×3). Any world frame is allowed; the align stage normalizes it. Pixels without usable depth have `depth = conf = 0`.
 - Model: [Depth Anything 3](https://github.com/ByteDance-Seed/Depth-Anything-3) `depth-anything/DA3NESTED-GIANT-LARGE-1.1` (1.4B parameters, CC BY-NC 4.0). The nested checkpoint predicts any-view depth and poses already in meters, so no scale conversion is applied. A non-metric checkpoint fails with `INVALID_MODEL_OUTPUT` unless `require_metric: false`.
-- All Keyframes go through **one** `inference()` call, so every view shares one world frame; ingest's `max_keyframes` (80) bounds VRAM.
+- All Keyframes go through **one** `inference()` call, so every view shares one world frame; ingest's `max_keyframes` (200) bounds VRAM.
 - Parameters: `process_res` (504, the model's training resolution), `process_res_method` (`upper_bound_resize`), `use_ray_pose` (true: poses from the ray head, more accurate than the camera head), `ref_view_strategy` (`saddle_balanced`), `confidence_percentile` (10: the least confident pixels across all views are masked).
 - DA3 returns OpenCV world-to-camera `extrinsics` (N×3×4); the adapter stores their inverse as `pose`. `processed_images`, `depth`, `conf` and `intrinsics` share the processed resolution.
 

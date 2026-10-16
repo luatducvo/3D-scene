@@ -46,7 +46,7 @@ replace the recon/perception pair; the decisions below reflect the amendment.
 - Known limit: search needs the GPU instance running.
 
 ### Pipeline
-- `ingest.max_keyframes` is 80 so Depth Anything 3 sees every Keyframe in one forward pass on a 48 GB GPU.
+- `ingest.max_keyframes` is 200 and `ingest.quality_filter` is false; Depth Anything 3 sees every Keyframe in one forward pass, so more than 80 Keyframes needs an 80 GB GPU.
 
 ### Vocabulary
 - GLOSSARY is unchanged. Docs say "scene-compute on Target `vast`", never "GPU worker"
