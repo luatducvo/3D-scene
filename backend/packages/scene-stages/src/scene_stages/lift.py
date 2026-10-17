@@ -7,6 +7,7 @@ from collections import defaultdict
 import numpy as np
 from PIL import Image
 from scene_core.contracts import LiftManifest
+from scene_core.errors import SceneError
 from scene_core.ports import StageAlgorithm
 
 from .arrays import array_module, to_numpy
@@ -115,6 +116,60 @@ def _agglomerate(affinity, node_frames, threshold, xp=np):
     return [members[i] for i in sorted(members)]
 
 
+def merge_same_label(groups, labels, voxels, threshold):
+    """Merge groups with the same label whose voxel sets overlap by more than `threshold` of the
+    smaller set, highest overlap first, until no such pair remains; return the merged groups.
+
+    `voxels[i]` holds group i's integer voxel coordinates, shape (N, 3). Groups with different
+    labels never merge, so a door handle inside a wardrobe stays its own group. A merged group
+    takes the position of its first part, and ties go to the lowest (first, second) pair.
+    """
+    groups = [set(group) for group in groups]
+    cells = [set(map(tuple, np.asarray(keys).tolist())) for keys in voxels]
+    bounds = [
+        (np.min(keys, axis=0), np.max(keys, axis=0)) if len(keys) else None for keys in voxels
+    ]
+    alive = [True] * len(groups)
+    by_label = defaultdict(list)
+    for index, label in enumerate(labels):
+        by_label[label].append(index)
+
+    def overlap(i, j):
+        if bounds[i] is None or bounds[j] is None:
+            return 0.0
+        if np.any(bounds[i][0] > bounds[j][1]) or np.any(bounds[j][0] > bounds[i][1]):
+            return 0.0
+        return len(cells[i] & cells[j]) / min(len(cells[i]), len(cells[j]))
+
+    pairs = {}
+    for members in by_label.values():
+        for position, i in enumerate(members):
+            for j in members[position + 1 :]:
+                if (value := overlap(i, j)) > threshold:
+                    pairs[i, j] = value
+    while pairs:
+        first, second = max(pairs, key=lambda pair: (pairs[pair], -pair[0], -pair[1]))
+        groups[first] |= groups[second]
+        cells[first] |= cells[second]
+        bounds[first] = (
+            np.minimum(bounds[first][0], bounds[second][0]),
+            np.maximum(bounds[first][1], bounds[second][1]),
+        )
+        alive[second] = False
+        pairs = {pair: value for pair, value in pairs.items() if not {first, second} & set(pair)}
+        for other in by_label[labels[first]]:
+            if other != first and alive[other] and (value := overlap(first, other)) > threshold:
+                pairs[min(first, other), max(first, other)] = value
+    return [group for group, keep in zip(groups, alive, strict=True) if keep]
+
+
+def _vote(members):
+    votes = defaultdict(float)
+    for member in members:
+        votes[member["label"]] += member["score"] * int(member["mask"].sum())
+    return max(votes, key=votes.get)
+
+
 class MaskClustering(StageAlgorithm):
     name, stage = "lift.maskclustering", "lift"
     reads, writes = ["segment", "align", "recon"], ["instances"]
@@ -125,6 +180,9 @@ class MaskClustering(StageAlgorithm):
         voxel = float(params.get("voxel_size_m", 0.02))
         if voxel <= 0:
             raise ValueError("voxel_size_m must be positive")
+        merge_overlap = float(params.get("merge_overlap", 0.5))
+        if not 0 <= merge_overlap <= 1:
+            raise SceneError("INVALID_PARAMETERS", "merge_overlap must be in [0, 1]")
         for masks_file in sorted(workspace.path("segment/masks").glob("*.npz")):
             frame_id = masks_file.stem
             with np.load(
@@ -169,16 +227,26 @@ class MaskClustering(StageAlgorithm):
             float(params.get("consensus_threshold", 0.5)),
             xp,
         )
+        # Last clustering step: same-label groups that occupy the same space are one thing, such
+        # as a seat seen alone in one Frame and its whole chair in another.
+        groups = merge_same_label(
+            groups,
+            [_vote([nodes[i] for i in group]) for group in groups],
+            [
+                np.floor(np.concatenate([nodes[i]["points"] for i in group]) / voxel).astype(
+                    np.int64
+                )
+                for group in groups
+            ],
+            merge_overlap,
+        )
         instances = []
         for group in groups:
             members = [nodes[i] for i in sorted(group)]
             num_views = len({node["frame"] for node in members})
             if num_views < int(params.get("min_views", 2)):
                 continue
-            votes = defaultdict(float)
-            for member in members:
-                votes[member["label"]] += member["score"] * int(member["mask"].sum())
-            label = max(votes, key=votes.get)
+            label = _vote(members)
             identity = ";".join(f"{node['frame']}:{node['index']}" for node in members)
             instance_id = "obj-" + hashlib.sha256(identity.encode()).hexdigest()[:16]
             points = np.concatenate([member["points"] for member in members])
