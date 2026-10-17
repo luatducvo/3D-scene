@@ -3,7 +3,7 @@
 An independent Next.js app in [frontend/](../../frontend/). It knows the backend only through
 `NEXT_PUBLIC_API_URL` (browser), `API_INTERNAL_URL` (server-side, over the `scene-net` Docker
 network) and the committed OpenAPI file. Commands and validation steps are in
-[frontend/README.md](../../frontend/README.md); scripts are in
+[Development and validation](#development-and-validation); scripts are in
 [package.json](../../frontend/package.json).
 
 ## UI scope
@@ -63,3 +63,16 @@ draws highlights and flies the camera. The point cloud listens for clicks only w
    plus the running one's reported share), elapsed time, and a time estimate for long Stages.
 4. **Explorer:** full-viewport 3D canvas; search highlights matching geometry; selecting an Object
    opens its properties; chat, measuring and display controls open in the task panel.
+
+## Development and validation
+
+In `frontend/`, run `npm ci`, then `npm run dev` against the backend configured in
+`NEXT_PUBLIC_API_URL`. Set `NEXT_PUBLIC_API_MODE=mock` to work without a backend or GPU. Open `/vi`
+or `/en`; the root URL opens `/vi`.
+
+A change is validated by `npm run typecheck`, `npm test` and `npm run build`. Visible changes also
+get a browser check at desktop width (1440 × 960); mock mode covers creation, quality scoring,
+upload, progress, selection, search, measuring, streamed chat, language switching and deletion.
+
+Design SVGs and the Inter font are served locally from `public/design`, with the Inter license
+alongside; the app loads no Figma asset URLs at runtime.

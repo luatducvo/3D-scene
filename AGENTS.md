@@ -6,6 +6,8 @@ repository root, code under `backend/`. The frontend is a Next.js app in `fronte
 
 ## Read before you work
 
+- **Reading or changing code under `backend/` or `frontend/`:** that folder's AGENTS.md
+  ([backend](backend/AGENTS.md), [frontend](frontend/AGENTS.md)) for its rules and done check.
 - **Any ticket:** [docs/SPEC.md](docs/SPEC.md) for scope and acceptance. ADRs in
   [docs/adr/](docs/adr/) amend it where their status line says so (0004, 0005).
 - **Unfamiliar code or a cross-module change:** [docs/architecture/overview.md](docs/architecture/overview.md),
@@ -22,8 +24,8 @@ repository root, code under `backend/`. The frontend is a Next.js app in `fronte
 
 `uv run tasks.py --help` from the repository root lists every task. `uv run tasks.py test` runs
 pytest against a disposable Postgres container, so Docker must be running; extra arguments go to
-pytest. Frontend scripts are in `frontend/package.json`; its validation sequence is in
-[frontend/README.md](frontend/README.md).
+pytest. Frontend scripts are in `frontend/package.json`; its done check is in
+[frontend/AGENTS.md](frontend/AGENTS.md).
 
 ## Rules
 

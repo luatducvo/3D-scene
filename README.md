@@ -141,4 +141,4 @@ Then configure the provider ([backend/deploy/](backend/deploy/)) and set `GPU_TA
 | [docs/adr/](docs/adr/) | Architecture decisions |
 | [docs/GPU-INTEGRATION.md](docs/GPU-INTEGRATION.md) | Model interfaces and the live GPU check log |
 | [backend/deploy/](backend/deploy/) | Per-provider deployment guides |
-| [frontend/README.md](frontend/README.md) | UI decisions and frontend validation |
+| [docs/architecture/frontend.md](docs/architecture/frontend.md) | UI decisions, frontend development and validation |

@@ -125,4 +125,4 @@ Sau đó cấu hình nhà cung cấp tương ứng ([backend/deploy/](backend/de
 | [docs/adr/](docs/adr/) | Các bản ghi quyết định kiến trúc (Architecture decisions) |
 | [docs/GPU-INTEGRATION.md](docs/GPU-INTEGRATION.md) | Giao diện các mô hình và nhật ký kiểm tra GPU trực tiếp |
 | [backend/deploy/](backend/deploy/) | Hướng dẫn triển khai chi tiết cho từng nhà cung cấp |
-| [frontend/README.md](frontend/README.md) | Quyết định thiết kế giao diện UI và quy trình kiểm tra frontend |
+| [docs/architecture/frontend.md](docs/architecture/frontend.md) | Quyết định thiết kế giao diện UI, cách chạy và quy trình kiểm tra frontend |

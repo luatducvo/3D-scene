@@ -1,3 +1,26 @@
 {
-  "enabledMcpjsonServers": ["colab-mcp"]
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "enabledMcpjsonServers": ["colab-mcp"],
+  "permissions": {
+    "allow": [
+      "Bash(uv run tasks.py --help)",
+      "Bash(uv run tasks.py test *)",
+      "Bash(uv run tasks.py openapi)",
+      "Bash(npm run typecheck)",
+      "Bash(npm test)",
+      "Bash(npm run build)",
+      "Bash(npm run api:sync)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)"
+    ],
+    "deny": [
+      "Read(/backend/.env)",
+      "Edit(/backend/.env)",
+      "Edit(/backend/openapi/openapi.json)",
+      "Edit(/frontend/openapi/openapi.json)",
+      "Edit(/frontend/src/lib/api/schema.d.ts)"
+    ]
+  }
 }
