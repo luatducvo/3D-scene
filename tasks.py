@@ -140,7 +140,7 @@ def clean(_):
         removed += 1
 
     if shutil.which("uv"):
-        run("uv", "cache", "clean", check=False)
+        run("uv", "cache", "clean", "--force", check=False)
     print(f"Cleaned {removed} cache locations and cleared uv cache.")
 
 
