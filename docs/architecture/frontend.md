@@ -31,6 +31,7 @@ Vitest for tests.
 | `src/components/StageStepper.tsx` | Renders per-Stage progress |
 | `src/lib/sceneProgress.ts` | `useSceneProgress`: Stage Runs plus replayed and live SSE events, folded per Stage |
 | `src/components/UploadDropzone.tsx`, `src/lib/quality/` | Drop files; sharpness/exposure scoring in a Web Worker |
+| `src/lib/upload/shrink.ts` | Shrinks photos to ingest's `long_side` as metadata-free JPEG before upload |
 | `src/components/ObjectDetails.tsx`, `ChatPanel.tsx`, `IngestReport.tsx` | Selected Object properties, streamed answers, rejected files |
 | `src/components/viewer/SceneCanvas.tsx`, `viewer/layers/index.tsx` | Three.js canvas and replaceable layers |
 | `src/components/viewer/view.ts`, `viewer/camera.ts` | Viewer rules without WebGL (default layers, framing bounds, home pose, focus box) and camera commands |
@@ -45,7 +46,15 @@ Vitest for tests.
 
 Screens use `sceneApi` from [src/lib/api](../../frontend/src/lib/api/index.ts), never `fetch`. JSON
 requests go through `typedClient` (openapi-fetch), so `schema.d.ts` checks every path, parameter and
-body. Uploads use `XMLHttpRequest` for upload progress; questions and Scene progress are streamed
+body. `uploadFiles` first shrinks every JPEG, PNG or WebP photo larger than `UPLOAD_LONG_SIDE` to a
+JPEG of that long side at quality 0.95, `SHRINK_CONCURRENCY` (8) photos at once because each JPEG
+encode takes about a second off the main thread, EXIF orientation applied and metadata dropped by
+the canvas. Each full-resolution decode is released before its encode. Ingest keeps such a JPEG byte for byte, so a photo is compressed once, and the
+tunnel to a remote Target carries roughly a sixth of the bytes. `UPLOAD_LONG_SIDE` must equal
+ingest's `long_side` in `pipeline.yaml`: smaller, the pipeline gets less detail than configured;
+larger, ingest re-encodes every photo. Videos, HEIC, smaller photos and files the browser cannot
+decode go as they are. Shrinking is the first half of the progress bar. Uploads use
+`XMLHttpRequest` for upload progress; questions and Scene progress are streamed
 with `fetch` and read by one SSE reader ([sse.ts](../../frontend/src/lib/api/sse.ts)). Every error body
 becomes an `ApiError` through `toApiError` ([errors.ts](../../frontend/src/lib/api/errors.ts)).
 `subscribeProgress` reconnects a dropped progress stream and stops at a terminal status.

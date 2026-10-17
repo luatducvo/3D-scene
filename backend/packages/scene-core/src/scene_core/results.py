@@ -23,10 +23,11 @@ class PublishedScene:
 class SceneResults:
     """Reads published files from a Workspace root (the Scene's own or a staging copy); files only, no database."""
 
-    # The only Workspace directories that return to the worker: publication inputs and served assets (ADR-0005).
-    DIRECTORIES = ("graph", "embeddings", "mesh", "recon/rgb")
+    # The only Workspace directories that return to the worker: publication inputs and served assets
+    # (ADR-0005). Frame images stay on the Target (ADR-0008).
+    DIRECTORIES = ("graph", "embeddings", "mesh")
     # Served to browsers on every Target; everything else in a Workspace stays private.
-    PUBLIC = ("mesh", "recon/rgb")
+    PUBLIC = ("mesh",)
     GRAPH = "graph/scene_graph.json"
     EMBEDDINGS = "embeddings/objects.npz"
     ASSETS: ClassVar[dict[str, str]] = {"mesh": "mesh/mesh.glb", "points": "mesh/points.ply"}
@@ -71,11 +72,6 @@ class SceneResults:
             key: path if self.workspace.path(path).is_file() else None
             for key, path in self.ASSETS.items()
         }
-
-    @staticmethod
-    def view_image(frame_id: str) -> str:
-        """Workspace-relative path of the Frame image a best view points at."""
-        return f"recon/rgb/{frame_id}.png"
 
     @classmethod
     def is_public(cls, file_path: str) -> bool:

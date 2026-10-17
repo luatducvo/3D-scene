@@ -21,7 +21,6 @@ class BestView(BaseModel):
     frame_id: str
     bbox: tuple[int, int, int, int]
     score: float
-    image_url: str | None = None
 
 
 class SceneObject(BaseModel):

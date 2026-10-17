@@ -95,9 +95,7 @@ def test_stages_run_on_the_target_and_only_results_are_published(target):
         "embeddings",
         "graph",
         "mesh",
-        "recon",
     ]
-    assert [p.name for p in results.path("recon").iterdir()] == ["rgb"]
     assert (
         SceneResults(results).assets()["mesh"]
         and not (workspace.data_dir / "staging/scenes/room").exists()

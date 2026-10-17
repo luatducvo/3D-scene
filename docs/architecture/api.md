@@ -43,12 +43,12 @@ non-shared remote Target (an unreachable Target is only logged).
 | POST | `/scenes/{id}/uploads` | Multipart photos or one video, sent to the Target's `raw/` several files at once; on failure none of the request's files stay |
 | POST | `/scenes/{id}/process` | Queue a Job (no body options) |
 | GET | `/scenes/{id}/events` | SSE progress |
-| GET | `/scenes/{id}/objects` | Objects with boxes, labels, attributes, evidence URLs |
+| GET | `/scenes/{id}/objects` | Objects with boxes, labels, attributes and best views (Frame id, box, score; no image, [ADR-0008](../adr/0008-frame-images-stay-on-target.md)) |
 | GET | `/scenes/{id}/objects/{object_id}` | One Object |
 | GET | `/scenes/{id}/search?q=` | Free-text Object search (English or Vietnamese) |
 | GET | `/scenes/{id}/messages` | Stored chat history |
 | POST | `/scenes/{id}/queries` | `{question, camera?}` → SSE answer stream |
-| GET | `/scenes/{id}/publications/{version}/files/{path}` | Serve a public file of one publication ([ADR-0006](../adr/0006-versioned-publication.md)): only `mesh/` and `recon/rgb/` ([Scene Results](pipeline.md#scene-results)); any other path, invalid Job UUID or removed publication is 404 `FILE_NOT_FOUND`. API responses carry these URLs for the current version. Unversioned results are not served ([ADR-0007](../adr/0007-retire-unversioned-results.md)); a Scene without a publication has no asset or evidence URLs. |
+| GET | `/scenes/{id}/publications/{version}/files/{path}` | Serve a public file of one publication ([ADR-0006](../adr/0006-versioned-publication.md)): only `mesh/` ([Scene Results](pipeline.md#scene-results)); any other path, invalid Job UUID or removed publication is 404 `FILE_NOT_FOUND`. API responses carry these URLs for the current version. Unversioned results are not served ([ADR-0007](../adr/0007-retire-unversioned-results.md)); a Scene without a publication has no asset URLs. |
 
 ## SSE events
 
@@ -77,7 +77,7 @@ none. A Stage Run is `running`, `done` or `failed`; migration 003 rewrote older 
 {"type": "tool", "tool": "measure_distance"}
 {"type": "delta", "delta": "The table is about "}
 {"type": "final", "answer": "…", "object_ids": ["o12", "o7"],
- "evidence": [{"object_id": "o12", "frame_id": "…", "image_url": "http://localhost:8000/api/v1/scenes/…"}]}
+ "evidence": [{"object_id": "o12", "frame_id": "0042"}]}
 ```
 
 Because the stream has already returned HTTP 200, a failure mid-answer arrives as an `error` event
@@ -103,7 +103,7 @@ constant. Search rejects a query vector of another length with `EMBEDDING_DIMENS
 number comes from a tool. `QAAgent` runs a function-calling loop of at most 6 steps against any
 OpenAI-compatible endpoint (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`; without them, asking
 returns 503 `LLM_NOT_CONFIGURED`). It answers in the question's language, ends with a
-`final_answer` call listing the Object ids, and the API attaches one evidence image per Object and
+`final_answer` call listing the Object ids, and the API attaches each Object's best Frame id as evidence (no image, [ADR-0008](../adr/0008-frame-images-stay-on-target.md)) and
 stores the exchange in `messages`. Tests use `ScriptedLLM`.
 
 Grounding is enforced, not only requested. Both LLM adapters return the same reply: tool calls
@@ -119,7 +119,7 @@ catches invented measurements, not every loosely rounded count.
 |---|---|
 | `find_objects` | Embedding search on the Target plus label matching |
 | `count_objects` | `find_objects` with a similarity threshold |
-| `get_object` | Label, size, attributes, evidence image URLs |
+| `get_object` | Label, size, attributes |
 | `get_room_info` | Floor area, ceiling height, Object counts by label |
 | `measure_distance` | Surface-to-surface or center-to-center, meters |
 | `get_relations` | Stored Relations of an Object |

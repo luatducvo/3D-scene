@@ -26,6 +26,23 @@ def perceptual_hash(image):
     return coefficients > np.median(coefficients)
 
 
+def ready_keyframe(original, long_side):
+    """True for an upright RGB JPEG within long_side that carries no metadata, such as the browser's
+    upload copy: ingest keeps its bytes, so the photo is compressed only once."""
+    return (
+        original.format == "JPEG"
+        and original.mode == "RGB"
+        and max(original.size) <= long_side
+        and not original.getexif()
+        and "comment" not in original.info
+        # APP0 is the JFIF header and APP2 an ICC colour profile; any other segment may hold metadata.
+        and all(
+            marker == "APP0" or (marker == "APP2" and data.startswith(b"ICC_PROFILE"))
+            for marker, data in original.applist
+        )
+    )
+
+
 class OpenCVIngest(StageAlgorithm):
     name, stage = "ingest.opencv", "ingest"
     reads, writes = ["raw"], ["keyframes"]
@@ -81,8 +98,10 @@ class OpenCVIngest(StageAlgorithm):
                 self.progress(index, len(candidates), "image")
                 try:
                     with Image.open(source) as original:
+                        long_side = int(params.get("long_side", 1600))
+                        ready = ready_keyframe(original, long_side)
                         image = ImageOps.exif_transpose(original).convert("RGB")
-                        image.thumbnail((int(params.get("long_side", 1600)),) * 2)
+                        image.thumbnail((long_side,) * 2)
                         gray = np.asarray(image.convert("L"), dtype=float)
                         if quality_filter and np.mean((gray < 10) | (gray > 245)) > 0.25:
                             rejected["exposure"].append(label)
@@ -109,10 +128,12 @@ class OpenCVIngest(StageAlgorithm):
                             rejected["duplicate"].append(label)
                             continue
                         hashes.append(signature)
-                        # A fresh image guarantees EXIF, GPS and other metadata never survive.
-                        clean = Image.fromarray(np.asarray(image))
                         path = temporary / f"accepted-{index}.jpg"
-                        clean.save(path, quality=95)
+                        if ready:
+                            path.write_bytes(source.read_bytes())
+                        else:
+                            # A fresh image guarantees EXIF, GPS and other metadata never survive.
+                            Image.fromarray(np.asarray(image)).save(path, quality=95)
                         accepted.append(path)
                 except (UnidentifiedImageError, OSError):
                     rejected["invalid"].append(label)

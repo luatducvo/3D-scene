@@ -16,6 +16,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
@@ -178,6 +179,11 @@ def create_app(
                 },
                 status_code=504,
             )
+
+    # Added last, so it wraps every response. A tunnel's downlink limits Publication, and a mesh
+    # or Scene Graph shrinks to 40% or 10%; clients that send Accept-Encoding: gzip (httpx does)
+    # get compressed bodies, decoded before Range lengths and checksums are compared.
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
     @app.get("/ping")
     def ping():

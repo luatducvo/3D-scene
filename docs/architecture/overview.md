@@ -63,7 +63,7 @@ sequenceDiagram
     K->>P: SceneStore: stage_runs + scene_events in one transaction
     A-->>W: SSE stage / progress events (API reads scene_events)
   end
-  K->>C: download Scene Results (graph, embeddings, mesh, recon/rgb)
+  K->>C: download Scene Results (graph, embeddings, mesh)
   K->>P: publish Objects, Relations, embeddings; Scene ready
   W->>A: GET /objects, /search, POST /queries
 ```
@@ -125,7 +125,7 @@ No GPU provider is the default: `GPU_TARGET` must name a Target, or the worker r
 | Data | Location | Survives `main.py reset`? |
 |---|---|---|
 | Uploads and intermediate Stage outputs | The Target's disk (`DATA_DIR/scenes/{id}/`) | No (and lost when a rented GPU host is destroyed) |
-| Published results (`graph/`, `embeddings/`, `mesh/`, `recon/rgb/`) | `scene-data` volume, `/data/scenes/{id}/{job id}/` ([ADR-0006](../adr/0006-versioned-publication.md)) | No |
+| Published results (`graph/`, `embeddings/`, `mesh/`) | `scene-data` volume, `/data/scenes/{id}/{job id}/` ([ADR-0006](../adr/0006-versioned-publication.md)) | No |
 | Scenes, Jobs, Stage Runs, events, Objects, Relations, chat | `postgres-data` volume | No |
 | Model weights | Host folder `./models` (bind mount at `MODELS_DIR`) | Yes |
 

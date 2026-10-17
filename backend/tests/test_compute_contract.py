@@ -1,5 +1,6 @@
 """Exercise the scene-compute HTTP contract with tiny transfer chunks; TargetWorkspace tests are in test_target.py."""
 
+import gzip
 import hashlib
 
 from fastapi.testclient import TestClient
@@ -64,6 +65,24 @@ def test_chunked_upload_is_atomic_and_verifies_checksum(tmp_path):
         )
         assert client.delete("/workspaces/room", headers=headers).status_code == 204
         assert not (tmp_path / "scenes/room").exists()
+
+
+def test_whole_file_downloads_are_gzip_compressed_in_transit(tmp_path):
+    data = b"vertex 0.25 0.50 0.75\n" * 400
+    (tmp_path / "scenes/room/mesh").mkdir(parents=True)
+    (tmp_path / "scenes/room/mesh/points.ply").write_bytes(data)
+    with TestClient(create_app(tmp_path)) as client:
+        url = "/workspaces/room/files/mesh/points.ply"
+        with client.stream("GET", url, headers={"Accept-Encoding": "gzip"}) as response:
+            sent = b"".join(response.iter_raw())
+        assert response.status_code == 200
+        assert response.headers["content-encoding"] == "gzip"
+        assert len(sent) < len(data) // 4
+        assert gzip.decompress(sent) == data
+        assert client.get(url).content == data
+        # A Range response stays uncompressed, so its length is the requested byte count.
+        ranged = client.get(url, headers={"Range": "bytes=100-4099", "Accept-Encoding": "gzip"})
+        assert "content-encoding" not in ranged.headers and ranged.content == data[100:4100]
 
 
 def test_a_clean_start_removes_earlier_workspaces(tmp_path, monkeypatch):

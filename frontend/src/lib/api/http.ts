@@ -3,6 +3,7 @@ import type { paths } from "./schema";
 import type { ProgressEvent, QueryEvent, Schemas } from "./types";
 import { ApiError, toApiError } from "./errors";
 import { consumeSSE } from "./sse";
+import { shrinkAll } from "../upload/shrink";
 export { ApiError } from "./errors";
 export const apiOrigin =
   (typeof window === "undefined"
@@ -49,19 +50,24 @@ export const sceneApi = {
     ),
   getMessages: (id: string) =>
     data(typedClient.GET("/api/v1/scenes/{scene_id}/messages", scene(id))),
-  /** XMLHttpRequest, because fetch cannot report upload progress. */
-  uploadFiles: (
+  /**
+   * Shrinks photos to ingest's size first (the first half of progress), then sends them with
+   * XMLHttpRequest, because fetch cannot report upload progress.
+   */
+  uploadFiles: async (
     id: string,
     files: File[],
     progress?: (ratio: number) => void,
-  ) =>
-    new Promise<void>((resolve, reject) => {
+  ) => {
+    const prepared = await shrinkAll(files, (ratio) => progress?.(ratio / 2));
+    return new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const body = new FormData();
-      files.forEach((file) => body.append("files", file));
+      prepared.forEach((file) => body.append("files", file));
       xhr.open("POST", `${apiOrigin}/api/v1/scenes/${id}/uploads`);
       xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) progress?.(event.loaded / event.total);
+        if (event.lengthComputable)
+          progress?.(0.5 + event.loaded / event.total / 2);
       };
       xhr.onerror = () =>
         reject(new ApiError("NETWORK_ERROR", "Upload connection failed"));
@@ -77,7 +83,8 @@ export const sceneApi = {
         reject(toApiError(body, xhr.status));
       };
       xhr.send(body);
-    }),
+    });
+  },
   /**
    * Streams a Scene's progress: the replayed state first, then live events, until a terminal
    * status. A dropped connection reconnects and replays; the returned function stops.

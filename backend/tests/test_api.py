@@ -81,9 +81,12 @@ def test_pipeline_publish_and_rerun(client):
     assert [s["status"] for s in detail["stage_runs"]] == ["done"] * 9
     objects = client.get(prefix + "/objects").json()
     assert [o["id"] for o in objects] == ["chair-1", "table-1"]
-    assert objects[0]["best_views"][0]["image_url"].startswith("http://testserver/")
+    assert objects[0]["best_views"][0]["frame_id"] == "0000"
+    assert "image_url" not in objects[0]["best_views"][0]
     assert client.get(detail["assets"]["mesh_url"]).content.startswith(b"glTF")
-    assert client.get(objects[0]["best_views"][0]["image_url"]).status_code == 200
+    # Frame images stay on the Target (ADR-0008).
+    frame = detail["assets"]["mesh_url"].replace("mesh/mesh.glb", "recon/rgb/0000.png")
+    assert client.get(frame).status_code == 404
     for private in ("raw/private.jpg", "keyframes/0000.jpg", "instances/instances.json"):
         assert client.get(prefix + "/files/" + private).status_code == 404
     assert (
@@ -182,7 +185,10 @@ def test_spatial_tools_return_measured_values(client):
     assert text.count("event: tool") == 4
     final = json.loads(text.split("event: final\ndata: ")[1].split("\n")[0])
     assert final["object_ids"] == ["chair-1", "table-1"]
-    assert [e["object_id"] for e in final["evidence"]] == ["chair-1", "table-1"]
+    assert final["evidence"] == [
+        {"object_id": "chair-1", "frame_id": "0000"},
+        {"object_id": "table-1", "frame_id": "0000"},
+    ]
     from scene_api.qa import SceneTools
 
     objects = client.get(prefix + "/objects").json()
@@ -382,9 +388,7 @@ def test_whole_pipeline_runs_on_the_gpu_host_and_returns_only_results(tmp_path):
                 "embeddings",
                 "graph",
                 "mesh",
-                "recon",
             ]
-            assert [p.name for p in (workspace / "recon").iterdir()] == ["rgb"]
             assert_failed_reprocess_keeps_results(client, runner, prefix, detail)
 
 
@@ -399,7 +403,7 @@ def test_a_failed_reprocess_keeps_results_on_the_in_process_target(client):
 
 
 def assert_failed_reprocess_keeps_results(client, runner, prefix, detail):
-    """A Job failing at its last Stage leaves the earlier mesh, Frame images and Objects in place."""
+    """A Job failing at its last Stage leaves the earlier mesh and Objects in place."""
     mesh = client.get(detail["assets"]["mesh_url"]).content
     runner.target.pipeline.stages["graph"].params = {"fail": "deliberate failure"}
     client.post(prefix + "/process", json={})
@@ -409,7 +413,6 @@ def assert_failed_reprocess_keeps_results(client, runner, prefix, detail):
     assert failed["assets"]["mesh_url"] and client.get(failed["assets"]["mesh_url"]).content == mesh
     objects = client.get(prefix + "/objects").json()
     assert len(objects) == 2
-    assert client.get(objects[0]["best_views"][0]["image_url"]).status_code == 200
     runner.target.pipeline.stages["graph"].params = {}
 
 

@@ -105,7 +105,7 @@ class SceneTools:
         ),
         _tool(
             "get_object",
-            "Label, size in meters, attributes and evidence images of one object.",
+            "Label, size in meters and attributes of one object.",
             {"object_id": {"type": "string"}},
             ["object_id"],
         ),
@@ -187,7 +187,6 @@ class SceneTools:
         return {
             **self._summary(obj),
             "attributes": obj.get("attributes", {}),
-            "evidence": [view.get("image_url") for view in obj.get("best_views", [])],
         }
 
     def _get_room_info(self):

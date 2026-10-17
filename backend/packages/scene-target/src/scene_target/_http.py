@@ -185,13 +185,16 @@ class HttpAdapter:
 
     def _download_file(self, scene_id, item, path):
         relative = item["path"]
+        # A file within one chunk is fetched whole: only a full (200) response is gzip-compressed
+        # in transit, never a Range (206) one.
+        whole = item["size"] <= self.target.chunk_size
         with path.open("wb") as stream:
             for offset in range(0, item["size"], self.target.chunk_size):
                 end = min(offset + self.target.chunk_size, item["size"]) - 1
                 response = self._call(
                     "GET",
                     f"/workspaces/{scene_id}/files/{relative}",
-                    headers={"Range": f"bytes={offset}-{end}"},
+                    headers={} if whole else {"Range": f"bytes={offset}-{end}"},
                 )
                 if len(response.content) != end - offset + 1:
                     raise SceneError(

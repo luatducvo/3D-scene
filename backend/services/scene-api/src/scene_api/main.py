@@ -194,27 +194,21 @@ def create_app(
     def process_scene(scene_id: uuid.UUID):
         return {"job_id": store.enqueue(scene_id)}
 
-    def public_objects(scene_id, request):
+    def public_objects(scene_id):
         with store.connect() as conn:
-            scene = store.get_scene(scene_id, conn)
-            objects = conn.execute(
+            store.get_scene(scene_id, conn)
+            return conn.execute(
                 "SELECT id,label,label_vi,box,attributes,best_views FROM objects WHERE scene_id=%s ORDER BY id",
                 (scene_id,),
             ).fetchall()
-        for obj in objects:
-            for view in obj["best_views"]:
-                view["image_url"] = url(request, scene, SceneResults.view_image(view["frame_id"]))
-        return objects
 
     @app.get("/api/v1/scenes/{scene_id}/objects", response_model=list[SceneObject])
-    def list_objects(scene_id: uuid.UUID, request: Request):
-        return public_objects(scene_id, request)
+    def list_objects(scene_id: uuid.UUID):
+        return public_objects(scene_id)
 
     @app.get("/api/v1/scenes/{scene_id}/objects/{object_id}", response_model=SceneObject)
-    def get_object(scene_id: uuid.UUID, object_id: str, request: Request):
-        found = next(
-            (obj for obj in public_objects(scene_id, request) if obj["id"] == object_id), None
-        )
+    def get_object(scene_id: uuid.UUID, object_id: str):
+        found = next((obj for obj in public_objects(scene_id) if obj["id"] == object_id), None)
         if found is None:
             raise SceneError("OBJECT_NOT_FOUND", "Object not found", 404)
         return found
@@ -264,8 +258,8 @@ def create_app(
         return app.state.target
 
     @app.get("/api/v1/scenes/{scene_id}/search", response_model=list[SearchHit])
-    def search_objects(scene_id: uuid.UUID, q: str, request: Request):
-        return search(scene_id, q, public_objects(scene_id, request))
+    def search_objects(scene_id: uuid.UUID, q: str):
+        return search(scene_id, q, public_objects(scene_id))
 
     def search(scene_id, q, objects):
         if not q.strip():
@@ -310,7 +304,7 @@ def create_app(
         response_class=StreamingResponse,
         responses={200: {"model": QueryEvent, "content": {"text/event-stream": {}}}},
     )
-    def ask(scene_id: uuid.UUID, body: QueryRequest, request: Request):
+    def ask(scene_id: uuid.UUID, body: QueryRequest):
         from .qa import OpenAICompatibleLLM, QAAgent, SceneTools
 
         with store.connect() as conn:
@@ -332,7 +326,7 @@ def create_app(
             raise SceneError(
                 "LLM_NOT_CONFIGURED", "Set LLM_BASE_URL and LLM_MODEL to ask questions", 503
             )
-        objects = public_objects(scene_id, request)
+        objects = public_objects(scene_id)
         tools = SceneTools(
             objects,
             relations,
@@ -353,11 +347,11 @@ def create_app(
                 for event in QAAgent(llm).answer(body.question, tools, past):
                     if event["type"] == "final":
                         by_id = {o["id"]: o for o in objects}
+                        # Evidence names each Object's best Frame; Frame images stay on the Target (ADR-0008).
                         event["evidence"] = [
-                            {"object_id": i, "frame_id": v["frame_id"], "image_url": v["image_url"]}
+                            {"object_id": i, "frame_id": v["frame_id"]}
                             for i in event["object_ids"]
                             for v in by_id[i]["best_views"][:1]
-                            if v["image_url"]
                         ]
                         store.save_exchange(
                             scene_id,

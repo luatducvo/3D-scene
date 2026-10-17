@@ -587,17 +587,6 @@
           "score": {
             "type": "number",
             "title": "Score"
-          },
-          "image_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Image Url"
           }
         },
         "type": "object",
@@ -692,13 +681,10 @@
         "title": "Camera"
       },
       "Evidence": {
+        "description": "The Frame that best shows an Object in an answer; its image is not published (ADR-0008).",
         "properties": {
           "object_id": {
             "title": "Object Id",
-            "type": "string"
-          },
-          "image_url": {
-            "title": "Image Url",
             "type": "string"
           },
           "frame_id": {
@@ -708,7 +694,6 @@
         },
         "required": [
           "object_id",
-          "image_url",
           "frame_id"
         ],
         "title": "Evidence",

@@ -37,6 +37,11 @@ the Target's readiness once, not once per file. Every file is still checked agai
 and the first failure cancels the transfers not yet started. The api or the worker can hold up to
 `transfer_concurrency` chunks of `chunk_size` bytes in memory at once.
 
+Every scene-compute response of 1 KB or more is gzip-compressed for a client that accepts it, except
+Range (206) responses, so the worker fetches a file that fits one chunk whole. On a Colab tunnel the
+downlink, not latency, limits a Publication: gzip takes `mesh.glb` to about 40% and
+`scene_graph.json` to about 10%, while `points.ply` (binary floats) and `objects.npz` barely shrink.
+
 Backend values are `inprocess` and `http`; `cpu` is a Target name, not a backend alias.
 
 ## Target Workspace
@@ -88,7 +93,7 @@ Rules every `scene-compute` deployment satisfies
 | GET | `/info` | Image version, GPU name, registered Algorithms |
 | GET | `/workspaces/{scene_id}/files?dirs=a,b` | List files with `size` and `sha256` |
 | PUT | `/workspaces/{scene_id}/files/{path}?offset=&total=&sha256=` | Write one chunk; the last chunk verifies the checksum |
-| GET | `/workspaces/{scene_id}/files/{path}` | Download, with `Range` for chunks |
+| GET | `/workspaces/{scene_id}/files/{path}` | Download: a file within `chunk_size` whole, gzip-compressed when the client accepts it; a larger one with `Range` for chunks, never compressed |
 | DELETE | `/workspaces/{scene_id}/files?dirs=a,b` | Delete Stage outputs before a Job |
 | DELETE | `/workspaces/{scene_id}` | Delete a Scene's Workspace (on Scene delete) |
 | POST | `/runs` | `{algorithm, scene_id, params}` → `202 {run_id}` |

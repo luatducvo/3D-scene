@@ -17,7 +17,6 @@ const object: SceneObject = {
       frame_id: "frame-1",
       bbox: [0, 0, 100, 100],
       score: 1,
-      image_url: "https://example.com/evidence.jpg",
     },
   ],
 };
@@ -42,7 +41,7 @@ test.each([
     expect(markup).toContain("green");
     expect(markup).toContain("fabric");
     expect(markup).not.toContain("<img");
-    expect(markup).not.toContain("evidence.jpg");
+    expect(markup).not.toContain("frame-1");
     expect(markup).not.toContain("<ul");
     expect(markup).not.toContain("?");
   },

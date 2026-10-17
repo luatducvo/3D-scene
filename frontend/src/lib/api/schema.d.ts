@@ -213,8 +213,6 @@ export interface components {
             ];
             /** Score */
             score: number;
-            /** Image Url */
-            image_url?: string | null;
         };
         /** Body_upload_files_api_v1_scenes__scene_id__uploads_post */
         Body_upload_files_api_v1_scenes__scene_id__uploads_post: {
@@ -249,12 +247,13 @@ export interface components {
                 number
             ];
         };
-        /** Evidence */
+        /**
+         * Evidence
+         * @description The Frame that best shows an Object in an answer; its image is not published (ADR-0008).
+         */
         Evidence: {
             /** Object Id */
             object_id: string;
-            /** Image Url */
-            image_url: string;
             /** Frame Id */
             frame_id: string;
         };

@@ -64,17 +64,11 @@ def test_assets_name_existing_viewer_files_only(workspace):
     assert results.assets()["points"] is None
 
 
-def test_best_view_images_are_public_files(workspace):
-    results = SceneResults(workspace)
-    view = results.load().graph.objects[0].best_views[0]
-    path = SceneResults.view_image(view.frame_id)
-    assert results.public_file(path) == workspace.path(path)
-
-
 @pytest.mark.parametrize(
     "path",
     [
         "keyframes/0000.jpg",
+        "recon/rgb/0000.png",
         "instances/instances.json",
         "raw/one.jpg",
         "graph/scene_graph.json",
@@ -86,7 +80,7 @@ def test_best_view_images_are_public_files(workspace):
         "mesh",
     ],
 )
-def test_only_mesh_and_frame_images_are_public(workspace, path):
+def test_only_mesh_files_are_public(workspace, path):
     with pytest.raises(SceneError) as error:
         SceneResults(workspace).public_file(path)
     assert error.value.status_code == 404

@@ -5,6 +5,7 @@
 target: "${GPU_TARGET}"
 stages:
   ingest:
+    # long_side must equal UPLOAD_LONG_SIDE in frontend/src/lib/upload/shrink.ts.
     algorithm: ingest.opencv
     params: {min_keyframes: 10, max_keyframes: 200, video_fps: 3, quality_filter: false, blur_threshold: 100.0, phash_distance: 6, long_side: 1600}
   recon:

@@ -32,6 +32,38 @@ def test_quality_report_metadata_and_minimum(tmp_path):
     assert not any(unfiltered.rejected.values())
 
 
+def test_a_prepared_jpeg_is_kept_byte_for_byte_and_others_are_reencoded(tmp_path):
+    workspace = SceneWorkspace(tmp_path, "once")
+    raw = workspace.dir("raw")
+    rng = np.random.default_rng(9)
+
+    def photo(name, size=(64, 48), **save):
+        Image.fromarray(rng.integers(30, 220, (size[1], size[0], 3), dtype=np.uint8)).save(
+            raw / name, **save
+        )
+
+    photo("1-prepared.jpg", quality=95)
+    exif = Image.Exif()
+    exif[0x8825] = {2: (10.0, 0.0, 0.0)}  # GPS
+    photo("2-gps.jpg", exif=exif)
+    photo("3-large.jpg", size=(200, 100))
+    photo("4-comment.jpg", comment=b"camera serial")
+    photo("5-lossless.png")
+    OpenCVIngest().run(workspace, {"min_keyframes": 5, "long_side": 100})
+    keyframes = [workspace.path(f"keyframes/{i:04d}.jpg") for i in range(5)]
+    assert keyframes[0].read_bytes() == (raw / "1-prepared.jpg").read_bytes()
+    for keyframe, name in zip(keyframes[1:4], ("2-gps", "3-large", "4-comment"), strict=True):
+        assert keyframe.read_bytes() != (raw / f"{name}.jpg").read_bytes()
+    with Image.open(keyframes[1]) as kept:
+        assert not kept.getexif()
+    with Image.open(keyframes[2]) as kept:
+        assert kept.size == (100, 50)
+    with Image.open(keyframes[3]) as kept:
+        assert "comment" not in kept.info
+    with Image.open(keyframes[4]) as kept:
+        assert kept.format == "JPEG"
+
+
 def test_keyframes_follow_capture_order(tmp_path):
     workspace = SceneWorkspace(tmp_path, "order")
     raw = workspace.dir("raw")

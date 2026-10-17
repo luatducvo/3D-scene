@@ -49,7 +49,7 @@ rows and their `scene_events` in one transaction. Every Target operation is one 
    Compute Run), forward progress (stored and announced at most every 2 s, always including the
    final report), mark it `done` with its Manifest.
 4. **Publish.** `replace_results` downloads only `SceneResults.DIRECTORIES` (`graph`,
-   `embeddings`, `mesh`, `recon/rgb`) into `DATA_DIR/staging`, `transfer_concurrency` files at a
+   `embeddings`, `mesh`; Frame images stay on the Target, [ADR-0008](../adr/0008-frame-images-stay-on-target.md)) into `DATA_DIR/staging`, `transfer_concurrency` files at a
    time ([compute.md](compute.md#targets)), and renames the complete folder to
    `DATA_DIR/scenes/{id}/{job id}`, never modified afterwards. `SceneResults(...).load()` validates
    it (see [Scene Results](#scene-results)) before any transaction opens, then `SceneStore.publish`
@@ -80,7 +80,7 @@ which also defines `STAGES`, `OUTPUTS` and every Manifest model. The published s
 scenes/{scene_id}/
 ├── raw/                     uploaded originals (on the Target only)
 ├── keyframes/               0000.jpg ... EXIF orientation applied, metadata stripped
-├── recon/rgb/0000.png       images at model resolution            ← RESULT (evidence crops, viewer)
+├── recon/rgb/0000.png       images at model resolution (Target only; best views name them)
 ├── recon/frames/0000.npz    depth, conf, pose (camera-to-world, m), K
 ├── align/frames/0000.npz    gravity-aligned poses
 ├── mesh/mesh.glb            TSDF mesh                              ← RESULT
@@ -105,8 +105,7 @@ Scene's own or the staging copy) and never touches the database or the network.
 | `DIRECTORIES` | What the worker downloads from the Target and swaps into the Scene's local copy |
 | `load()` | The Scene Graph and one embedding per Object. It fails with `RESULTS_INVALID` when a file is missing or unreadable, Object and embedding ids differ or repeat, a vector is not `EMBEDDING_DIM` long, or a value is not finite |
 | `assets()` | Workspace paths of `mesh/mesh.glb` and `mesh/points.ply`, or `None` when absent |
-| `view_image(frame_id)` | The `recon/rgb/{frame_id}.png` image behind an Object's best view |
-| `public_file(path)` | The file behind a public path. Only `mesh/` and `recon/rgb/` are public, on every Target; any other, malformed or missing path is `FILE_NOT_FOUND` (404) |
+| `public_file(path)` | The file behind a public path. Only `mesh/` is public, on every Target; any other, malformed or missing path is `FILE_NOT_FOUND` (404) |
 
 `EMBEDDING_DIM = 1024` lives in the same module. The runner, the API search, the fake and the real
 embed Algorithms use it, and a Postgres test checks it equals the `objects.embedding` column type.
@@ -117,7 +116,7 @@ Each row is the contract every replacement Algorithm must honor. Parameters are 
 
 | # | Stage | Algorithm | Reads → writes | Contract |
 |---|---|---|---|---|
-| 1 | ingest | `ingest.opencv` | `raw/` → `keyframes/` | Apply EXIF orientation, strip metadata (incl. GPS), resize. Split video with ffmpeg. Optional blur/exposure/duplicate rejection (`quality_filter`). Sort names naturally so Keyframes follow capture order; sample down to `max_keyframes`. Fewer than `min_keyframes` fails with `NOT_ENOUGH_KEYFRAMES` and rejection counts. |
+| 1 | ingest | `ingest.opencv` | `raw/` → `keyframes/` | Apply EXIF orientation, strip metadata (incl. GPS), resize to `long_side` and re-encode as JPEG 95. An upright RGB JPEG already within `long_side` with only JFIF and ICC segments, as the frontend uploads, is kept byte for byte, so it is compressed once. Split video with ffmpeg. Optional blur/exposure/duplicate rejection (`quality_filter`). Sort names naturally so Keyframes follow capture order; sample down to `max_keyframes`. Fewer than `min_keyframes` fails with `NOT_ENOUGH_KEYFRAMES` and rejection counts. |
 | 2 | recon | `recon.da3` | `keyframes/` → `recon/` | Depth Anything 3 Nested Giant: metric depth and poses for all Keyframes in one `inference()` call, poses from the ray head. Writes `rgb/` and `frames/` (depth m, conf, camera-to-world pose, K). A non-metric prediction fails with `INVALID_MODEL_OUTPUT`. See [ADR-0003](../adr/0003-depth-anything-3-point-cloud.md). |
 | 3 | align | `align.geocalib_ransac` | `recon/` → `align/` | GeoCalib gravity per Frame, RANSAC floor plane, rotate to z-up with the floor at z = 0, Manhattan yaw so walls follow x/y, ceiling height from the highest large horizontal plane. From here on, poses come from `align/`. |
 | 4 | mesh | `mesh.tsdf` | `recon/`, `align/` → `mesh/` | `points.ply`: confident, edge-free pixels back-projected, averaged on a voxel grid, capped at `max_points`, binary PLY with colors (the viewer's default layer). `mesh.glb`: NumPy TSDF fusion + marching cubes. Bounds use percentiles so far outliers are ignored. |
