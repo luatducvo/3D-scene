@@ -42,12 +42,20 @@ export function UploadDropzone({
       new URL("../lib/quality/blurWorker.ts", import.meta.url),
     );
     worker.current = w;
-    w.onmessage = ({ data }) =>
-      setItems((items) =>
-        items.map((item) =>
-          item.id === data.id ? { ...item, ...data } : item,
-        ),
-      );
+    w.onmessage = ({ data: { thumb, ...data } }) => {
+      const preview = thumb ? URL.createObjectURL(thumb) : undefined;
+      if (preview) previews.current.add(preview);
+      setItems((items) => {
+        if (!items.some((item) => item.id === data.id) && preview) {
+          // The file was removed or uploaded while it was being analysed.
+          URL.revokeObjectURL(preview);
+          previews.current.delete(preview);
+        }
+        return items.map((item) =>
+          item.id === data.id ? { ...item, ...data, preview } : item,
+        );
+      });
+    };
     return () => {
       w.terminate();
       previews.current.forEach((url) => URL.revokeObjectURL(url));
@@ -66,13 +74,8 @@ export function UploadDropzone({
       setError(t("invalidFiles"));
       return;
     }
-    const batch = files.map((file) => {
-      const preview = file.type.startsWith("image/")
-        ? URL.createObjectURL(file)
-        : undefined;
-      if (preview) previews.current.add(preview);
-      return { id: crypto.randomUUID(), file, preview };
-    });
+    // Previews come back from the worker as small thumbnails, never the original photo.
+    const batch = files.map((file) => ({ id: crypto.randomUUID(), file }));
     setItems((i) => [...i, ...batch]);
     setError("");
     setProgress(null);
@@ -138,9 +141,13 @@ export function UploadDropzone({
                     className="upload-preview"
                     src={item.preview}
                     alt={item.file.name}
+                    loading="lazy"
+                    decoding="async"
                   />
                 ) : (
-                  <div className="video-preview">{t("ui.video")}</div>
+                  <div className="video-preview">
+                    {item.file.type.startsWith("image/") ? "" : t("ui.video")}
+                  </div>
                 )}
                 <span className="file-name" title={item.file.name}>
                   {item.file.name}
