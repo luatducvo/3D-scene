@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import {
   defaultLayers,
   focusBounds,
+  highlightState,
   homePose,
   showMode,
   viewMode,
@@ -12,28 +13,50 @@ import type { SceneObject } from "../../lib/api/types";
 const points: Bounds = { min: [0, 0, 0], max: [4, 3, 2.5] },
   mesh: Bounds = { min: [-1, -1, 0], max: [5, 4, 3] };
 
-test("a Scene shows its point cloud when it has one, else its mesh, and boxes always", () => {
+test("a Scene shows its point cloud when it has one, else its mesh, and never boxes", () => {
   expect(defaultLayers({ points_url: "p.ply", mesh_url: "m.glb" })).toEqual({
     points: true,
     mesh: false,
-    boxes: true,
   });
   expect(defaultLayers({ mesh_url: "m.glb" })).toEqual({
     points: false,
     mesh: true,
-    boxes: true,
   });
   expect(viewMode(defaultLayers({}))).toBeNull();
 });
 
-test("switching the view mode shows exactly one room layer and keeps boxes", () => {
-  const layers = showMode({ points: true, mesh: false, boxes: false }, "mesh");
-  expect(layers).toEqual({ points: false, mesh: true, boxes: false });
+test("switching the view mode shows exactly one room layer", () => {
+  const layers = showMode({ points: true, mesh: false }, "mesh");
+  expect(layers).toEqual({ points: false, mesh: true });
   expect(viewMode(layers)).toBe("mesh");
 });
 
+test("highlighting needs published membership that fits the shown geometry", () => {
+  const assets = { points_url: "p.ply", membership_url: "m.bin" };
+  expect(highlightState(assets, "success", {}, "points")).toBe("available");
+  expect(highlightState(assets, "pending", {}, "points")).toBe("available");
+  expect(highlightState(assets, "error", {}, "points")).toBe("failed");
+  expect(
+    highlightState(
+      { ...assets, membership_url: null },
+      "pending",
+      {},
+      "points",
+    ),
+  ).toBe("reprocess");
+  // Only the shown layer's fit matters.
+  expect(highlightState(assets, "success", { mesh: true }, "points")).toBe(
+    "available",
+  );
+  expect(highlightState(assets, "success", { points: true }, "points")).toBe(
+    "reprocess",
+  );
+  // Without geometry the viewer already says there is nothing to show.
+  expect(highlightState({}, "pending", {}, "points")).toBe("available");
+});
+
 test("the room is framed by the visible layer, whichever layer loaded first", () => {
-  const shown = { points: false, mesh: true, boxes: true };
+  const shown = { points: false, mesh: true };
   // The point cloud loaded first, but the mesh is what is shown once its bounds are known.
   expect(visibleBounds(shown, { points })).toBe(points);
   expect(visibleBounds(shown, { points, mesh })).toBe(mesh);

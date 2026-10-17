@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from scene_api.main import create_app
 from scene_core.config import ComputeConfig, PipelineConfig, TargetConfig
 from scene_core.membership import ObjectMembership
-from scene_core.results import SceneResults
+from scene_core.results import EMBEDDING_DIM, SceneResults
 from scene_target import open_target_workspace
 from scene_worker.runner import Worker
 
@@ -128,6 +128,52 @@ def test_progress_replay_and_search(client):
     )
     assert client.get(prefix + "/search", params={"q": "unknown"}).json() == []
     assert client.get(prefix + "/search", params={"q": ""}).json() == []
+
+
+def test_search_keeps_hits_near_the_best_score_and_every_label_match(client):
+    import math
+
+    from psycopg.types.json import Jsonb
+
+    prefix = uploaded(client)
+    client.post(prefix + "/process", json={})
+    worker(client).run_once()
+    scene = prefix.rsplit("/", 1)[1]
+
+    def embedding(similarity):
+        # The fake embeds "chair" as the first axis, so this is the cosine similarity to the query.
+        vector = [0.0] * EMBEDDING_DIM
+        vector[0], vector[2] = similarity, math.sqrt(1 - similarity**2)
+        return str(vector)
+
+    near = {f"near-{i}": s for i, s in enumerate((0.98, 0.97, 0.96))}
+    far = {f"far-{i}": round(0.9 - 0.01 * i, 2) for i in range(10)}
+    with client.app.state.store.connect() as conn:
+        for object_id, similarity, label in (
+            *((k, s, "stool") for k, s in {**near, **far}.items()),
+            ("armchair-1", 0.0, "armchair"),
+        ):
+            conn.execute(
+                "INSERT INTO objects(scene_id,id,label,label_vi,box,embedding) VALUES(%s,%s,%s,NULL,%s,%s::vector)",
+                (
+                    scene,
+                    object_id,
+                    label,
+                    Jsonb({"center": [0, 0, 0], "size": [1, 1, 1], "yaw": 0}),
+                    embedding(similarity),
+                ),
+            )
+
+    def search():
+        return [
+            hit["object"]["id"]
+            for hit in client.get(prefix + "/search", params={"q": "chair"}).json()
+        ]
+
+    # chair-1 matches by label and scores best; armchair-1 matches by label despite no similarity.
+    assert search() == ["chair-1", "armchair-1", "near-0", "near-1", "near-2"]
+    client.app.state.search_margin = 1.0
+    assert search() == ["chair-1", "armchair-1", *near, *list(far)[:5]]
 
 
 def test_grounded_qa_stream_and_history(client):

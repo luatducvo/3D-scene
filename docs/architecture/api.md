@@ -45,10 +45,27 @@ non-shared remote Target (an unreachable Target is only logged).
 | GET | `/scenes/{id}/events` | SSE progress |
 | GET | `/scenes/{id}/objects` | Objects with boxes, labels, attributes and best views (Frame id, box, score; no image, [ADR-0008](../adr/0008-frame-images-stay-on-target.md)) |
 | GET | `/scenes/{id}/objects/{object_id}` | One Object |
-| GET | `/scenes/{id}/search?q=` | Free-text Object search (English or Vietnamese) |
+| GET | `/scenes/{id}/search?q=` | Free-text Object search (English or Vietnamese), ranked as in [Search](#search) |
 | GET | `/scenes/{id}/messages` | Stored chat history |
 | POST | `/scenes/{id}/queries` | `{question, camera?}` → SSE answer stream |
 | GET | `/scenes/{id}/publications/{version}/files/{path}` | Serve a public file of one publication ([ADR-0006](../adr/0006-versioned-publication.md)): only `mesh/` and `graph/membership.bin` ([Scene Results](pipeline.md#scene-results)); any other path, invalid Job UUID or removed publication is 404 `FILE_NOT_FOUND`. API responses carry these URLs for the current version. Unversioned results are not served ([ADR-0007](../adr/0007-retire-unversioned-results.md)); a Scene without a publication has no asset URLs. |
+
+## Search
+
+`search` embeds the query on the Target (ADR-0005; an unset or unreachable Target is 503
+`COMPUTE_UNAVAILABLE`, and the frontend shows its own message for that code) and compares it with
+each Object's stored embedding by cosine similarity. `rank_search_hits` in
+[main.py](../../backend/services/scene-api/src/scene_api/main.py) then keeps:
+
+- every **label match** (the query contains the Object's `label` or `label_vi`, or the reverse),
+  scored similarity + 1, so they rank first;
+- other Objects whose similarity is positive and within `SEARCH_MARGIN` (environment variable,
+  default 0.05) of the best similarity in the Scene, best first, while fewer than 10 hits are kept.
+
+Text-to-image cosines of the embedding model sit in a narrow band, so an absolute threshold kept most
+of the room; the margin keeps only the Objects close to the best match, and label matches are never
+cut. `find_objects` and `count_objects` in the QA agent use the same ranking, so a count by
+similarity alone is at most 10.
 
 ## Scene assets
 
@@ -192,7 +209,7 @@ catches invented measurements, not every loosely rounded count.
 | Tool (`SceneTools`) | Behavior |
 |---|---|
 | `find_objects` | Embedding search on the Target plus label matching |
-| `count_objects` | `find_objects` with a similarity threshold |
+| `count_objects` | Counts the [search](#search) hits: label matches plus Objects near the best similarity |
 | `get_object` | Label, size, attributes |
 | `get_room_info` | Floor area, ceiling height, Object counts by label |
 | `measure_distance` | Surface-to-surface or center-to-center, meters |
