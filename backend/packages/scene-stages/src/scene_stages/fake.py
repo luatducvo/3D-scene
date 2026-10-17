@@ -18,10 +18,11 @@ from scene_core.contracts import (
     SegmentManifest,
 )
 from scene_core.errors import SceneError
+from scene_core.membership import ObjectMembership
 from scene_core.ports import StageAlgorithm
-from scene_core.results import EMBEDDING_DIM
+from scene_core.results import EMBEDDING_DIM, SceneResults
 
-from .mesh import write_ply
+from .mesh import read_glb_positions, read_ply_points, write_ply
 
 OBJECTS = [
     {
@@ -294,11 +295,17 @@ class AttributesFake(Fake):
         return AttributesManifest(num_objects=2)
 
 
+def inside_box(positions, box):
+    """Indices of positions inside an axis-aligned box (the fake Objects have no yaw)."""
+    half = np.asarray(box["size"]) / 2
+    return np.flatnonzero(np.all(np.abs(positions - box["center"]) <= half, axis=1))
+
+
 class GraphFake(Fake):
     name = "graph.fake"
     stage = "graph"
     manifest_type = GraphManifest
-    reads = ["instances", "attributes", "align"]
+    reads = ["instances", "attributes", "align", "mesh"]
     writes = ["graph"]
 
     def transform(self, w, p):
@@ -317,4 +324,16 @@ class GraphFake(Fake):
                 }
             )
         )
+        # Members are the room's points and vertices inside each Object's box: floor points under
+        # the chair and the table. The fake mesh has only the room's corners, so no vertex is inside.
+        points = read_ply_points(w.path(SceneResults.ASSETS["points"]))
+        vertices = read_glb_positions(w.path(SceneResults.ASSETS["mesh"]))
+        membership = ObjectMembership.from_lists(
+            [o["id"] for o in OBJECTS],
+            [inside_box(points, o["box"]) for o in OBJECTS],
+            [inside_box(vertices, o["box"]) for o in OBJECTS],
+            len(points),
+            len(vertices),
+        )
+        w.path(SceneResults.MEMBERSHIP).write_bytes(membership.encode())
         return GraphManifest(num_objects=2, num_relations=1)

@@ -948,6 +948,18 @@
               }
             ],
             "title": "Points Url"
+          },
+          "membership_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membership Url",
+            "description": "Object membership of points and mesh vertices (binary, see docs/architecture/api.md); null for a Scene published before membership existed."
           }
         },
         "type": "object",

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from .contracts import SceneWorkspace
 from .domain import SceneGraph
 from .errors import SceneError
+from .membership import ObjectMembership
 
 # Must equal the objects.embedding column type, vector(1024); a test compares them.
 EMBEDDING_DIM = 1024
@@ -26,11 +27,18 @@ class SceneResults:
     # The only Workspace directories that return to the worker: publication inputs and served assets
     # (ADR-0005). Frame images stay on the Target (ADR-0008).
     DIRECTORIES = ("graph", "embeddings", "mesh")
-    # Served to browsers on every Target; everything else in a Workspace stays private.
-    PUBLIC = ("mesh",)
     GRAPH = "graph/scene_graph.json"
     EMBEDDINGS = "embeddings/objects.npz"
-    ASSETS: ClassVar[dict[str, str]] = {"mesh": "mesh/mesh.glb", "points": "mesh/points.ply"}
+    # Which points and mesh vertices belong to each Object (scene_core.membership); written by graph.
+    MEMBERSHIP = "graph/membership.bin"
+    # Served to browsers on every Target: a trailing slash names a whole directory, anything else one
+    # file. Everything else in a Workspace stays private.
+    PUBLIC = ("mesh/", MEMBERSHIP)
+    ASSETS: ClassVar[dict[str, str]] = {
+        "mesh": "mesh/mesh.glb",
+        "points": "mesh/points.ply",
+        "membership": MEMBERSHIP,
+    }
 
     def __init__(self, workspace: SceneWorkspace):
         self.workspace = workspace
@@ -64,10 +72,25 @@ class SceneResults:
             )
         if not np.isfinite(vectors).all():
             raise SceneError("RESULTS_INVALID", "Embeddings contain non-finite values")
+        self._check_membership(object_ids)
         return PublishedScene(graph, dict(zip(ids, vectors, strict=True)))
 
+    def _check_membership(self, object_ids: list[str]) -> None:
+        """A membership file, when present, must decode and list the Scene Graph's Objects in order."""
+        path = self.workspace.path(self.MEMBERSHIP)
+        if not path.is_file():
+            return
+        try:
+            membership = ObjectMembership.decode(path.read_bytes())
+        except (OSError, ValueError) as exc:
+            raise SceneError("RESULTS_INVALID", f"Object membership is unreadable: {exc}") from exc
+        if membership.ids != object_ids:
+            raise SceneError(
+                "RESULTS_INVALID", "Object membership and the Scene Graph list different Objects"
+            )
+
     def assets(self) -> dict[str, str | None]:
-        """Workspace-relative paths of the viewer assets that exist, keyed mesh and points; None when absent."""
+        """Workspace-relative paths of the viewer assets that exist, keyed as ASSETS; None when absent."""
         return {
             key: path if self.workspace.path(path).is_file() else None
             for key, path in self.ASSETS.items()
@@ -78,7 +101,10 @@ class SceneResults:
         parts = file_path.split("/")
         if "\\" in file_path or any(p in ("", ".", "..") for p in parts):
             return False
-        return any(file_path.startswith(prefix + "/") for prefix in cls.PUBLIC)
+        return any(
+            file_path.startswith(public) if public.endswith("/") else file_path == public
+            for public in cls.PUBLIC
+        )
 
     def public_file(self, file_path: str):
         """The file behind a public path; a private, malformed or missing path is not found."""

@@ -48,7 +48,81 @@ non-shared remote Target (an unreachable Target is only logged).
 | GET | `/scenes/{id}/search?q=` | Free-text Object search (English or Vietnamese) |
 | GET | `/scenes/{id}/messages` | Stored chat history |
 | POST | `/scenes/{id}/queries` | `{question, camera?}` → SSE answer stream |
-| GET | `/scenes/{id}/publications/{version}/files/{path}` | Serve a public file of one publication ([ADR-0006](../adr/0006-versioned-publication.md)): only `mesh/` ([Scene Results](pipeline.md#scene-results)); any other path, invalid Job UUID or removed publication is 404 `FILE_NOT_FOUND`. API responses carry these URLs for the current version. Unversioned results are not served ([ADR-0007](../adr/0007-retire-unversioned-results.md)); a Scene without a publication has no asset URLs. |
+| GET | `/scenes/{id}/publications/{version}/files/{path}` | Serve a public file of one publication ([ADR-0006](../adr/0006-versioned-publication.md)): only `mesh/` and `graph/membership.bin` ([Scene Results](pipeline.md#scene-results)); any other path, invalid Job UUID or removed publication is 404 `FILE_NOT_FOUND`. API responses carry these URLs for the current version. Unversioned results are not served ([ADR-0007](../adr/0007-retire-unversioned-results.md)); a Scene without a publication has no asset URLs. |
+
+## Scene assets
+
+`GET /scenes/{id}` returns `assets` (`SceneAssets`) with three absolute URLs into the current
+publication, each `null` when the Scene has no publication or the file is absent:
+
+| Field | File | Content |
+|---|---|---|
+| `points_url` | `mesh/points.ply` | Binary little-endian PLY, float32 `x y z` and uchar `red green blue`, aligned frame (z-up, m) |
+| `mesh_url` | `mesh/mesh.glb` | Binary glTF from the mesh Stage, positions in the aligned frame |
+| `membership_url` | `graph/membership.bin` | Which points and mesh vertices belong to each Object ([below](#object-membership)); `null` for a Scene published before membership existed, which must be reprocessed to get it |
+
+### Object membership
+
+Written by the graph Stage (see the graph row in [pipeline.md](pipeline.md#stage-contracts)) and
+defined by `ObjectMembership` in
+[membership.py](../../backend/packages/scene-core/src/scene_core/membership.py). It is served as
+`application/octet-stream`. Every integer is a little-endian uint32 and every section starts at a
+multiple of 4 bytes, so each array is a zero-copy `Uint32Array` view of the response buffer:
+
+| Byte offset | Field |
+|---|---|
+| 0 | magic, the ASCII bytes `SCMB` |
+| 4 | `version`, 1 |
+| 8 | `object_count` N |
+| 12 | `point_count`: vertices of `points.ply` when it was written |
+| 16 | `vertex_count`: POSITION entries of `mesh.glb` when it was written |
+| 20 | `ids_byte_length` L, a multiple of 4 |
+| 24 | ids: UTF-8 JSON array of the N Object ids, padded with spaces to L bytes |
+| 24 + L | `point_offsets`, N + 1 values |
+| … | `point_indices`, `point_offsets[N]` values |
+| … | `vertex_offsets`, N + 1 values |
+| … | `vertex_indices`, `vertex_offsets[N]` values; the file ends here |
+
+Object `ids[i]` owns `point_indices[point_offsets[i] .. point_offsets[i+1])` and
+`vertex_indices[vertex_offsets[i] .. vertex_offsets[i+1])`, each sorted ascending without
+repeats. The ids are the Scene Graph's Object ids in the Scene Graph's order. A point index is the
+vertex's position in `points.ply` file order, which is the order of the `position` attribute that
+three.js `PLYLoader` builds. A mesh vertex index counts the POSITION accessors of every primitive of
+every mesh in the glTF's `meshes` order; the mesh Stage writes one primitive, so it is the index into
+`geometry.attributes.position` of the one mesh `GLTFLoader` (drei `useGLTF`) returns. A point or
+vertex may be listed under several Objects (a door handle and the wardrobe it is on) or under none.
+
+The browser fetches it from the URL with `fetch(url)` and `response.arrayBuffer()` (CORS allows the
+frontend origin) and decodes it like this:
+
+```ts
+function decodeMembership(buffer: ArrayBuffer) {
+  const head = new DataView(buffer);
+  const magic = String.fromCharCode(...new Uint8Array(buffer, 0, 4));
+  if (magic !== "SCMB" || head.getUint32(4, true) !== 1) throw new Error("Unsupported membership file");
+  const count = head.getUint32(8, true), idsLength = head.getUint32(20, true);
+  const ids: string[] = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 24, idsLength)));
+  let offset = 24 + idsLength;
+  const take = (length: number) => {
+    const view = new Uint32Array(buffer, offset, length);
+    offset += 4 * length;
+    return view;
+  };
+  const pointOffsets = take(count + 1), pointIndices = take(pointOffsets[count]);
+  const vertexOffsets = take(count + 1), vertexIndices = take(vertexOffsets[count]);
+  return {
+    ids,
+    pointCount: head.getUint32(12, true),
+    vertexCount: head.getUint32(16, true),
+    points: (i: number) => pointIndices.subarray(pointOffsets[i], pointOffsets[i + 1]),
+    vertices: (i: number) => vertexIndices.subarray(vertexOffsets[i], vertexOffsets[i + 1]),
+  };
+}
+```
+
+`point_count` and `vertex_count` let the viewer check that the loaded `points.ply` and `mesh.glb`
+belong to the same publication. Size is 4 bytes per membership entry plus 8 bytes per Object; a
+Scene of ~600 k points is a few MB at most.
 
 ## SSE events
 

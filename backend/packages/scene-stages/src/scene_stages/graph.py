@@ -7,7 +7,71 @@ import numpy as np
 from scene_core.contracts import GraphManifest
 from scene_core.domain import Relation, SceneGraph, SceneGraphContext, SceneObject
 from scene_core.geometry import box_surface_distance, fit_box, footprint, footprint_overlap
+from scene_core.membership import ObjectMembership
 from scene_core.ports import RelationRule, StageAlgorithm
+from scene_core.results import SceneResults
+
+from .mesh import read_glb_positions, read_ply_points
+
+
+def members_within(targets, groups, radius):
+    """For each group of points, the sorted indices of `targets` within `radius` of any of them.
+
+    Hashes the group points on a grid of `radius` cells, so every match of a target lies in its own
+    cell or one of the 26 around it; distances are then checked exactly. A target may match several
+    groups or none."""
+    if radius <= 0:
+        raise ValueError("membership_radius_m must be positive")
+    targets = np.asarray(targets, dtype=np.float64).reshape(-1, 3)
+    groups = [np.asarray(g, dtype=np.float64).reshape(-1, 3) for g in groups]
+    empty = [np.zeros(0, np.int64) for _ in groups]
+    sizes = [len(g) for g in groups]
+    if not len(targets) or not sum(sizes):
+        return empty
+    points = np.concatenate(groups)
+    owner = np.repeat(np.arange(len(groups)), sizes)
+    # Only targets near the groups' bounds can match.
+    near = np.flatnonzero(
+        np.all(
+            (targets >= points.min(axis=0) - radius) & (targets <= points.max(axis=0) + radius),
+            axis=1,
+        )
+    )
+    if not len(near):
+        return empty
+    origin = points.min(axis=0) - 2 * radius
+    point_cells = np.floor((points - origin) / radius).astype(np.int64)
+    target_cells = np.floor((targets[near] - origin) / radius).astype(np.int64)
+    extent = np.maximum(point_cells.max(axis=0), target_cells.max(axis=0)) + 2
+
+    def key(cells):
+        return (cells[..., 0] * extent[1] + cells[..., 1]) * extent[2] + cells[..., 2]
+
+    order = np.argsort(key(point_cells), kind="stable")
+    sorted_keys = key(point_cells)[order]
+    # The key is linear in the cell, so a neighbor offset shifts every key by one constant and the
+    # queries stay sorted, which keeps searchsorted fast.
+    target_keys = key(target_cells)
+    by_key = np.argsort(target_keys, kind="stable")
+    near, target_keys = near[by_key], target_keys[by_key]
+    pairs = []
+    for offset in np.array(np.meshgrid(*[(-1, 0, 1)] * 3, indexing="ij")).reshape(3, -1).T:
+        keys = target_keys + key(offset)
+        low = np.searchsorted(sorted_keys, keys, "left")
+        counts = np.searchsorted(sorted_keys, keys, "right") - low
+        if not counts.any():
+            continue
+        target = np.repeat(near, counts)
+        first = np.repeat(low - (np.cumsum(counts) - counts), counts)
+        candidate = order[first + np.arange(len(target))]
+        close = np.sum((targets[target] - points[candidate]) ** 2, axis=1) <= radius * radius
+        pairs.append(owner[candidate[close]] * len(targets) + target[close])
+    if not pairs:
+        return empty
+    pairs = np.unique(np.concatenate(pairs))
+    groups_of, members = np.divmod(pairs, len(targets))
+    starts = np.searchsorted(groups_of, np.arange(len(groups) + 1))
+    return [members[starts[i] : starts[i + 1]] for i in range(len(groups))]
 
 
 def bounds(box):
@@ -112,7 +176,7 @@ class AgainstWall(SpatialRule):
 
 class GeometricGraph(StageAlgorithm):
     name, stage = "graph.geometric", "graph"
-    reads, writes = ["instances", "attributes", "align"], ["graph"]
+    reads, writes = ["instances", "attributes", "align", "mesh"], ["graph"]
     manifest_type = GraphManifest
 
     def run(self, workspace, params):
@@ -125,17 +189,16 @@ class GeometricGraph(StageAlgorithm):
         wall_path = workspace.path("align/walls.json")
         if wall_path.exists():
             context.walls = json.loads(wall_path.read_text())
-        objects = []
+        objects, lifted = [], []
         for instance in instances:
             attribute = attributes.get(instance["id"], {})
+            lifted.append(np.load(workspace.path(instance["points_file"]), allow_pickle=False))
             objects.append(
                 SceneObject(
                     id=instance["id"],
                     label=instance["label"],
                     label_vi=attribute.get("label_vi"),
-                    box=fit_box(
-                        np.load(workspace.path(instance["points_file"]), allow_pickle=False)
-                    ),
+                    box=fit_box(lifted[-1]),
                     attributes=attribute.get("attributes", {}),
                     best_views=instance.get("best_views", []),
                 )
@@ -181,4 +244,26 @@ class GeometricGraph(StageAlgorithm):
         workspace.dir("graph").joinpath("scene_graph.json").write_text(
             graph.model_dump_json(indent=2), encoding="utf-8"
         )
+        write_membership(
+            workspace,
+            [obj.id for obj in objects],
+            lifted,
+            float(params.get("membership_radius_m", 0.02)),
+        )
         return GraphManifest(num_objects=len(objects), num_relations=len(relations))
+
+
+def write_membership(workspace, ids, lifted, radius):
+    """Write graph/membership.bin: per final Object id, the points of mesh/points.ply and vertices
+    of mesh/mesh.glb within `radius` of one of its lift points."""
+    points = read_ply_points(workspace.path(SceneResults.ASSETS["points"]))
+    vertices = read_glb_positions(workspace.path(SceneResults.ASSETS["mesh"]))
+    membership = ObjectMembership.from_lists(
+        ids,
+        members_within(points, lifted, radius),
+        members_within(vertices, lifted, radius),
+        len(points),
+        len(vertices),
+    )
+    workspace.dir("graph")
+    workspace.path(SceneResults.MEMBERSHIP).write_bytes(membership.encode())

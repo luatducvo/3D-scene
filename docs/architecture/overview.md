@@ -94,6 +94,7 @@ scene-api · scene-worker · scene-compute     runtimes and adapters
 |---|---|
 | Stage order, Workspace folders, Manifests | [scene_core/contracts.py](../../backend/packages/scene-core/src/scene_core/contracts.py) |
 | Published result files, public paths, `EMBEDDING_DIM` | [scene_core/results.py](../../backend/packages/scene-core/src/scene_core/results.py) |
+| Object membership file (which points and mesh vertices belong to each Object) | [scene_core/membership.py](../../backend/packages/scene-core/src/scene_core/membership.py) |
 | Scene, Object, Relation, Scene Graph models | [scene_core/domain.py](../../backend/packages/scene-core/src/scene_core/domain.py) |
 | Error codes | [scene_core/errors.py](../../backend/packages/scene-core/src/scene_core/errors.py) |
 | Loading `pipeline.yaml` / `compute.yaml` | [scene_core/config.py](../../backend/packages/scene-core/src/scene_core/config.py) |

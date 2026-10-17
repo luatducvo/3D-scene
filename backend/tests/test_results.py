@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from scene_core.contracts import STAGES, SceneWorkspace
 from scene_core.errors import SceneError
+from scene_core.membership import ObjectMembership
 from scene_core.registry import Registry
 from scene_core.results import EMBEDDING_DIM, SceneResults
 from scene_store import SceneStore
@@ -59,9 +60,60 @@ def test_load_reports_missing_results(workspace):
 
 def test_assets_name_existing_viewer_files_only(workspace):
     results = SceneResults(workspace)
-    assert results.assets() == {"mesh": "mesh/mesh.glb", "points": "mesh/points.ply"}
+    assert results.assets() == {
+        "mesh": "mesh/mesh.glb",
+        "points": "mesh/points.ply",
+        "membership": "graph/membership.bin",
+    }
     workspace.path("mesh/points.ply").unlink()
+    workspace.path(SceneResults.MEMBERSHIP).unlink()
     assert results.assets()["points"] is None
+    assert results.assets()["membership"] is None
+
+
+def test_membership_is_the_only_public_file_outside_mesh(workspace):
+    results = SceneResults(workspace)
+    path = results.public_file(SceneResults.MEMBERSHIP)
+    assert ObjectMembership.decode(path.read_bytes()).ids == ["chair-1", "table-1"]
+    assert results.public_file("mesh/points.ply").is_file()
+
+
+def test_membership_round_trips_with_aligned_sections():
+    membership = ObjectMembership.from_lists(
+        ["ghế-1", "b"], [[4, 1, 1], []], [[0], [2, 0]], point_count=5, vertex_count=3
+    )
+    data = membership.encode()
+    assert data[:4] == b"SCMB" and len(data) % 4 == 0
+    decoded = ObjectMembership.decode(data)
+    assert decoded.ids == ["ghế-1", "b"]
+    assert decoded.points(0).tolist() == [1, 4] and decoded.points(1).tolist() == []
+    assert decoded.vertices(1).tolist() == [0, 2]
+    assert (decoded.point_count, decoded.vertex_count) == (5, 3)
+
+
+@pytest.mark.parametrize(
+    "corrupt",
+    [
+        lambda data: data[:-4],
+        lambda data: data + b"\0\0\0\0",
+        lambda data: b"XXXX" + data[4:],
+        # point_count 2 makes index 4 out of range.
+        lambda data: data[:12] + (2).to_bytes(4, "little") + data[16:],
+    ],
+)
+def test_membership_decode_rejects_malformed_files(corrupt):
+    data = ObjectMembership.from_lists(["a"], [[4]], [[]], 5, 0).encode()
+    with pytest.raises(ValueError):
+        ObjectMembership.decode(corrupt(data))
+
+
+def test_load_rejects_membership_of_other_objects(workspace):
+    workspace.path(SceneResults.MEMBERSHIP).write_bytes(
+        ObjectMembership.from_lists(["table-1", "chair-1"], [[], []], [[], []], 1, 1).encode()
+    )
+    with pytest.raises(SceneError, match="different Objects") as error:
+        SceneResults(workspace).load()
+    assert error.value.code == "RESULTS_INVALID"
 
 
 @pytest.mark.parametrize(
@@ -72,6 +124,9 @@ def test_assets_name_existing_viewer_files_only(workspace):
         "instances/instances.json",
         "raw/one.jpg",
         "graph/scene_graph.json",
+        "graph/manifest.json",
+        "graph/membership.bin/x",
+        "instances/points/chair-1.npy",
         "embeddings/objects.npz",
         "recon/frames/0000.npz",
         "mesh/../raw/one.jpg",
@@ -80,7 +135,7 @@ def test_assets_name_existing_viewer_files_only(workspace):
         "mesh",
     ],
 )
-def test_only_mesh_files_are_public(workspace, path):
+def test_only_mesh_files_and_membership_are_public(workspace, path):
     with pytest.raises(SceneError) as error:
         SceneResults(workspace).public_file(path)
     assert error.value.status_code == 404

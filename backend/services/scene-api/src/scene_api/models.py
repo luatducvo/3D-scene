@@ -51,6 +51,13 @@ class StageRun(BaseModel):
 class SceneAssets(BaseModel):
     mesh_url: str | None = None
     points_url: str | None = None
+    membership_url: str | None = Field(
+        default=None,
+        description=(
+            "Object membership of points and mesh vertices (binary, see docs/architecture/api.md); "
+            "null for a Scene published before membership existed."
+        ),
+    )
 
 
 class SceneDetail(SceneSummary):
