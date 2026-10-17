@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useLoader, type ThreeEvent } from "@react-three/fiber";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
@@ -140,6 +140,50 @@ function paintableMesh(parts: MeshPart[], total: number): Paintable {
   return paintable;
 }
 
+/** A layer's membership once it fits the loaded geometry, its elements' members, and their colours. */
+type LayerMembership = {
+  membership: Membership;
+  members: Members;
+  paintable: Paintable;
+};
+
+/**
+ * Object highlighting for one room layer of `count` elements (null while it has no geometry to
+ * paint): checks the membership against the geometry, paints highlight and hover, and returns the
+ * pick ids for its pick twin, or null when the membership is absent or does not fit.
+ * `paint` makes the layer's geometry paintable; the caller memoizes it on the geometry.
+ */
+function useObjectHighlighting(
+  mode: ViewMode,
+  membership: Membership | null,
+  count: number | null,
+  paint: () => Paintable,
+): Uint8Array | null {
+  const expected =
+    mode === "points" ? membership?.pointCount : membership?.vertexCount;
+  const usable = count !== null && expected === count ? membership : null;
+  useMembershipFit(mode, membership, usable);
+  const layer = useMemo<LayerMembership | null>(
+    () =>
+      usable
+        ? {
+            membership: usable,
+            members: mode === "points" ? usable.points : usable.vertices,
+            paintable: paint(),
+          }
+        : null,
+    [mode, usable, paint],
+  );
+  usePainting(layer);
+  return useMemo(
+    () =>
+      layer && count !== null
+        ? pickColors(owners(count, layer.membership.ids.length, layer.members))
+        : null,
+    [layer, count],
+  );
+}
+
 /** Report whether the membership fits the loaded geometry, so the viewer can ask for a reprocess. */
 function useMembershipFit(
   mode: ViewMode,
@@ -157,55 +201,51 @@ function useMembershipFit(
   }, [mode, membership, usable]);
 }
 
-/** Highlighted and selected Objects in green with the rest dimmed, and a tint on the hovered one. */
-function usePainting(
-  paintable: Paintable | null,
-  membership: Membership | null,
-  members: Members | null,
-) {
+/** Highlighted and selected Objects in the highlight colour, the rest dimmed, the hovered one tinted. */
+function usePainting(layer: LayerMembership | null) {
   const highlighted = useViewer((s) => s.highlightedIds),
     selected = useViewer((s) => s.selectedId),
     hovered = useViewer((s) => s.hovered?.id ?? null);
   const painter = useMemo(
     () =>
-      paintable && membership && members
+      layer
         ? new Painter(
-            paintable.colors,
-            paintable.base,
-            members,
-            membership.ids.length,
+            layer.paintable.colors,
+            layer.paintable.base,
+            layer.members,
+            layer.membership.ids.length,
           )
         : null,
-    [paintable, membership, members],
+    [layer],
   );
   const upload = () =>
-    paintable?.attributes.forEach((attribute) => {
+    layer?.paintable.attributes.forEach((attribute) => {
       attribute.needsUpdate = true;
     });
   useEffect(() => {
-    if (!painter || !membership) return;
+    if (!painter || !layer) return;
     painter.highlight(
       objectIndices(
-        membership,
+        layer.membership,
         selected ? [...highlighted, selected] : highlighted,
       ),
     );
     upload();
-  }, [painter, membership, highlighted, selected]);
+  }, [painter, layer, highlighted, selected]);
   useEffect(() => {
-    if (!painter || !membership) return;
-    const [index] = hovered ? objectIndices(membership, [hovered]) : [];
+    if (!painter || !layer) return;
+    const [index] = hovered ? objectIndices(layer.membership, [hovered]) : [];
     painter.hover(index ?? null);
     upload();
-  }, [painter, membership, hovered]);
+  }, [painter, layer, hovered]);
   // Leaving the layer shows real colours again on the cached geometry.
   useEffect(
     () => () => {
-      if (!paintable) return;
-      paintable.colors.set(paintable.base);
+      if (!layer) return;
+      layer.paintable.colors.set(layer.paintable.base);
       upload();
     },
-    [paintable],
+    [layer],
   );
 }
 
@@ -231,21 +271,12 @@ function PointCloudAsset({
         max: box.max.toArray(),
       });
   }, [geometry, setLoadedBounds]);
-  const count = geometry.getAttribute("position").count;
   // Point index = position in points.ply file order, which PLYLoader keeps.
-  const usable = membership?.pointCount === count ? membership : null;
-  useMembershipFit("points", membership, usable);
-  const paintable = useMemo(
-    () => (usable ? paintablePoints(geometry) : null),
-    [geometry, usable],
-  );
-  usePainting(paintable, usable, usable ? usable.points : null);
-  const pick = useMemo(
-    () =>
-      usable
-        ? pickColors(owners(count, usable.ids.length, usable.points))
-        : null,
-    [usable, count],
+  const pick = useObjectHighlighting(
+    "points",
+    membership,
+    geometry.getAttribute("position").count,
+    useCallback(() => paintablePoints(geometry), [geometry]),
   );
   useEffect(() => {
     if (!pick || !display.current) return;
@@ -307,20 +338,11 @@ function MeshAsset({
   const parts = useMemo(() => meshParts(gltf), [gltf]);
   const total = parts.reduce((sum, part) => sum + part.count, 0);
   // Vertex index = position in the glTF POSITION accessors; GLTFLoader neither merges nor reorders.
-  const usable =
-    parts.length && membership?.vertexCount === total ? membership : null;
-  useMembershipFit("mesh", membership, usable);
-  const paintable = useMemo(
-    () => (usable ? paintableMesh(parts, total) : null),
-    [parts, total, usable],
-  );
-  usePainting(paintable, usable, usable ? usable.vertices : null);
-  const pick = useMemo(
-    () =>
-      usable
-        ? pickColors(owners(total, usable.ids.length, usable.vertices))
-        : null,
-    [usable, total],
+  const pick = useObjectHighlighting(
+    "mesh",
+    membership,
+    parts.length ? total : null,
+    useCallback(() => paintableMesh(parts, total), [parts, total]),
   );
   useEffect(() => {
     if (!pick) return;

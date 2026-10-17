@@ -176,6 +176,61 @@ def test_search_keeps_hits_near_the_best_score_and_every_label_match(client):
     assert search() == ["chair-1", "armchair-1", *near, *list(far)[:5]]
 
 
+def test_qa_counts_are_not_cut_like_get_search(client):
+    import json
+    import math
+
+    from psycopg.types.json import Jsonb
+    from scene_api.qa import ScriptedLLM
+
+    prefix = uploaded(client)
+    client.post(prefix + "/process", json={})
+    worker(client).run_once()
+    scene = prefix.rsplit("/", 1)[1]
+
+    def embedding(chair_similarity):
+        # The fake embeds "chair" as the first axis and "door handle" as zero; the third is unused.
+        vector = [0.0] * EMBEDDING_DIM
+        vector[0], vector[2] = chair_similarity, math.sqrt(1 - chair_similarity**2)
+        return str(vector)
+
+    handles = [f"door-handle-{i}" for i in range(14)]
+    stools = [f"stool-{i}" for i in range(11)]
+    with client.app.state.store.connect() as conn:
+        for object_id, label, label_vi, similarity in (
+            *((i, "door handle", "tay nắm cửa", 0.0) for i in handles),
+            *((i, "stool", None, 0.5) for i in stools),
+        ):
+            conn.execute(
+                "INSERT INTO objects(scene_id,id,label,label_vi,box,embedding) VALUES(%s,%s,%s,%s,%s,%s::vector)",
+                (
+                    scene,
+                    object_id,
+                    label,
+                    label_vi,
+                    Jsonb({"center": [0, 0, 0], "size": [0.1, 0.1, 0.1], "yaw": 0}),
+                    embedding(similarity),
+                ),
+            )
+
+    def counted(label, answer):
+        client.app.state.llm = ScriptedLLM(
+            [call("count_objects", {"label": label}), {"content": answer}]
+        )
+        text = client.post(prefix + "/queries", json={"question": f"How many {label}?"}).text
+        return sorted(
+            json.loads(text.split("event: final\ndata: ")[1].split("\n")[0])["object_ids"]
+        )
+
+    # More than 10 label matches are all counted, and nothing else is.
+    assert counted("door handle", "There are 14.") == sorted(handles)
+    # Similar Objects beyond the GET /search margin still count: the cut is for the endpoint only.
+    assert counted("chair", "There are 12.") == sorted(["chair-1", *stools])
+    assert [
+        hit["object"]["id"] for hit in client.get(prefix + "/search", params={"q": "chair"}).json()
+    ] == ["chair-1"]
+
+
 def test_grounded_qa_stream_and_history(client):
     from scene_api.qa import ScriptedLLM
 

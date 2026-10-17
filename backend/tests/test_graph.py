@@ -1,10 +1,10 @@
 import json
-import struct
 
 import numpy as np
 import pytest
 from scene_core.contracts import SceneWorkspace
 from scene_core.domain import OrientedBox, SceneGraphContext, SceneObject
+from scene_core.errors import SceneError
 from scene_core.membership import ObjectMembership
 from scene_core.results import SceneResults
 from scene_stages.graph import (
@@ -18,7 +18,13 @@ from scene_stages.graph import (
     Under,
     members_within,
 )
-from scene_stages.mesh import read_glb_positions, write_ply
+from scene_stages.mesh import (
+    GLTF_FLOAT,
+    pack_glb,
+    read_glb_positions,
+    read_ply_points,
+    write_ply,
+)
 
 
 def write_glb(path, vertices):
@@ -30,18 +36,10 @@ def write_glb(path, vertices):
         "buffers": [{"byteLength": len(binary)}],
         "bufferViews": [{"buffer": 0, "byteLength": len(binary)}],
         "accessors": [
-            {"bufferView": 0, "componentType": 5126, "count": len(vertices), "type": "VEC3"}
+            {"bufferView": 0, "componentType": GLTF_FLOAT, "count": len(vertices), "type": "VEC3"}
         ],
     }
-    js = json.dumps(doc).encode()
-    js += b" " * (-len(js) % 4)
-    path.write_bytes(
-        struct.pack("<III", 0x46546C67, 2, 28 + len(js) + len(binary))
-        + struct.pack("<II", len(js), 0x4E4F534A)
-        + js
-        + struct.pack("<II", len(binary), 0x004E4942)
-        + binary
-    )
+    path.write_bytes(pack_glb(doc, binary))
 
 
 def write_mesh(workspace, points, vertices):
@@ -117,6 +115,34 @@ def test_members_within_matches_a_brute_force_search():
             continue
         distance = np.linalg.norm(targets[:, None] - group[None], axis=-1).min(axis=1)
         assert members.tolist() == np.flatnonzero(distance <= 0.05).tolist()
+
+
+def test_a_non_positive_membership_radius_is_invalid_parameters(tmp_path):
+    with pytest.raises(SceneError, match="membership_radius_m") as error:
+        GeometricGraph().run(SceneWorkspace(tmp_path, "bad"), {"membership_radius_m": 0})
+    assert error.value.code == "INVALID_PARAMETERS"
+    with pytest.raises(SceneError) as error:
+        members_within(np.zeros((1, 3)), [np.zeros((1, 3))], -1)
+    assert error.value.code == "INVALID_PARAMETERS"
+
+
+@pytest.mark.parametrize(
+    "name,content",
+    [
+        ("points.ply", b"not a ply"),
+        ("points.ply", b"ply\nformat ascii 1.0\nelement vertex 1\nend_header\n"),
+        ("mesh.glb", b"not a glb at all, but long enough"),
+        ("mesh.glb", None),
+    ],
+)
+def test_unreadable_mesh_assets_are_asset_unreadable(tmp_path, name, content):
+    path = tmp_path / name
+    if content is not None:
+        path.write_bytes(content)
+    read = read_ply_points if name.endswith(".ply") else read_glb_positions
+    with pytest.raises(SceneError) as error:
+        read(path)
+    assert error.value.code == "ASSET_UNREADABLE"
 
 
 def object_box(name, center, size):

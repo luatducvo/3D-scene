@@ -111,7 +111,12 @@ vertices). A mismatch sets `membershipMismatch` in the store and logs a warning.
 - **Picking** ([picking.ts](../../frontend/src/components/viewer/picking.ts)): each layer adds a pick
   twin that shares its position (and index) buffers and carries one colour per element, the 24-bit
   index of its owning Object (`owners`, `pickColors`). Where Objects overlap, the Object with the
-  fewest members owns the element, so a door handle wins over the wardrobe. `pickAt` draws the twins
+  fewest members owns the element, so a door handle wins over the wardrobe. Ids are never blended:
+  the point twin draws each point as one vertex, and the mesh twin uses a GLSL3 pick shader whose id
+  varying is `flat`, so a triangle whose vertices have different owners takes its last vertex's id
+  rather than an interpolated colour that would decode to another Object. Both layers set this up
+  through `useObjectHighlighting` in [layers/index.tsx](../../frontend/src/components/viewer/layers/index.tsx),
+  which also checks the counts and runs the painting. `pickAt` draws the twins
   into a render target the size of the drawing buffer with a 1 × 1 scissor under the cursor and reads
   that pixel back: the same projection keeps points their on-screen size (a narrowed view would clip
   points whose centres fall outside it), while only one pixel is filled and read. No CPU raycast

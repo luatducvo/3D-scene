@@ -69,13 +69,13 @@ export function objectIndices(membership: Membership, ids: string[]): number[] {
 
 /**
  * Paints an element colour array (linear RGB, 3 floats per element) from real colours: highlighted
- * Objects in green and the rest dimmed, or real colours when nothing is highlighted, plus a light
- * tint on the hovered Object. A hover change repaints only the two Objects involved.
+ * Objects in `HIGHLIGHT_COLOR` and the rest dimmed, or real colours when nothing is highlighted,
+ * plus a light tint on the hovered Object. A hover change repaints only the two Objects involved.
  */
 export class Painter {
   private readonly count: number;
   private readonly marked: Uint8Array;
-  private readonly green: number[];
+  private readonly highlightRgb: number[];
   private dimmed = false;
   private hovered: number | null = null;
   constructor(
@@ -86,7 +86,7 @@ export class Painter {
   ) {
     this.count = Math.floor(base.length / 3);
     this.marked = new Uint8Array(this.count);
-    this.green = new Color(HIGHLIGHT_COLOR).toArray();
+    this.highlightRgb = new Color(HIGHLIGHT_COLOR).toArray();
   }
   /** Highlight these Objects and dim the rest; an empty list returns real colours. */
   highlight(objects: number[]) {
@@ -109,7 +109,7 @@ export class Painter {
     if (object === null) return;
     for (const index of this.list(object))
       if (index < this.count)
-        // Lighten towards white, which stands out from real colours and from the highlight green.
+        // Lighten towards white, which stands out from real colours and from the highlight colour.
         for (let c = 0; c < 3; c++) {
           const k = 3 * index + c;
           this.colors[k] += (1 - this.colors[k]) * HOVER_MIX;
@@ -124,7 +124,7 @@ export class Painter {
     for (let c = 0; c < 3; c++) {
       const k = 3 * index + c;
       this.colors[k] = this.marked[index]
-        ? this.green[c]
+        ? this.highlightRgb[c]
         : this.dimmed
           ? this.base[k] * DIM
           : this.base[k];

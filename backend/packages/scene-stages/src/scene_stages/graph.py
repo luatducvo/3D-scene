@@ -6,6 +6,7 @@ from importlib.metadata import entry_points
 import numpy as np
 from scene_core.contracts import GraphManifest
 from scene_core.domain import Relation, SceneGraph, SceneGraphContext, SceneObject
+from scene_core.errors import SceneError
 from scene_core.geometry import box_surface_distance, fit_box, footprint, footprint_overlap
 from scene_core.membership import ObjectMembership
 from scene_core.ports import RelationRule, StageAlgorithm
@@ -21,7 +22,9 @@ def members_within(targets, groups, radius):
     cell or one of the 26 around it; distances are then checked exactly. A target may match several
     groups or none."""
     if radius <= 0:
-        raise ValueError("membership_radius_m must be positive")
+        raise SceneError(
+            "INVALID_PARAMETERS", f"The membership radius must be positive, got {radius}"
+        )
     targets = np.asarray(targets, dtype=np.float64).reshape(-1, 3)
     groups = [np.asarray(g, dtype=np.float64).reshape(-1, 3) for g in groups]
     empty = [np.zeros(0, np.int64) for _ in groups]
@@ -180,6 +183,9 @@ class GeometricGraph(StageAlgorithm):
     manifest_type = GraphManifest
 
     def run(self, workspace, params):
+        radius = float(params.get("membership_radius_m", 0.02))
+        if radius <= 0:
+            raise SceneError("INVALID_PARAMETERS", "membership_radius_m must be positive")
         instances = json.loads(workspace.path("instances/instances.json").read_text())
         attributes_path = workspace.path("attributes/attributes.json")
         attributes = json.loads(attributes_path.read_text()) if attributes_path.exists() else {}
@@ -247,23 +253,20 @@ class GeometricGraph(StageAlgorithm):
         write_membership(
             workspace,
             [obj.id for obj in objects],
-            lifted,
-            float(params.get("membership_radius_m", 0.02)),
+            lambda positions: members_within(positions, lifted, radius),
         )
         return GraphManifest(num_objects=len(objects), num_relations=len(relations))
 
 
-def write_membership(workspace, ids, lifted, radius):
-    """Write graph/membership.bin: per final Object id, the points of mesh/points.ply and vertices
-    of mesh/mesh.glb within `radius` of one of its lift points."""
+def write_membership(workspace, ids, members_of):
+    """Write graph/membership.bin for the final Object `ids`. `members_of(positions)` returns, per
+    id in order, the indices of `positions` that belong to it; it is asked once for the points of
+    mesh/points.ply and once for the vertices of mesh/mesh.glb."""
     points = read_ply_points(workspace.path(SceneResults.ASSETS["points"]))
     vertices = read_glb_positions(workspace.path(SceneResults.ASSETS["mesh"]))
     membership = ObjectMembership.from_lists(
-        ids,
-        members_within(points, lifted, radius),
-        members_within(vertices, lifted, radius),
-        len(points),
-        len(vertices),
+        ids, members_of(points), members_of(vertices), len(points), len(vertices)
     )
-    workspace.dir("graph")
-    workspace.path(SceneResults.MEMBERSHIP).write_bytes(membership.encode())
+    path = workspace.path(SceneResults.MEMBERSHIP)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(membership.encode())
