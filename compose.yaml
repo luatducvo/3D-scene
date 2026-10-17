@@ -71,6 +71,7 @@ services:
     environment:
       PORT: "9000"
       COMPUTE_TOKEN: ""              # private network, no token needed locally
+      DATA_DIR: /data/target         # its Target Workspaces, apart from published results in /data/scenes
     expose:
       - "9000"
     volumes:

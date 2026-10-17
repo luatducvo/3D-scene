@@ -1,7 +1,7 @@
 "use client";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
-import type { SceneObject } from "../lib/api/port";
-import { useViewer } from "../lib/store/viewerStore";
+import type { SceneObject } from "../lib/api/types";
+import { focus } from "./viewer/camera";
 
 export function ObjectDetails({ object }: { object: SceneObject }) {
   const t = useTranslations(),
@@ -36,10 +36,7 @@ export function ObjectDetails({ object }: { object: SceneObject }) {
         </strong>
         <span>{t("ui.dimensionOrder")}</span>
       </div>
-      <button
-        className="full-width"
-        onClick={() => useViewer.getState().focus([object.id])}
-      >
+      <button className="full-width" onClick={() => focus([object.id])}>
         {t("ui.focusObject")}
       </button>
     </article>

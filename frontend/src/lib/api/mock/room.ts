@@ -1,4 +1,4 @@
-import type { SceneObject } from "../port";
+import type { SceneObject } from "../types";
 
 // Small deterministic geometry for UI development; it never represents a user's capture.
 export const demoObjects: SceneObject[] = [

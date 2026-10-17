@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import Literal
 from pydantic import BaseModel,Field
+from scene_core.contracts import STAGES
 from scene_core.domain import SceneObject,SceneStatus,Relation
+# The nine Stages in order; the frontend checks its own list against this enum.
+Stage=Literal[STAGES]
 class SceneCreate(BaseModel):
     name:str=Field(min_length=1,max_length=200)
 class SceneCreated(BaseModel):
@@ -21,10 +24,9 @@ class StageProgress(BaseModel):
     total:int
     unit:str
 class StageRun(BaseModel):
-    stage:str
+    stage:Stage
     algorithm:str
-    status:Literal["running","done","skipped","failed"]
-    config_hash:str
+    status:Literal["running","done","failed"]
     manifest:dict|None=None
     error:dict|None=None
     progress:StageProgress|None=None
@@ -57,14 +59,14 @@ class Evidence(BaseModel):
     image_url:str
     frame_id:str
 class ProgressEvent(BaseModel):
-    """`stage` and `status` events carry state; `progress` events carry done/total/unit for one Stage."""
+    """`stage` events carry a Stage Run's state, `status` events the Scene's; `progress` events carry done/total/unit
+    for one Stage. Replay sends the same shapes as live: each Stage Run's `stage` event, then its `progress` if any."""
     type:Literal["stage","status","progress"]
-    stage:str|None=None
+    stage:Stage|None=None
     status:str|None=None
     algorithm:str|None=None
     manifest:dict|None=None
     error:dict|None=None
-    progress:StageProgress|None=None
     started_at:datetime|None=None
     updated_at:datetime|None=None
     done:int|None=None

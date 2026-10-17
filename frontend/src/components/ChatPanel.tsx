@@ -3,8 +3,9 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { sceneApi } from "../lib/api";
-import type { Schemas } from "../lib/api/port";
+import type { Schemas } from "../lib/api/types";
 import { useViewer } from "../lib/store/viewerStore";
+import { focus } from "./viewer/camera";
 
 export function ChatPanel({ sceneId }: { sceneId: string }) {
   const t = useTranslations(),
@@ -54,7 +55,7 @@ export function ChatPanel({ sceneId }: { sceneId: string }) {
           if (event.type === "delta") setAnswer((a) => a + (event.delta || ""));
           if (event.type === "final") {
             setAnswer(event.answer || "");
-            useViewer.getState().focus(event.object_ids || []);
+            focus(event.object_ids || []);
             setTool("");
           }
         },
@@ -76,9 +77,7 @@ export function ChatPanel({ sceneId }: { sceneId: string }) {
   function focusMessage(content: Schemas["Message"]["content"]) {
     const ids = content.object_ids;
     if (Array.isArray(ids))
-      useViewer
-        .getState()
-        .focus(ids.filter((id): id is string => typeof id === "string"));
+      focus(ids.filter((id): id is string => typeof id === "string"));
   }
   return (
     <section className="chat" aria-label={t("ask")}>

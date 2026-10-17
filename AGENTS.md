@@ -9,7 +9,7 @@ repository root, code under `backend/`. The frontend is a Next.js app in `fronte
 - **Reading or changing code under `backend/` or `frontend/`:** that folder's AGENTS.md
   ([backend](backend/AGENTS.md), [frontend](frontend/AGENTS.md)) for its rules and done check.
 - **Any ticket:** [docs/SPEC.md](docs/SPEC.md) for scope and acceptance. ADRs in
-  [docs/adr/](docs/adr/) amend it where their status line says so (0004, 0005).
+  [docs/adr/](docs/adr/) amend it where their status line says so (0004, 0005, 0006).
 - **Unfamiliar code or a cross-module change:** [docs/architecture/overview.md](docs/architecture/overview.md),
   then the page for the area:
   [pipeline](docs/architecture/pipeline.md) (Stages, Workspace, Job runner, Publication),
@@ -23,8 +23,10 @@ repository root, code under `backend/`. The frontend is a Next.js app in `fronte
 ## Commands
 
 `uv run tasks.py --help` from the repository root lists every task. `uv run tasks.py test` runs
-pytest against a disposable Postgres container, so Docker must be running; extra arguments go to
-pytest. Frontend scripts are in `frontend/package.json`; its done check is in
+pytest against a disposable Postgres container, so Docker must be running; `test-unit` runs the
+tests without the `db` marker and needs no Docker. `lint` and `format` run Ruff with the rules in
+`pyproject.toml`. Extra arguments go to pytest or Ruff. The `backend-api` and `backend-worker`
+entries in `.claude/launch.json` run the fake pipeline on the test database that `test` starts. Frontend scripts are in `frontend/package.json`; its done check is in
 [frontend/AGENTS.md](frontend/AGENTS.md).
 
 ## Rules

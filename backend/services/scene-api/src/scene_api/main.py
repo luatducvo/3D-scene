@@ -1,88 +1,83 @@
 import json,logging,os,re,shutil,uuid
 from pathlib import Path
 from contextlib import asynccontextmanager
-import httpx
 from fastapi import BackgroundTasks,FastAPI,Request,UploadFile,File,Response
 from fastapi.responses import JSONResponse,FileResponse,StreamingResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from scene_core.contracts import SceneWorkspace,STAGES
 from scene_core.errors import SceneError
-from psycopg.types.json import Jsonb
-from scene_worker.compute.http import ComputeError
-from scene_worker.repository import Repository
+from scene_core.results import EMBEDDING_DIM,SceneResults
+from scene_store import SceneStore
+from scene_target import delete_quietly,open_target_workspace
 from .models import *
 
 QUERY_READY_TIMEOUT_S=10
 
-def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=None):
-    repo=Repository(database_url or os.getenv("DATABASE_URL","postgresql://scene:scene@localhost:5432/scene"))
+def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=None,target=None):
+    """target replaces the TargetWorkspace built from pipeline and compute, for tests."""
+    store=SceneStore(database_url or os.getenv("DATABASE_URL","postgresql://scene:scene@localhost:5432/scene"))
     data_dir=Path(data_dir or os.getenv("DATA_DIR","data"))
     @asynccontextmanager
     async def lifespan(app):
-        repo.migrate()
+        store.migrate()
         yield
     app=FastAPI(title="Scene Understanding API",version="1.0.0",lifespan=lifespan)
-    app.state.repository=repo;app.state.data_dir=data_dir;app.state.pipeline=pipeline;app.state.compute=compute;app.state.llm=llm
+    app.state.store=store;app.state.data_dir=data_dir;app.state.target=target;app.state.llm=llm
     app.add_middleware(CORSMiddleware,allow_origins=os.getenv("CORS_ORIGINS","http://localhost:3000").split(","),allow_methods=["*"],allow_headers=["*"])
     @app.exception_handler(SceneError)
     async def scene_error(request,exc): return JSONResponse({"error":{"code":exc.code,"message":exc.message}},status_code=exc.status_code)
     @app.exception_handler(RequestValidationError)
     async def validation_error(request,exc): return JSONResponse({"error":{"code":"INVALID_REQUEST","message":str(exc)}},status_code=422)
     def summary(row): return {**row,"id":str(row["id"])}
-    def url(request,scene_id,path): return str(request.url_for("scene_file",scene_id=str(scene_id),file_path=path))
+    # Scenes published before ADR-0006 keep their results directly in the Scene folder.
+    LEGACY="legacy"
+    def published(scene):
+        return SceneWorkspace(data_dir,str(scene["id"]),scene["publication"])
+    def url(request,scene,path):
+        """A file URL naming the publication, so a new Job's assets never share a URL with an old one's."""
+        return str(request.url_for("publication_file",scene_id=str(scene["id"]),version=scene["publication"] or LEGACY,file_path=path))
     @app.post("/api/v1/scenes",response_model=SceneCreated,status_code=201)
     def create_scene(body:SceneCreate):
-        scene_id=uuid.uuid4()
-        with repo.connect() as conn: conn.execute("INSERT INTO scenes(id,name) VALUES(%s,%s)",(scene_id,body.name.strip()))
-        return {"id":str(scene_id)}
+        return {"id":store.create_scene(body.name.strip())}
     @app.get("/api/v1/scenes",response_model=list[SceneSummary])
     def list_scenes():
-        with repo.connect() as conn: return [summary(s) for s in conn.execute("SELECT * FROM scenes ORDER BY created_at DESC").fetchall()]
+        with store.connect() as conn: return [summary(s) for s in conn.execute("SELECT * FROM scenes ORDER BY created_at DESC").fetchall()]
     @app.get("/api/v1/scenes/{scene_id}",response_model=SceneDetail)
     def get_scene(scene_id:uuid.UUID,request:Request):
-        with repo.connect() as conn:
-            scene=summary(repo.get_scene(scene_id,conn))
+        with store.connect() as conn:
+            row=store.get_scene(scene_id,conn);scene=summary(row)
             stages=conn.execute("SELECT * FROM stage_runs WHERE scene_id=%s",(scene_id,)).fetchall()
         scene["stage_runs"]=sorted(stages,key=lambda s:STAGES.index(s["stage"]))
-        workspace=SceneWorkspace(data_dir,str(scene_id))
-        scene["assets"]={key:url(request,scene_id,path) if workspace.path(path).is_file() else None for key,path in (("mesh_url","mesh/mesh.glb"),("points_url","mesh/points.ply"))}
+        assets=SceneResults(published(row)).assets()
+        scene["assets"]={f"{key}_url":url(request,row,path) if path else None for key,path in assets.items()}
         scene["ingest_report"]=next((s["manifest"] for s in stages if s["stage"]=="ingest"),None)
         return scene
     @app.delete("/api/v1/scenes/{scene_id}",status_code=204)
     def delete_scene(scene_id:uuid.UUID,background:BackgroundTasks):
-        with repo.connect() as conn:
-            repo.get_scene(scene_id,conn,True);repo.assert_idle(scene_id,conn)
-            shutil.rmtree(SceneWorkspace(data_dir,str(scene_id)).root,ignore_errors=True)
-            conn.execute("DELETE FROM scenes WHERE id=%s",(scene_id,))
-        from scene_worker.container import configuration,delete_remote_workspaces
-        background.add_task(delete_remote_workspaces,data_dir,app.state.compute or configuration()[1],str(scene_id))
+        store.delete_scene(scene_id)
+        shutil.rmtree(SceneWorkspace(data_dir,str(scene_id)).root,ignore_errors=True)
+        try:background.add_task(delete_quietly,target_workspace(),str(scene_id))
+        except SceneError:logging.exception("Scene %s has no Target Workspace to delete",scene_id)
         return Response(status_code=204)
-    @app.get("/api/v1/scenes/{scene_id}/files/{file_path:path}",name="scene_file")
-    def scene_file(scene_id:uuid.UUID,file_path:str):
-        repo.get_scene(scene_id)
-        if "\\" in file_path or any(p in ("..",".") for p in file_path.split("/")) or file_path.split("/")[0] not in {"keyframes","mesh","instances","recon"}:
-            raise SceneError("FILE_FORBIDDEN","File path is not public",403)
-        workspace=SceneWorkspace(data_dir,str(scene_id))
-        try: path=workspace.path(file_path)
-        except ValueError: raise SceneError("FILE_FORBIDDEN","Invalid file path",403)
-        if not path.is_file(): raise SceneError("FILE_NOT_FOUND","File not found",404)
-        return FileResponse(path)
+    @app.get("/api/v1/scenes/{scene_id}/publications/{version}/files/{file_path:path}",name="publication_file")
+    def publication_file(scene_id:uuid.UUID,version:str,file_path:str):
+        """A public file of one publication; an older publication stays readable until it is removed."""
+        store.get_scene(scene_id)
+        try:workspace=SceneWorkspace(data_dir,str(scene_id),None if version==LEGACY else version)
+        except ValueError:raise SceneError("FILE_NOT_FOUND","File not found",404) from None
+        return FileResponse(SceneResults(workspace).public_file(file_path))
     @app.post("/api/v1/scenes/{scene_id}/uploads",response_model=UploadResult)
     def upload_files(scene_id:uuid.UUID,files:list[UploadFile]=File(...)):
-        with repo.connect() as conn:
-            scene=repo.get_scene(scene_id,conn,True);repo.assert_idle(scene_id,conn)
-            if scene["status"] not in ("created","uploaded"):raise SceneError("SCENE_LOCKED","Create a new Scene to upload more files",409)
+        with store.uploading(scene_id):
             if not files:raise SceneError("INVALID_UPLOAD","No files supplied",400)
             allowed={".jpg",".jpeg",".png",".webp",".heic",".mp4",".mov",".mkv",".webm"}
             for upload in files:
                 if Path(upload.filename or "").suffix.lower() not in allowed or not (upload.content_type or "").startswith(("image/","video/")):
                     raise SceneError("UNSUPPORTED_MEDIA","Only photos or a video are accepted",415)
-            store=input_store()
+            target=target_workspace()
             video_ext={".mp4",".mov",".mkv",".webm"}
-            try:existing=[Path(p) for p in store.list_files(str(scene_id),"raw")]
-            except (ComputeError,httpx.TransportError) as exc:
-                raise SceneError("COMPUTE_UNAVAILABLE",f"The compute Target that stores uploads is unavailable: {exc}",503) from exc
+            existing=[Path(name) for name in target.list_inputs(str(scene_id))]
             is_video=any(Path(u.filename).suffix.lower() in video_ext for u in files)
             if (is_video and (len(files)!=1 or existing)) or any(f.suffix.lower() in video_ext for f in existing):
                 raise SceneError("INVALID_UPLOAD","Upload photos or one video, without mixing them",400)
@@ -92,24 +87,23 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
                     # The original stem keeps capture order for ingest; the suffix keeps names unique.
                     stem=re.sub(r"[^A-Za-z0-9_-]","_",Path(upload.filename).stem)[:80]
                     name=f"{stem}-{uuid.uuid4().hex[:8]}{Path(upload.filename).suffix.lower()}"
-                    store.put_file(str(scene_id),f"raw/{name}",upload.file)
+                    target.put_input(str(scene_id),name,upload.file)
                     saved.append(name)
-                conn.execute("UPDATE scenes SET status='uploaded' WHERE id=%s",(scene_id,))
-            except Exception as exc:
-                try:store.clear(str(scene_id),[f"raw/{name}" for name in saved])
+            except Exception:
+                try:target.remove_inputs(str(scene_id),saved)
                 except Exception:logging.exception("Could not remove partial upload of Scene %s",scene_id)
-                if isinstance(exc,(ComputeError,httpx.TransportError)):
-                    raise SceneError("COMPUTE_UNAVAILABLE",f"The compute Target that stores uploads is unavailable: {exc}",503) from exc
                 raise
             return {"filenames":saved}
     @app.post("/api/v1/scenes/{scene_id}/process",response_model=JobCreated,status_code=202)
     def process_scene(scene_id:uuid.UUID):
-        return {"job_id":repo.enqueue(scene_id)}
+        return {"job_id":store.enqueue(scene_id)}
     def public_objects(scene_id,request):
-        objects=repo.objects(scene_id)
+        with store.connect() as conn:
+            scene=store.get_scene(scene_id,conn)
+            objects=conn.execute("SELECT id,label,label_vi,box,attributes,best_views FROM objects WHERE scene_id=%s ORDER BY id",(scene_id,)).fetchall()
         for obj in objects:
             for view in obj["best_views"]:
-                view["image_url"]=url(request,scene_id,"recon/rgb/"+view["frame_id"]+".png")
+                view["image_url"]=url(request,scene,SceneResults.view_image(view["frame_id"]))
         return objects
     @app.get("/api/v1/scenes/{scene_id}/objects",response_model=list[SceneObject])
     def list_objects(scene_id:uuid.UUID,request:Request):return public_objects(scene_id,request)
@@ -120,65 +114,38 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
         return found
     @app.get("/api/v1/scenes/{scene_id}/events",response_class=StreamingResponse)
     def events(scene_id:uuid.UUID):
-        repo.get_scene(scene_id)
+        store.get_scene(scene_id)
         def stream():
-            with repo.connect() as conn:
-                conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-                scene=repo.get_scene(scene_id,conn)
-                stages=conn.execute("SELECT * FROM stage_runs WHERE scene_id=%s",(scene_id,)).fetchall()
-                cursor=conn.execute("SELECT COALESCE(MAX(id),0) AS id FROM scene_events WHERE scene_id=%s",(scene_id,)).fetchone()["id"]
-            for stage in sorted(stages,key=lambda s:STAGES.index(s["stage"])):
-                payload={k:stage[k] for k in ("stage","status","algorithm","manifest","error","progress")}
-                payload.update({k:stage[k].isoformat() if stage[k] else None for k in ("started_at","updated_at")})
-                yield "event: stage\ndata: "+json.dumps({"type":"stage",**payload})+"\n\n"
-            yield "event: status\ndata: "+json.dumps({"type":"status","status":scene["status"]})+"\n\n"
-            if scene["status"]!="processing":return
+            # Replay and live events have the same shapes; only live ones carry an id.
+            snapshot=store.snapshot(scene_id);cursor=snapshot.cursor
+            for event,data in snapshot.events:
+                yield f"event: {event}\ndata: "+json.dumps({"type":event,**data})+"\n\n"
+            if snapshot.status!="processing":return
             import time
             while True:
-                with repo.connect() as conn:
-                    rows=conn.execute("SELECT * FROM scene_events WHERE scene_id=%s AND id>%s ORDER BY id",(scene_id,cursor)).fetchall()
-                for event in rows:
-                    cursor=event["id"]
-                    yield f"id: {cursor}\nevent: {event['event']}\ndata: "+json.dumps({"type":event["event"],**event["data"]})+"\n\n"
-                    if event["event"]=="status" and event["data"]["status"] in ("ready","failed"):return
+                for cursor,event,data in store.events_since(scene_id,cursor):
+                    yield f"id: {cursor}\nevent: {event}\ndata: "+json.dumps({"type":event,**data})+"\n\n"
+                    if event=="status" and data["status"] in ("ready","failed"):return
                 time.sleep(0.2)
         return StreamingResponse(stream(),media_type="text/event-stream",headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
-    def input_store():
-        """Uploads live only on the pipeline's Target, never in local Scene storage (ADR-0005)."""
-        if getattr(app.state,"storage",None) is None:
-            from scene_worker.container import configuration,pipeline_backend
-            defaults=None if app.state.pipeline and app.state.compute else configuration()
-            pipeline=app.state.pipeline or defaults[0];compute_config=app.state.compute or defaults[1]
-            try:app.state.storage=pipeline_backend(data_dir,pipeline,compute_config,QUERY_READY_TIMEOUT_S)
+    def target_workspace():
+        """Uploads and query embedding live on the pipeline's Target (ADR-0005); built once, on first use."""
+        if app.state.target is None:
+            # A request waits briefly for a cold Target instead of a Job's full startup deadline.
+            try:app.state.target=open_target_workspace(data_dir,pipeline,compute,QUERY_READY_TIMEOUT_S)
             except ValueError as exc:raise SceneError("COMPUTE_UNAVAILABLE",str(exc),503) from exc
-        return app.state.storage
-    def query_embedder():
-        """Queries are embedded by the pipeline's own embed Algorithm on its Target, created once."""
-        if getattr(app.state,"embedder",None) is None:
-            from scene_worker.container import configuration,backend_for
-            defaults=None if app.state.pipeline and app.state.compute else configuration()
-            pipeline=app.state.pipeline or defaults[0];compute_config=app.state.compute or defaults[1]
-            stage=pipeline.stages["embed"];target=compute_config.targets.get(stage.target)
-            if target is None or target.missing_url:
-                raise SceneError("COMPUTE_UNAVAILABLE",f"The embed Stage's compute Target {stage.target} is not configured",503)
-            # A query waits briefly for readiness instead of a Job's full cold-start deadline.
-            target=target.model_copy(update={"startup_timeout":min(target.startup_timeout,QUERY_READY_TIMEOUT_S)})
-            app.state.embedder=(stage.algorithm,backend_for(data_dir,target))
-        return app.state.embedder
+        return app.state.target
     @app.get("/api/v1/scenes/{scene_id}/search",response_model=list[SearchHit])
     def search_objects(scene_id:uuid.UUID,q:str,request:Request):
         return search(scene_id,q,public_objects(scene_id,request))
     def search(scene_id,q,objects):
         if not q.strip():return []
         import numpy as np
-        algorithm,backend=query_embedder()
-        try:vector=backend.invoke(algorithm,"embed_text",{"texts":[q]})["vectors"][0]
-        except (ComputeError,httpx.TransportError) as exc:
-            raise SceneError("COMPUTE_UNAVAILABLE",f"The embed Stage's compute Target is unavailable: {exc}",503) from exc
-        if len(vector)!=1024:raise SceneError("EMBEDDING_DIMENSION_MISMATCH","Query vector dimension differs from database",500)
+        vector=target_workspace().embed_text([q])[0]
+        if len(vector)!=EMBEDDING_DIM:raise SceneError("EMBEDDING_DIMENSION_MISMATCH","Query vector dimension differs from database",500)
         scores={}
         if np.linalg.norm(vector)>0:
-            with repo.connect() as conn:
+            with store.connect() as conn:
                 for row in conn.execute("SELECT id,1-(embedding <=> %s::vector) AS score FROM objects WHERE scene_id=%s",(str(vector),scene_id)).fetchall():scores[row["id"]]=float(row["score"] or 0)
         hits=[]
         for obj in objects:
@@ -188,14 +155,14 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
         return sorted(hits,key=lambda hit:hit["score"],reverse=True)
     @app.get("/api/v1/scenes/{scene_id}/messages",response_model=list[Message])
     def list_messages(scene_id:uuid.UUID):
-        with repo.connect() as conn:
-            repo.get_scene(scene_id,conn)
+        with store.connect() as conn:
+            store.get_scene(scene_id,conn)
             return conn.execute("SELECT id,role,content,created_at FROM messages WHERE scene_id=%s ORDER BY id",(scene_id,)).fetchall()
     @app.post("/api/v1/scenes/{scene_id}/queries",response_class=StreamingResponse,responses={200:{"model":QueryEvent,"content":{"text/event-stream":{}}}})
     def ask(scene_id:uuid.UUID,body:QueryRequest,request:Request):
         from .qa import OpenAICompatibleLLM,QAAgent,SceneTools
-        with repo.connect() as conn:
-            scene=repo.get_scene(scene_id,conn)
+        with store.connect() as conn:
+            scene=store.get_scene(scene_id,conn)
             if scene["status"]!="ready":raise SceneError("SCENE_NOT_READY","Process the Scene before asking questions",409)
             relations=conn.execute("SELECT subject_id,predicate,object_id,value FROM relations WHERE scene_id=%s",(scene_id,)).fetchall()
             history=conn.execute("SELECT role,content FROM messages WHERE scene_id=%s ORDER BY id DESC LIMIT 10",(scene_id,)).fetchall()[::-1]
@@ -210,9 +177,7 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
                     if event["type"]=="final":
                         by_id={o["id"]:o for o in objects}
                         event["evidence"]=[{"object_id":i,"frame_id":v["frame_id"],"image_url":v["image_url"]} for i in event["object_ids"] for v in by_id[i]["best_views"][:1]]
-                        with repo.connect() as conn:
-                            conn.execute("INSERT INTO messages(scene_id,role,content) VALUES(%s,'user',%s)",(scene_id,Jsonb({"question":body.question})))
-                            conn.execute("INSERT INTO messages(scene_id,role,content) VALUES(%s,'assistant',%s)",(scene_id,Jsonb({k:event[k] for k in ("answer","object_ids","evidence")})))
+                        store.save_exchange(scene_id,{"question":body.question},{k:event[k] for k in ("answer","object_ids","evidence")})
                     yield f"event: {event['type']}\ndata: "+json.dumps(QueryEvent.model_validate(event).model_dump(mode="json"),ensure_ascii=False)+"\n\n"
             except Exception as exc:
                 code=getattr(exc,"code","QA_FAILED")

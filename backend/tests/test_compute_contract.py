@@ -1,4 +1,4 @@
-"""Exercise the HTTP contract with non-shared storage and tiny transfer chunks."""
+"""Exercise the scene-compute HTTP contract with tiny transfer chunks; TargetWorkspace tests are in test_target.py."""
 import hashlib
 
 import pytest
@@ -29,67 +29,8 @@ def test_chunked_upload_is_atomic_and_verifies_checksum(tmp_path):
         assert not (tmp_path / "scenes/room").exists()
 
 
-def test_remote_fake_stage_roundtrip_skip_failure_and_cleanup(tmp_path):
-    from scene_core.config import TargetConfig
-    from scene_worker.compute.http import ComputeError, HttpBackend
-
-    local, remote = tmp_path / "local", tmp_path / "remote"
-    raw = local / "scenes/room/raw"
-    raw.mkdir(parents=True)
-    (raw / "sample.jpg").write_bytes(b"fixture" * 120)
-    app = create_app(remote, chunk_bytes=512)
-    requests = []
-    with TestClient(app) as client:
-        client.event_hooks["request"].append(lambda request: requests.append((request.method, request.url.path)))
-        backend = HttpBackend(local, TargetConfig(url="http://testserver", chunk_size=512, poll_interval=.001), client=client)
-        reports = []
-        result = backend.run("ingest.fake", "room", {"progress_steps": 3}, ["raw"], ["keyframes"], on_progress=reports.append)
-        assert result["num_keyframes"] == 1
-        assert reports[-1] == {"done": 3, "total": 3, "unit": "step"}
-        assert not (local / "scenes/room/keyframes").exists()
-        results = backend.fetch("room", ["keyframes"], tmp_path / "staging")
-        assert results.path("keyframes/0000.jpg").read_bytes() == (remote / "scenes/room/keyframes/0000.jpg").read_bytes()
-        assert not (local / "scenes/room/keyframes").exists()
-        requests.clear()
-        backend.run("ingest.fake", "room", {}, ["raw"], ["keyframes"])
-        assert not any(method == "PUT" for method, _ in requests)
-        with pytest.raises(ComputeError, match="deliberate failure"):
-            backend.run("ingest.fake", "room", {"fail": "deliberate failure"}, ["raw"], ["keyframes"])
-        backend.delete_workspace("room")
-        assert not (remote / "scenes/room").exists()
-
-
-def test_shared_storage_avoids_file_endpoints(tmp_path):
-    from scene_core.config import TargetConfig
-    from scene_worker.compute.http import HttpBackend
-
-    raw = tmp_path / "scenes/room/raw"
-    raw.mkdir(parents=True)
-    (raw / "input.jpg").write_bytes(b"synthetic")
-    with TestClient(create_app(tmp_path)) as client:
-        paths = []
-        client.event_hooks["request"].append(lambda request: paths.append(request.url.path))
-        backend = HttpBackend(tmp_path, TargetConfig(url="http://testserver", shared_storage=True, poll_interval=.001), client=client)
-        assert backend.run("ingest.fake", "room", {}, ["raw"], ["keyframes"])["num_keyframes"] == 1
-        assert not any("/files" in path for path in paths)
-
-
-def test_uploads_and_clearing_keep_inputs_only_on_the_target(tmp_path, monkeypatch):
-    import io
-
-    from scene_core.config import TargetConfig
-    from scene_worker.compute.http import HttpBackend
-
-    local, remote = tmp_path / "local", tmp_path / "remote"
-    with TestClient(create_app(remote, chunk_bytes=512)) as client:
-        backend = HttpBackend(local, TargetConfig(url="http://testserver", chunk_size=512, poll_interval=.001), client=client)
-        backend.put_file("room", "raw/a.jpg", io.BytesIO(b"x" * 1300))
-        backend.put_file("room", "raw/b.jpg", io.BytesIO(b"y"))
-        assert backend.list_files("room", "raw") == ["raw/a.jpg", "raw/b.jpg"]
-        assert not local.exists()
-        backend.run("ingest.fake", "room", {}, ["raw"], ["keyframes"])
-        backend.clear("room", ["keyframes", "raw/b.jpg"])
-        assert sorted(p.name for p in (remote / "scenes/room").rglob("*") if p.is_file()) == ["a.jpg"]
+def test_a_clean_start_removes_earlier_workspaces(tmp_path, monkeypatch):
+    (tmp_path / "scenes/room/raw").mkdir(parents=True)
     monkeypatch.setenv("CLEAN_ON_START", "1")
-    with TestClient(create_app(remote)):
-        assert not (remote / "scenes").exists()
+    with TestClient(create_app(tmp_path)):
+        assert not (tmp_path / "scenes").exists()

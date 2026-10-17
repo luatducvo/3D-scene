@@ -40,7 +40,7 @@ The runner, other Stages, the API and the frontend do not change.
   `backend/.env.example`, and write a guide under `backend/deploy/<provider>/`.
 - **It only accepts its own function or handler format:** add a thin adapter under
   `backend/deploy/<provider>/` that runs inside the provider and forwards to the same `Executor`, or
-  use that provider's container product. The worker side stays `HttpBackend`.
+  use that provider's container product. `TargetWorkspace` keeps its HTTP adapter.
 
 ## Record the decision
 

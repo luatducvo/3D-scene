@@ -134,10 +134,11 @@
         }
       }
     },
-    "/api/v1/scenes/{scene_id}/files/{file_path}": {
+    "/api/v1/scenes/{scene_id}/publications/{version}/files/{file_path}": {
       "get": {
-        "summary": "Scene File",
-        "operationId": "scene_file_api_v1_scenes__scene_id__files__file_path__get",
+        "summary": "Publication File",
+        "description": "A public file of one publication; an older publication stays readable until it is removed.",
+        "operationId": "publication_file_api_v1_scenes__scene_id__publications__version__files__file_path__get",
         "parameters": [
           {
             "name": "scene_id",
@@ -147,6 +148,15 @@
               "type": "string",
               "format": "uuid",
               "title": "Scene Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
             }
           },
           {
@@ -1155,30 +1165,41 @@
       "StageProgress": {
         "properties": {
           "done": {
-            "title": "Done",
-            "type": "integer"
+            "type": "integer",
+            "title": "Done"
           },
           "total": {
-            "title": "Total",
-            "type": "integer"
+            "type": "integer",
+            "title": "Total"
           },
           "unit": {
-            "title": "Unit",
-            "type": "string"
+            "type": "string",
+            "title": "Unit"
           }
         },
+        "type": "object",
         "required": [
           "done",
           "total",
           "unit"
         ],
-        "title": "StageProgress",
-        "type": "object"
+        "title": "StageProgress"
       },
       "StageRun": {
         "properties": {
           "stage": {
             "type": "string",
+            "enum": [
+              "ingest",
+              "recon",
+              "align",
+              "mesh",
+              "segment",
+              "lift",
+              "embed",
+              "attributes",
+              "graph"
+            ],
             "title": "Stage"
           },
           "algorithm": {
@@ -1190,14 +1211,9 @@
             "enum": [
               "running",
               "done",
-              "skipped",
               "failed"
             ],
             "title": "Status"
-          },
-          "config_hash": {
-            "type": "string",
-            "title": "Config Hash"
           },
           "manifest": {
             "anyOf": [
@@ -1262,8 +1278,7 @@
         "required": [
           "stage",
           "algorithm",
-          "status",
-          "config_hash"
+          "status"
         ],
         "title": "StageRun"
       },
@@ -1324,7 +1339,7 @@
         "title": "ValidationError"
       },
       "ProgressEvent": {
-        "description": "`stage` and `status` events carry state; `progress` events carry done/total/unit for one Stage.",
+        "description": "`stage` events carry a Stage Run's state, `status` events the Scene's; `progress` events carry done/total/unit\nfor one Stage. Replay sends the same shapes as live: each Stage Run's `stage` event, then its `progress` if any.",
         "properties": {
           "type": {
             "enum": [
@@ -1338,6 +1353,17 @@
           "stage": {
             "anyOf": [
               {
+                "enum": [
+                  "ingest",
+                  "recon",
+                  "align",
+                  "mesh",
+                  "segment",
+                  "lift",
+                  "embed",
+                  "attributes",
+                  "graph"
+                ],
                 "type": "string"
               },
               {
@@ -1396,17 +1422,6 @@
             ],
             "default": null,
             "title": "Error"
-          },
-          "progress": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/StageProgress"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null
           },
           "started_at": {
             "anyOf": [

@@ -1,18 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import type { ProgressEvent } from "../lib/api/port";
-export const stages = [
-  "ingest",
-  "recon",
-  "align",
-  "mesh",
-  "segment",
-  "lift",
-  "embed",
-  "attributes",
-  "graph",
-];
+import { STAGES as stages, type StageState } from "../lib/api/types";
+import type { StageStates } from "../lib/sceneProgress";
 const units = ["image", "frame", "mask", "object", "step"];
 function clock(milliseconds: number) {
   const seconds = Math.max(0, Math.floor(milliseconds / 1000)),
@@ -27,7 +17,7 @@ export function StageStepper({
   events,
   now,
 }: {
-  events: Record<string, ProgressEvent>;
+  events: StageStates;
   /** Fixed clock for rendering tests; omitted, the component ticks every second while a Stage runs. */
   now?: number;
 }) {
@@ -41,14 +31,14 @@ export function StageStepper({
     return () => clearInterval(timer);
   }, [now, running]);
   const current = now ?? tick;
-  const fraction = (event?: ProgressEvent) =>
+  const fraction = (event?: StageState) =>
     event?.progress && event.progress.total > 0
       ? Math.min(1, event.progress.done / event.progress.total)
       : 0;
   // Every Stage weighs the same; the running one adds the share it has reported.
   const completed = stages.reduce((sum, stage) => {
     const status = events[stage]?.status;
-    if (status === "done" || status === "skipped") return sum + 1;
+    if (status === "done") return sum + 1;
     return status === "running" ? sum + fraction(events[stage]) : sum;
   }, 0);
   return (

@@ -4,15 +4,63 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "frontend-mock",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "-p", "3001"],
-      "env": { "NEXT_PUBLIC_API_MODE": "mock" },
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev",
+        "--",
+        "-p",
+        "3001"
+      ],
+      "env": {
+        "NEXT_PUBLIC_API_MODE": "mock"
+      },
       "port": 3001
+    },
+    {
+      "name": "backend-api",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "uvicorn",
+        "scene_api.main:app",
+        "--reload",
+        "--port",
+        "8000"
+      ],
+      "env": {
+        "DATABASE_URL": "postgresql://scene:scene@127.0.0.1:15432/scene",
+        "DATA_DIR": "backend/data",
+        "PIPELINE_CONFIG": "backend/config/pipeline.fake.yaml"
+      },
+      "port": 8000
+    },
+    {
+      "name": "backend-worker",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "python",
+        "-m",
+        "scene_worker.main"
+      ],
+      "env": {
+        "DATABASE_URL": "postgresql://scene:scene@127.0.0.1:15432/scene",
+        "DATA_DIR": "backend/data",
+        "PIPELINE_CONFIG": "backend/config/pipeline.fake.yaml"
+      }
     }
   ]
 }

@@ -12,7 +12,7 @@ import { StatusBadge } from "../../../../components/StatusBadge";
 import { IngestReport } from "../../../../components/IngestReport";
 import { Modal } from "../../../../components/Modal";
 import { sceneApi } from "../../../../lib/api";
-import { progressEvent, type ProgressEvent } from "../../../../lib/api/port";
+import { useSceneProgress } from "../../../../lib/sceneProgress";
 import { useViewer } from "../../../../lib/store/viewerStore";
 
 export default function ScenePage({
@@ -29,56 +29,18 @@ export default function ScenePage({
     queryKey: ["scene", sceneId],
     queryFn: () => sceneApi.getScene(sceneId),
   });
-  const [events, setEvents] = useState<Record<string, ProgressEvent>>({}),
-    [settings, setSettings] = useState(false),
+  const events = useSceneProgress(sceneId, scene.data);
+  const [settings, setSettings] = useState(false),
     [confirmDelete, setConfirmDelete] = useState(false),
     [uploading, setUploading] = useState(false);
   useEffect(() => {
-    useViewer.getState().clear();
-    setEvents({});
+    useViewer.getState().reset();
     setSettings(false);
-    return () => {
-      useViewer.getState().clear();
-      useViewer.getState().setBounds(null);
-    };
+    return () => useViewer.getState().reset();
   }, [sceneId]);
-  useEffect(() => {
-    if (scene.data?.stage_runs)
-      setEvents(
-        Object.fromEntries(
-          scene.data.stage_runs.map((run) => [
-            run.stage,
-            progressEvent({ ...run, type: "stage" }),
-          ]),
-        ),
-      );
-  }, [scene.data?.stage_runs]);
-  useEffect(() => {
-    if (scene.data?.status !== "processing") return;
-    return sceneApi.subscribeProgress(sceneId, (event) => {
-      if (event.type === "stage" && event.stage)
-        setEvents((previous) => ({ ...previous, [event.stage!]: event }));
-      if (event.type === "progress" && event.stage && event.total != null)
-        setEvents((previous) => ({
-          ...previous,
-          [event.stage!]: {
-            ...(previous[event.stage!] ??
-              progressEvent({ type: "stage", stage: event.stage })),
-            progress: {
-              done: event.done ?? 0,
-              total: event.total!,
-              unit: event.unit ?? "",
-            },
-          },
-        }));
-      if (event.type === "status")
-        void client.invalidateQueries({ queryKey: ["scene", sceneId] });
-    });
-  }, [sceneId, scene.data?.status, client]);
   const process = useMutation({
     mutationFn: () => sceneApi.startProcessing(sceneId),
     onSuccess: async () => {
-      setEvents({});
       setSettings(false);
       await Promise.all([
         client.invalidateQueries({ queryKey: ["scene", sceneId] }),

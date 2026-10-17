@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import { ObjectDetails } from "./ObjectDetails";
-import type { SceneObject } from "../lib/api/port";
+import type { SceneObject } from "../lib/api/types";
 import en from "../../messages/en.json";
 import vi from "../../messages/vi.json";
 

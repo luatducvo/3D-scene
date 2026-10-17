@@ -2,14 +2,14 @@ from pathlib import Path
 from pydantic import BaseModel
 STAGES=("ingest","recon","align","mesh","segment","lift","embed","attributes","graph")
 OUTPUTS={"ingest":["keyframes"],"recon":["recon"],"align":["align"],"mesh":["mesh"],"segment":["segment"],"lift":["instances"],"embed":["embeddings"],"attributes":["attributes"],"graph":["graph"]}
-# The only Workspace files that return to the worker: publication inputs and the assets the API serves (ADR-0005).
-RESULTS=["graph","embeddings","mesh","recon/rgb"]
 class SceneWorkspace:
-    def __init__(self,data_dir: Path,scene_id: str):
-        if not scene_id or any(x in scene_id for x in ("/","\\","..",":")):
-            raise ValueError("Invalid scene id")
-        self.scene_id=scene_id
-        self.root=(Path(data_dir)/"scenes"/scene_id).resolve()
+    """A Scene's folder under data_dir/scenes; with a version, one immutable publication inside it."""
+    def __init__(self,data_dir: Path,scene_id: str,version: str|None=None):
+        for name in (scene_id,version):
+            if name is not None and (not name or any(x in name for x in ("/","\\","..",":"))):
+                raise ValueError("Invalid scene id or version")
+        self.scene_id=scene_id;self.version=version
+        self.root=(Path(data_dir)/"scenes"/scene_id/(version or "")).resolve()
     def path(self,*parts: str)->Path:
         candidate=self.root.joinpath(*parts).resolve()
         if not candidate.is_relative_to(self.root):

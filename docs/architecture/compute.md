@@ -7,16 +7,17 @@ Where Stages execute and how the worker talks to a GPU host. Read [overview.md](
 GPU providers have no common API: Modal speaks its Python SDK, RunPod its handlers, Vast.ai and
 Colab hand you a machine. What all of them accept is a `linux/amd64` CUDA Docker image running an
 HTTP server. So the system defines its own small HTTP contract, implements it once in
-`scene-compute`, and ships that as one image. The worker has a single remote backend,
-`HttpBackend`. Switching provider means deploying the same image there and pointing a Target at
-its URL; Algorithms, the Executor, the server and the worker never change.
+`scene-compute`, and ships that as one image. `TargetWorkspace` has a single remote adapter, HTTP.
+Switching provider means deploying the same image there and pointing a Target at its URL;
+Algorithms, the Executor, the server, the api and the worker never change.
 
 ```mermaid
 flowchart LR
-  R[runner] --> PB{pipeline_backend}
-  PB --> IP[InProcessBackend<br/>Target cpu · fake pipeline]
-  PB --> HB[HttpBackend]
-  HB -->|compute contract| L[scene-compute<br/>local_gpu · shared storage]
+  R[runner] --> TW[TargetWorkspace]
+  A[scene-api] --> TW
+  TW --> IP[in-process adapter<br/>Target cpu · DATA_DIR/target]
+  TW --> HB[HTTP adapter]
+  HB -->|compute contract| L[scene-compute<br/>local_gpu · /data/target]
   HB -->|compute contract| V[scene-compute<br/>vast · colab · modal · runpod · generic]
   IP & L & V --> EX[Executor → registry → StageAlgorithm.run]
 ```
@@ -24,17 +25,37 @@ flowchart LR
 ## Targets
 
 [compute.yaml](../../backend/config/compute.yaml) names the Targets. Each is either `inprocess`
-(`cpu`: the worker runs Algorithms itself on `DATA_DIR`) or `http` (URL, `X-Compute-Token`,
-optional provider headers, `shared_storage`, `chunk_size` in bytes, `startup_timeout` and
-`poll_interval` in seconds). URLs and secrets come from `backend/.env` through `${VAR}` expansion.
+(`cpu`: the process runs Algorithms itself on `DATA_DIR/target`) or `http` (URL, `X-Compute-Token`,
+optional provider headers, `chunk_size` in bytes, `startup_timeout` and `poll_interval` in
+seconds). URLs and secrets come from `backend/.env` through `${VAR}` expansion. `pipeline.yaml`
+picks one with its `target:` key.
 
-`pipeline_backend` in [container.py](../../backend/services/scene-worker/src/scene_worker/container.py)
-refuses to start when a Stage's Target variable is unset, the Target is unknown, an HTTP Target has
-no URL, or Stages name more than one Target. The same backend also stores uploads: `scene-api`
-streams each uploaded file into the Target's `raw/` (`put_file`), so uploading needs the Target up.
+## Target Workspace
 
-Query-time text embedding reuses the embed Stage's Algorithm and Target, waits at most 10 s for
-readiness, and otherwise answers `COMPUTE_UNAVAILABLE` (HTTP 503).
+`TargetWorkspace` ([scene_target](../../backend/packages/scene-target/src/scene_target/__init__.py))
+is the only way the api and the worker reach a Scene's Target Workspace. `open_target_workspace`
+builds it once per runtime from the pipeline, the compute configuration, `DATA_DIR` and a readiness
+timeout. It raises `ValueError` naming what to set in `backend/.env` when the Target variable is
+unset, the Target is unknown or an HTTP Target has no URL; the worker then refuses to start and the
+api answers `COMPUTE_UNAVAILABLE`.
+
+| Call | Used by | Does |
+|---|---|---|
+| `put_input`, `list_inputs`, `remove_inputs` | api uploads | Uploaded files under `raw/`, on the Target only |
+| `clear_outputs` | runner | Delete Stage outputs, keep `raw/` |
+| `run_stage` | runner | One Compute Run with the Stage's configured Algorithm and parameters |
+| `replace_results` | runner | Download results, finish them as `DATA_DIR/scenes/{id}/{version}`, call `publish`, then remove older versions |
+| `embed_text` | api search | Query text through the embed Stage's Algorithm |
+| `delete` | api Scene delete | Delete the Target Workspace on the current Target only |
+
+Two adapters sit behind it. The in-process adapter runs the Executor on `DATA_DIR/target`; the HTTP
+adapter speaks the compute contract below. Neither works in `DATA_DIR/scenes`, so a failed Job
+never touches the published results. Every failure leaves as a `SceneError`: a failed Compute Run
+keeps the Algorithm's `code` and `details`, a rejected request keeps the contract's code, and an
+unreachable Target is `COMPUTE_UNAVAILABLE` (HTTP 503). The api builds its `TargetWorkspace` with a
+10 s readiness timeout, so uploads and search wait briefly for a cold Target. Tests pass a
+`TargetWorkspace` whose HTTP client is a `TestClient` of the scene-compute app;
+[test_target.py](../../backend/tests/test_target.py) runs every case on both adapters.
 
 ## The compute contract
 
@@ -47,7 +68,8 @@ Rules every `scene-compute` deployment satisfies
    RunPod Serverless's 30 MB limit. Files move in chunks.
 4. App auth is `X-Compute-Token`, checked against `COMPUTE_TOKEN` on every path except `/ping`;
    `Authorization` stays free for the provider's own key.
-5. Errors use the API's shape, `{"error": {"code", "message"}}`. Paths are checked against traversal.
+5. Errors use the API's shape, `{"error": {"code", "message"}}`. A failed Compute Run's `error`
+   also carries the Algorithm's `details`. Paths are checked against traversal.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -62,8 +84,8 @@ Rules every `scene-compute` deployment satisfies
 | GET | `/runs/{run_id}` | `{state: queued\|running\|done\|failed, manifest?, error?, progress?}` |
 | POST | `/invoke/{algorithm}/{method}` | Short synchronous call, e.g. `embed_text` |
 
-With `shared_storage: true` (the `local_gpu` Compose service mounting the same volume) the worker
-skips file transfer. Compute Runs run one at a time per server. A restarted server marks stale runs
+The `local_gpu` Compose service keeps its Target Workspaces in `/data/target` on the shared volume
+(`DATA_DIR=/data/target`) and is reached over HTTP like any other Target. Compute Runs run one at a time per server. A restarted server marks stale runs
 `COMPUTE_INTERRUPTED`; with `CLEAN_ON_START=1` (set by the Colab notebook) it also deletes
 `DATA_DIR/scenes` and `DATA_DIR/runs` on start.
 
@@ -74,7 +96,7 @@ provider only needs to mount a folder at `MODELS_DIR` for the weight cache.
 
 | Provider | How it runs the image | Notes |
 |---|---|---|
-| Local GPU | Compose profile `local-gpu` (`uv run tasks.py up-local-gpu`) | Needs the NVIDIA Container Toolkit. Shared storage, no token. |
+| Local GPU | Compose profile `local-gpu` (`uv run tasks.py up-local-gpu`) | Needs the NVIDIA Container Toolkit. No token. |
 | Vast.ai | Rented machine, SSH launch mode, On-start script starts uvicorn | First provider exercised live. URL changes per rental; SSH tunnel for real captures. [Runbook](../../backend/deploy/vast/README.md) |
 | Google Colab | Notebook runs the server behind a Cloudflare Tunnel | Disposable: a runtime restart loses uploads. [Guide](../../backend/deploy/colab/README.md) |
 | Modal | `Image.from_dockerfile` built remotely, `@modal.web_server` | No registry push. [Guide](../../backend/deploy/modal/README.md) |

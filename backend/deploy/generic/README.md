@@ -7,8 +7,8 @@ does not establish support for every real model.
 ## Local Compose profile
 
 From the repository root, use `uv run tasks.py up-local-gpu`. Set `GPU_TARGET` to `local_gpu`
-and `LOCAL_GPU_EXTRAS=gpu` for real Algorithms. The compute service shares the Scene data volume with the API and worker,
-so `shared_storage: true` skips HTTP file transfers. Model weights bind-mount the host cache.
+and `LOCAL_GPU_EXTRAS=gpu` for real Algorithms. The compute service keeps its Target Workspaces in `/data/target` on the
+Scene data volume; like any Target, it is reached over HTTP and the worker downloads only the results. Model weights bind-mount the host cache.
 Check `/ping` from inside the Compose network and inspect `/info`; no public port is required.
 
 ## Publish the portable image

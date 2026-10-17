@@ -58,6 +58,10 @@ _Avoid_: import, sync
 A place where an Algorithm executes: in-process on the worker or a GPU host behind the compute contract.
 _Avoid_: GPU worker, backend, provider
 
+**Target Workspace**:
+The copy of a Scene's Workspace that lives on its Target, where uploads land and Stages read and write; only finished results leave it.
+_Avoid_: remote workspace, compute storage
+
 **Compute Run**:
 One execution of an Algorithm on a compute Target.
 _Avoid_: run, remote job
@@ -85,6 +89,7 @@ _Avoid_: graph (bare), layout
 - A **Scene** has at most one active **Job**; a **Job** runs every **Stage** in order, one **Compute Run** each, all on one **Target**.
 - Each **Stage** is performed by exactly one configured **Algorithm** and leaves one **Manifest** and one **Stage Run**.
 - Each **Instance** becomes exactly one **Object** with the same id; nothing merges or splits after lifting.
+- A **Scene** has one **Target Workspace**, on the **Target** its **Jobs** run on; a failed **Job** leaves the Scene's earlier results untouched.
 - **Publication** is the only path from a **Workspace** into the database.
 
 ## Flagged ambiguities

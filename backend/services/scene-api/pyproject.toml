@@ -2,10 +2,11 @@
 name="scene-api"
 version="0.1.0"
 requires-python=">=3.12"
-dependencies=["scene-core", "scene-worker", "fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.20", "httpx>=0.28", "psycopg[binary]==3.2.12"]
+dependencies=["scene-core", "scene-store", "scene-target", "fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.20"]
 [build-system]
 requires=["hatchling"]
 build-backend="hatchling.build"
 [tool.uv.sources]
 scene-core={workspace=true}
-scene-worker={workspace=true}
+scene-store={workspace=true}
+scene-target={workspace=true}

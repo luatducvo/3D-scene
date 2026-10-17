@@ -4,8 +4,10 @@ import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import { sceneApi } from "../lib/api";
-import type { Scene } from "../lib/api/port";
+import type { Scene } from "../lib/api/types";
 import { useViewer } from "../lib/store/viewerStore";
+import { focus, goHome } from "./viewer/camera";
+import { defaultLayers, showMode, viewMode } from "./viewer/view";
 import { DesignIcon } from "./DesignIcon";
 import { ObjectDetails } from "./ObjectDetails";
 import { ChatPanel } from "./ChatPanel";
@@ -61,8 +63,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
   }, [search]);
   useEffect(() => {
     if (!query) useViewer.getState().highlight([]);
-    else if (results.data)
-      useViewer.getState().focus(results.data.map((hit) => hit.object.id));
+    else if (results.data) focus(results.data.map((hit) => hit.object.id));
   }, [query, results.data]);
   useEffect(() => {
     if (selectedId) {
@@ -71,8 +72,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     } else setPanel((previous) => (previous === "object" ? null : previous));
   }, [selectedId]);
   useEffect(() => {
-    useViewer.getState().setLayer("points", hasPoints);
-    useViewer.getState().setLayer("mesh", !hasPoints && hasMesh);
+    useViewer.getState().setLayers(defaultLayers(scene.assets ?? {}));
   }, [scene.id, hasPoints, hasMesh]);
   useEffect(() => {
     if (!panel) return;
@@ -146,24 +146,22 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
         <div className="viewer-topbar">
           <div className="view-modes" aria-label={t("ui.viewMode")}>
             <button
-              className={layers.points ? "" : "secondary"}
-              aria-pressed={layers.points}
+              className={viewMode(layers) === "points" ? "" : "secondary"}
+              aria-pressed={viewMode(layers) === "points"}
               disabled={!hasPoints}
-              onClick={() => {
-                useViewer.getState().setLayer("points", true);
-                useViewer.getState().setLayer("mesh", false);
-              }}
+              onClick={() =>
+                useViewer.getState().setLayers(showMode(layers, "points"))
+              }
             >
               {t("layers.points")}
             </button>
             <button
-              className={layers.mesh && !layers.points ? "" : "secondary"}
-              aria-pressed={layers.mesh && !layers.points}
+              className={viewMode(layers) === "mesh" ? "" : "secondary"}
+              aria-pressed={viewMode(layers) === "mesh"}
               disabled={!hasMesh}
-              onClick={() => {
-                useViewer.getState().setLayer("mesh", true);
-                useViewer.getState().setLayer("points", false);
-              }}
+              onClick={() =>
+                useViewer.getState().setLayers(showMode(layers, "mesh"))
+              }
             >
               {t("layers.mesh")}
             </button>
@@ -213,8 +211,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
             aria-label={t("ui.resetView")}
             title={t("ui.resetView")}
             onClick={() => {
-              useViewer.getState().clear();
-              useViewer.getState().resetCamera();
+              goHome();
               setPanel(null);
             }}
           >
@@ -380,9 +377,9 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
               <button
                 className="secondary full-width"
                 onClick={() => {
-                  useViewer.getState().setLayer("points", hasPoints);
-                  useViewer.getState().setLayer("mesh", !hasPoints && hasMesh);
-                  useViewer.getState().setLayer("boxes", true);
+                  useViewer
+                    .getState()
+                    .setLayers(defaultLayers(scene.assets ?? {}));
                   useViewer.getState().setPointSize(0.012);
                 }}
               >

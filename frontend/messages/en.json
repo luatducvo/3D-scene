@@ -48,7 +48,6 @@
     "failed": "Failed",
     "running": "Running",
     "done": "Done",
-    "skipped": "Skipped",
     "pending": "Waiting"
   },
   "stages": {

@@ -14,6 +14,8 @@ members = [
     "scene-compute",
     "scene-core",
     "scene-stages",
+    "scene-store",
+    "scene-target",
     "scene-understanding",
     "scene-worker",
 ]
@@ -2219,22 +2221,20 @@ version = "0.1.0"
 source = { editable = "backend/services/scene-api" }
 dependencies = [
     { name = "fastapi" },
-    { name = "httpx" },
-    { name = "psycopg", extra = ["binary"] },
     { name = "python-multipart" },
     { name = "scene-core" },
-    { name = "scene-worker" },
+    { name = "scene-store" },
+    { name = "scene-target" },
     { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "psycopg", extras = ["binary"], specifier = "==3.2.12" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "scene-core", editable = "backend/packages/scene-core" },
-    { name = "scene-worker", editable = "backend/services/scene-worker" },
+    { name = "scene-store", editable = "backend/packages/scene-store" },
+    { name = "scene-target", editable = "backend/packages/scene-target" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
 
@@ -2352,6 +2352,38 @@ requires-dist = [
 provides-extras = ["mesh-tsdf", "recon-da3", "align-geocalib", "segment-sam3", "embed-metaclip2"]
 
 [[package]]
+name = "scene-store"
+version = "0.1.0"
+source = { editable = "backend/packages/scene-store" }
+dependencies = [
+    { name = "psycopg", extra = ["binary"] },
+    { name = "scene-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "psycopg", extras = ["binary"], specifier = "==3.2.12" },
+    { name = "scene-core", editable = "backend/packages/scene-core" },
+]
+
+[[package]]
+name = "scene-target"
+version = "0.1.0"
+source = { editable = "backend/packages/scene-target" }
+dependencies = [
+    { name = "httpx" },
+    { name = "scene-core" },
+    { name = "scene-stages" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "scene-core", editable = "backend/packages/scene-core" },
+    { name = "scene-stages", editable = "backend/packages/scene-stages" },
+]
+
+[[package]]
 name = "scene-understanding"
 version = "0.1.0"
 source = { virtual = "." }
@@ -2359,7 +2391,9 @@ dependencies = [
     { name = "scene-api" },
     { name = "scene-compute" },
     { name = "scene-core" },
-    { name = "scene-stages" },
+    { name = "scene-stages", extra = ["mesh-tsdf"] },
+    { name = "scene-store" },
+    { name = "scene-target" },
     { name = "scene-worker" },
 ]
 
@@ -2376,7 +2410,9 @@ requires-dist = [
     { name = "scene-api", editable = "backend/services/scene-api" },
     { name = "scene-compute", editable = "backend/services/scene-compute" },
     { name = "scene-core", editable = "backend/packages/scene-core" },
-    { name = "scene-stages", editable = "backend/packages/scene-stages" },
+    { name = "scene-stages", extras = ["mesh-tsdf"], editable = "backend/packages/scene-stages" },
+    { name = "scene-store", editable = "backend/packages/scene-store" },
+    { name = "scene-target", editable = "backend/packages/scene-target" },
     { name = "scene-worker", editable = "backend/services/scene-worker" },
 ]
 
@@ -2393,18 +2429,16 @@ name = "scene-worker"
 version = "0.1.0"
 source = { editable = "backend/services/scene-worker" }
 dependencies = [
-    { name = "httpx" },
-    { name = "psycopg", extra = ["binary"] },
     { name = "scene-core" },
-    { name = "scene-stages", extra = ["mesh-tsdf"] },
+    { name = "scene-store" },
+    { name = "scene-target" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "psycopg", extras = ["binary"], specifier = "==3.2.12" },
     { name = "scene-core", editable = "backend/packages/scene-core" },
-    { name = "scene-stages", extras = ["mesh-tsdf"], editable = "backend/packages/scene-stages" },
+    { name = "scene-store", editable = "backend/packages/scene-store" },
+    { name = "scene-target", editable = "backend/packages/scene-target" },
 ]
 
 [[package]]

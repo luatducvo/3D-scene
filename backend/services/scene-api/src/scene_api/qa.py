@@ -2,6 +2,7 @@
 import json
 import math
 import os
+import re
 
 import httpx
 
@@ -55,17 +56,12 @@ class OpenAICompatibleLLM:
         return cls(os.environ["LLM_BASE_URL"], os.getenv("LLM_API_KEY", ""), os.environ["LLM_MODEL"])
 
     def complete(self, messages, tools):
-        response = self.client.post("chat/completions", json={"model": self.model, "messages": messages, "tools": [*tools, FINAL_ANSWER], "temperature": 0})
+        """One reply in the agent's protocol: tool calls (final_answer among them), or plain content."""
+        response = self.client.post("chat/completions", json={"model": self.model, "messages": messages, "tools": tools, "temperature": 0})
         response.raise_for_status()
         message = response.json()["choices"][0]["message"]
         calls = message.get("tool_calls") or []
-        for call in calls:
-            if call["function"]["name"] == "final_answer":
-                arguments = json.loads(call["function"]["arguments"] or "{}")
-                return {"content": arguments.get("answer", ""), "object_ids": arguments.get("object_ids", [])}
-        if calls:
-            return {"tool_calls": calls}
-        return {"content": message.get("content") or "", "object_ids": []}
+        return {"tool_calls": calls} if calls else {"content": message.get("content") or ""}
 
 
 def _tool(name, description, properties, required=()):
@@ -170,33 +166,94 @@ class SceneTools:
         return {"direction": direction, "viewpoint": viewpoint}
 
 
+NUMBER = re.compile(r"(?<![\w.,-])-?\d+(?:[.,]\d+)?")
+# An answer may give meters in centimeters or millimeters.
+UNIT_FACTORS = (1, 100, 1000)
+UNGROUNDED_FEEDBACK = ("Your answer states numbers no tool returned: {numbers}. Use only numbers from tool "
+                       "results, calling a tool to measure if needed, then call final_answer again.")
+
+
+def numbers_in(value):
+    """Every number in a tool result, however deeply nested; ids such as chair-1 are not numbers."""
+    if isinstance(value, bool):
+        return []
+    if isinstance(value, (int, float)):
+        return [float(value)]
+    if isinstance(value, dict):
+        return [n for v in value.values() for n in numbers_in(v)]
+    if isinstance(value, (list, tuple)):
+        return [n for v in value for n in numbers_in(v)]
+    if isinstance(value, str):
+        return [float(m.replace(",", ".")) for m in NUMBER.findall(value)]
+    return []
+
+
+def ungrounded(answer, facts):
+    """The numbers in answer that match no fact at the precision the answer states them."""
+    unsupported = []
+    for text in NUMBER.findall(answer):
+        value = float(text.replace(",", "."))
+        decimals = len(text.replace(",", ".").partition(".")[2])
+        # A fact rounded to the answer's precision, half up: 0.25 may be said as 0.3 but not as 0.4.
+        tolerance = 0.5 * 10 ** -decimals + 1e-9
+        if not any(abs(fact * factor - value) <= tolerance for fact in facts for factor in UNIT_FACTORS):
+            unsupported.append(text)
+    return unsupported
+
+
 class QAAgent:
+    """Runs the tools the LLM asks for and accepts only answers whose numbers those tools returned."""
+
     def __init__(self, llm, max_steps=MAX_STEPS):
         self.llm, self.max_steps = llm, max_steps
 
     def answer(self, question, tools, history=()):
         """Yield QueryEvent dicts: tool events, one delta, then the final answer."""
         messages = [{"role": "system", "content": SYSTEM_PROMPT}, *history, {"role": "user", "content": question}]
+        # Numbers the user wrote may be repeated; every other number must come from a tool result.
+        facts = numbers_in(question)
+        rejected = False
         for _ in range(self.max_steps):
-            reply = self.llm.complete(messages, tools.definitions)
+            reply = self.llm.complete(messages, [*tools.definitions, FINAL_ANSWER])
             calls = reply.get("tool_calls") or []
+            final = None
             if not calls:
-                answer = reply.get("content") or ""
-                object_ids = [i for i in reply.get("object_ids") or [] if i in tools.objects]
-                if not object_ids:
-                    object_ids = list(dict.fromkeys(tools.mentioned))
-                yield {"type": "delta", "delta": answer}
-                yield {"type": "final", "answer": answer, "object_ids": object_ids}
-                return
-            messages.append({"role": "assistant", "content": None, "tool_calls": calls})
-            for call in calls:
+                final = {"answer": reply.get("content") or "", "object_ids": reply.get("object_ids") or []}
+                messages.append({"role": "assistant", "content": final["answer"]})
+            else:
+                messages.append({"role": "assistant", "content": None, "tool_calls": calls})
+            # Other tools in the same reply run first, so a final answer can use what they return.
+            for call in sorted(calls, key=lambda c: c["function"]["name"] == "final_answer"):
                 name = call["function"]["name"]
-                yield {"type": "tool", "tool": name}
                 try:
                     arguments = json.loads(call["function"].get("arguments") or "{}")
                 except json.JSONDecodeError as exc:
-                    result = {"error": f"Invalid tool arguments: {exc}"}
-                else:
+                    arguments, result = None, {"error": f"Invalid tool arguments: {exc}"}
+                if name == "final_answer" and arguments is not None:
+                    final = {"answer": arguments.get("answer", ""), "object_ids": arguments.get("object_ids", []), "call": call}
+                    continue
+                yield {"type": "tool", "tool": name}
+                if arguments is not None:
                     result = tools.execute(name, arguments)
+                    facts.extend(numbers_in(result))
                 messages.append({"role": "tool", "tool_call_id": call.get("id", name), "content": json.dumps(result, ensure_ascii=False)})
+            if final is None:
+                continue
+            unsupported = ungrounded(final["answer"], facts)
+            if unsupported:
+                if rejected:
+                    raise SceneError("QA_UNGROUNDED", f"The answer states numbers no tool measured: {', '.join(unsupported)}", 502)
+                rejected = True
+                feedback = UNGROUNDED_FEEDBACK.format(numbers=", ".join(unsupported))
+                if "call" in final:
+                    messages.append({"role": "tool", "tool_call_id": final["call"].get("id", "final_answer"), "content": feedback})
+                else:
+                    messages.append({"role": "user", "content": feedback})
+                continue
+            if "call" in final:
+                messages.append({"role": "tool", "tool_call_id": final["call"].get("id", "final_answer"), "content": "accepted"})
+            object_ids = [i for i in final["object_ids"] if i in tools.objects] or list(dict.fromkeys(tools.mentioned))
+            yield {"type": "delta", "delta": final["answer"]}
+            yield {"type": "final", "answer": final["answer"], "object_ids": object_ids}
+            return
         raise SceneError("QA_STEP_LIMIT", f"No answer within {self.max_steps} steps", 502)

@@ -40,15 +40,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/scenes/{scene_id}/files/{file_path}": {
+    "/api/v1/scenes/{scene_id}/publications/{version}/files/{file_path}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Scene File */
-        get: operations["scene_file_api_v1_scenes__scene_id__files__file_path__get"];
+        /**
+         * Publication File
+         * @description A public file of one publication; an older publication stays readable until it is removed.
+         */
+        get: operations["publication_file_api_v1_scenes__scene_id__publications__version__files__file_path__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -436,17 +439,18 @@ export interface components {
         };
         /** StageRun */
         StageRun: {
-            /** Stage */
-            stage: string;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "attributes" | "graph";
             /** Algorithm */
             algorithm: string;
             /**
              * Status
              * @enum {string}
              */
-            status: "running" | "done" | "skipped" | "failed";
-            /** Config Hash */
-            config_hash: string;
+            status: "running" | "done" | "failed";
             /** Manifest */
             manifest?: {
                 [key: string]: unknown;
@@ -481,7 +485,8 @@ export interface components {
         };
         /**
          * ProgressEvent
-         * @description `stage` and `status` events carry state; `progress` events carry done/total/unit for one Stage.
+         * @description `stage` events carry a Stage Run's state, `status` events the Scene's; `progress` events carry done/total/unit
+         *     for one Stage. Replay sends the same shapes as live: each Stage Run's `stage` event, then its `progress` if any.
          */
         ProgressEvent: {
             /**
@@ -493,7 +498,7 @@ export interface components {
              * Stage
              * @default null
              */
-            stage: string | null;
+            stage: ("ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "attributes" | "graph") | null;
             /**
              * Status
              * @default null
@@ -518,8 +523,6 @@ export interface components {
             error: {
                 [key: string]: unknown;
             } | null;
-            /** @default null */
-            progress: components["schemas"]["StageProgress"] | null;
             /**
              * Started At
              * @default null
@@ -668,12 +671,13 @@ export interface operations {
             };
         };
     };
-    scene_file_api_v1_scenes__scene_id__files__file_path__get: {
+    publication_file_api_v1_scenes__scene_id__publications__version__files__file_path__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 scene_id: string;
+                version: string;
                 file_path: string;
             };
             cookie?: never;

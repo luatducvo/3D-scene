@@ -10,6 +10,7 @@ from PIL import Image
 
 from scene_core.contracts import AlignManifest, EmbedManifest, ReconManifest, SegmentManifest
 from scene_core.errors import SceneError
+from scene_core.results import EMBEDDING_DIM
 from scene_core.geometry import fit_plane
 from scene_core.ports import StageAlgorithm
 
@@ -351,21 +352,21 @@ class MetaClipEmbeddings(StageAlgorithm):
             self.processor = AutoProcessor.from_pretrained(model_id)
             self.model = AutoModel.from_pretrained(model_id).to("cuda").eval()
             self.model_id = model_id
-        if self.model.config.projection_dim != 1024:
-            raise SceneError("EMBEDDING_DIMENSION_MISMATCH", "Expected the database's 1024 dimensions")
+        if self.model.config.projection_dim != EMBEDDING_DIM:
+            raise SceneError("EMBEDDING_DIMENSION_MISMATCH", f"Expected the database's {EMBEDDING_DIM} dimensions")
         return torch
 
     def _normalized(self, features):
         array = _numpy(features)
         norms = np.linalg.norm(array, axis=-1, keepdims=True)
-        if array.ndim != 2 or array.shape[1] != 1024 or not np.isfinite(array).all() or (norms <= 0).any():
+        if array.ndim != 2 or array.shape[1] != EMBEDDING_DIM or not np.isfinite(array).all() or (norms <= 0).any():
             raise SceneError("INVALID_MODEL_OUTPUT", "Invalid MetaCLIP embedding")
         return array / norms
 
     def embed_text(self, texts):
         torch = self._load()
         if not texts:
-            return np.empty((0, 1024), dtype=np.float32)
+            return np.empty((0, EMBEDDING_DIM), dtype=np.float32)
         batches = []
         for start in range(0, len(texts), 32):
             inputs = self.processor(text=texts[start:start + 32], padding=True, truncation=True,
@@ -398,7 +399,7 @@ class MetaClipEmbeddings(StageAlgorithm):
             ids.append(instance["id"])
             vectors.append(vector / norm)
         self.progress(len(instances), len(instances), "object")
-        array = np.asarray(vectors, dtype=np.float32).reshape(-1, 1024)
+        array = np.asarray(vectors, dtype=np.float32).reshape(-1, EMBEDDING_DIM)
         np.savez_compressed(workspace.dir("embeddings") / "objects.npz",
                             ids=np.asarray(ids, dtype=str), vectors=array)
-        return EmbedManifest(model_id=self.model_id, dim=1024, embeddings_file="embeddings/objects.npz")
+        return EmbedManifest(model_id=self.model_id, dim=EMBEDDING_DIM, embeddings_file="embeddings/objects.npz")

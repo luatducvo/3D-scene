@@ -26,40 +26,53 @@ that writes contract-valid outputs without models. Tests and the walking skeleto
 
 ## Pipeline configuration
 
-[pipeline.yaml](../../backend/config/pipeline.yaml) maps each of the nine Stages to an Algorithm, a
-Target and parameters; the parameter values there are the defaults in force. `${VAR}` is expanded
-from the environment; an unset variable stays literal and the worker reports it by name. Every Stage
-must name the same Target, because Stage outputs stay where they were produced
-([ADR-0005](../adr/0005-whole-pipeline-on-gpu-host.md)).
+[pipeline.yaml](../../backend/config/pipeline.yaml) names the one `target:` every Stage runs on,
+because Stage outputs stay where they were produced
+([ADR-0005](../adr/0005-whole-pipeline-on-gpu-host.md)), and maps each of the nine Stages to an
+Algorithm and parameters; the parameter values there are the defaults in force. `${VAR}` is expanded
+from the environment; an unset variable stays literal and the worker reports it by name.
 
 ## The Job runner
 
-[runner.py](../../backend/services/scene-worker/src/scene_worker/runner.py), one worker per database:
+[runner.py](../../backend/services/scene-worker/src/scene_worker/runner.py), one worker per database.
+The runner holds no SQL: every state change is one call on `SceneStore`
+([scene_store](../../backend/packages/scene-store/src/scene_store/__init__.py)), which commits the
+rows and their `scene_events` in one transaction. Every Target operation is one call on
+`TargetWorkspace` ([compute.md](compute.md#target-workspace)).
 
-1. **Claim.** Poll `jobs` every 0.5 s; claim the oldest `queued` row with `FOR UPDATE SKIP LOCKED`.
-   A partial unique index allows one active Job per Scene.
-2. **Clear.** Delete every Stage output folder on the Target, keeping `raw/`. Every Job runs from
-   the start; there is no Stage skipping or rerun-from-Stage.
-3. **Run.** For each Stage in `STAGES` order: mark the Stage Run `running`, start a Compute Run,
-   forward progress (stored and announced at most every 2 s, always including the final report),
-   mark it `done` with its Manifest.
-4. **Fetch.** Download only `RESULTS` (`graph`, `embeddings`, `mesh`, `recon/rgb`) into
-   `DATA_DIR/staging`.
-5. **Publish.** Validate that Object and embedding ids match and vectors are 1024-dimensional, then
-   replace the Scene's Objects, Relations and room info in one transaction.
-6. **Swap.** Move the staged results over the Scene's local copy and mark the Scene `ready`.
+1. **Claim.** Poll every 0.5 s; `SceneStore.claim` takes the oldest `queued` Job with `FOR UPDATE SKIP LOCKED`.
+   A partial unique index allows one active Job per Scene. Stage Runs describe the latest Job only:
+   enqueueing deletes the previous Job's Stage Runs in the same transaction.
+2. **Clear.** `clear_outputs` deletes every Stage output folder on the Target, keeping `raw/`.
+   Every Job runs from the start; there is no Stage skipping or rerun-from-Stage.
+3. **Run.** For each Stage in `STAGES` order: mark the Stage Run `running`, `run_stage` (one
+   Compute Run), forward progress (stored and announced at most every 2 s, always including the
+   final report), mark it `done` with its Manifest.
+4. **Publish.** `replace_results` downloads only `SceneResults.DIRECTORIES` (`graph`,
+   `embeddings`, `mesh`, `recon/rgb`) into `DATA_DIR/staging` and renames the complete folder to
+   `DATA_DIR/scenes/{id}/{job id}`, never modified afterwards. `SceneResults(...).load()` validates
+   it (see [Scene Results](#scene-results)) before any transaction opens, then `SceneStore.publish`
+   replaces the Scene's Objects, Relations and room info, sets `scenes.publication` to the Job id
+   and marks the Job `done` and the Scene `ready`, in one transaction. A failure removes the new
+   folder; after the commit every older folder of the Scene is removed
+   ([ADR-0006](../adr/0006-versioned-publication.md)).
 
 Any failure marks the running Stage Run, the Job and the Scene `failed` with
-`{stage, code, message, details}`; a failed Job leaves the previous results untouched. On start, the
+`{stage, code, message, details}`, with the Algorithm's own code and details on every Target. A
+failed Job leaves the previous results untouched on every Target, because no Target works in the
+published copy. On start, the
 worker fails Jobs left `running` by a previous process with `WORKER_INTERRUPTED`.
 
-Every state change also inserts a row into `scene_events` (and `pg_notify`s); the API replays the
-current state and streams those rows over SSE ([api.md](api.md#sse-events)).
+Every state change also inserts a row into `scene_events` (and `pg_notify`s). `SceneStore` owns
+the event shapes, so `SceneStore.snapshot` replays the current state with exactly the events live
+streaming sends ([api.md](api.md#sse-events)). Its tests in
+[test_store.py](../../backend/tests/test_store.py) call it directly against the test Postgres.
 
 ## Workspace layout
 
 Paths are resolved by `SceneWorkspace` in [contracts.py](../../backend/packages/scene-core/src/scene_core/contracts.py),
-which also defines `STAGES`, `OUTPUTS`, `RESULTS` and every Manifest model.
+which also defines `STAGES`, `OUTPUTS` and every Manifest model. The published subset is named by
+[Scene Results](#scene-results).
 
 ```
 scenes/{scene_id}/
@@ -78,6 +91,23 @@ scenes/{scene_id}/
 ```
 
 Each Stage folder also holds its `manifest.json`.
+
+## Scene Results
+
+`SceneResults` in [results.py](../../backend/packages/scene-core/src/scene_core/results.py) is the
+only code that knows the published files of a Scene. It reads files from a Workspace root (the
+Scene's own or the staging copy) and never touches the database or the network.
+
+| Member | Answers |
+|---|---|
+| `DIRECTORIES` | What the worker downloads from the Target and swaps into the Scene's local copy |
+| `load()` | The Scene Graph and one embedding per Object. It fails with `RESULTS_INVALID` when a file is missing or unreadable, Object and embedding ids differ or repeat, a vector is not `EMBEDDING_DIM` long, or a value is not finite |
+| `assets()` | Workspace paths of `mesh/mesh.glb` and `mesh/points.ply`, or `None` when absent |
+| `view_image(frame_id)` | The `recon/rgb/{frame_id}.png` image behind an Object's best view |
+| `public_file(path)` | The file behind a public path. Only `mesh/` and `recon/rgb/` are public, on every Target; any other, malformed or missing path is `FILE_NOT_FOUND` (404) |
+
+`EMBEDDING_DIM = 1024` lives in the same module. The runner, the API search, the fake and the real
+embed Algorithms use it, and a Postgres test checks it equals the `objects.embedding` column type.
 
 ## Stage contracts
 

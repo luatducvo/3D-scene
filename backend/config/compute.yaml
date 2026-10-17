@@ -4,7 +4,6 @@ targets:
   local_gpu:
     backend: http
     url: http://scene-compute:9000
-    shared_storage: true
     token: ${COMPUTE_TOKEN}
     chunk_size: 25000000
   modal:

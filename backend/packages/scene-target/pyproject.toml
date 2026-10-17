@@ -1,0 +1,12 @@
+[project]
+name="scene-target"
+version="0.1.0"
+requires-python=">=3.12"
+# scene-stages (light dependencies only) lets the in-process adapter run the fake Algorithms.
+dependencies=["scene-core", "scene-stages", "httpx>=0.28"]
+[build-system]
+requires=["hatchling"]
+build-backend="hatchling.build"
+[tool.uv.sources]
+scene-core={workspace=true}
+scene-stages={workspace=true}

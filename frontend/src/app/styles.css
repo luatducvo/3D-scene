@@ -942,6 +942,9 @@ summary {
   flex-direction: column;
   color: var(--on-dark);
 }
+.viewer-loading {
+  pointer-events: none;
+}
 .viewer-error,
 .asset-notice {
   position: absolute;

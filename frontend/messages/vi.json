@@ -48,7 +48,6 @@
     "failed": "Thất bại",
     "running": "Đang chạy",
     "done": "Hoàn thành",
-    "skipped": "Đã bỏ qua",
     "pending": "Đang chờ"
   },
   "stages": {

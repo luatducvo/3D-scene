@@ -3,25 +3,25 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import { StageStepper } from "./StageStepper";
 import messages from "../../messages/en.json";
-import { progressEvent, type ProgressEvent } from "../lib/api/port";
+import { stageState, type Stage, type StageState } from "../lib/api/types";
 const event = (
-  stage: string,
+  stage: Stage,
   status: string,
-  error: ProgressEvent["error"] = null,
-): ProgressEvent => progressEvent({ type: "stage", stage, status, error });
-test("progress shows skipped, active and failed stages with the actionable error", () => {
+  error: StageState["error"] = null,
+): StageState => stageState({ stage, status, error });
+test("progress shows done, active and failed stages with the actionable error", () => {
   const markup = renderToStaticMarkup(
     <NextIntlClientProvider locale="en" timeZone="UTC" messages={messages}>
       <StageStepper
         events={{
-          ingest: event("ingest", "skipped"),
+          ingest: event("ingest", "done"),
           recon: event("recon", "running"),
           mesh: event("mesh", "failed", { message: "No surface" }),
         }}
       />
     </NextIntlClientProvider>,
   );
-  expect(markup).toContain("Skipped");
+  expect(markup).toContain("Done");
   expect(markup).toContain("Running");
   expect(markup).toContain("No surface");
 });
@@ -33,9 +33,9 @@ test("progress shows the Job bar, the running Stage count, elapsed time and an e
       <StageStepper
         now={Date.parse("2026-10-14T13:10:00Z")}
         events={{
-          ingest: event("ingest", "skipped"),
-          recon: event("recon", "skipped"),
-          align: event("align", "skipped"),
+          ingest: event("ingest", "done"),
+          recon: event("recon", "done"),
+          align: event("align", "done"),
           mesh: {
             ...event("mesh", "done"),
             started_at: "2026-10-14T12:58:00Z",
@@ -72,6 +72,8 @@ test("a running Stage without counts shows an indeterminate bar", () => {
       />
     </NextIntlClientProvider>,
   );
-  expect(markup).toMatch(/<progress aria-label="Reconstruct the room"><\/progress>/);
+  expect(markup).toMatch(
+    /<progress aria-label="Reconstruct the room"><\/progress>/,
+  );
   expect(markup).not.toContain("left");
 });

@@ -68,7 +68,18 @@ def reset(_):
     compose("--profile", "local-gpu", "down", "-v")
 
 
+def require_docker():
+    try:
+        running = subprocess.run(["docker", "info"], capture_output=True).returncode == 0
+    except FileNotFoundError:
+        running = False
+    if not running:
+        sys.exit("Docker is not running. Start Docker Desktop (or the Docker daemon) and try again; "
+                 "`uv run tasks.py test-unit` runs the tests that need no database.")
+
+
 def ensure_test_database():
+    require_docker()
     state = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", TEST_DB], capture_output=True, text=True)
     if state.returncode != 0:
         run("docker", "run", "-d", "--name", TEST_DB, "-p", f"127.0.0.1:{TEST_DB_PORT}:5432",
@@ -83,12 +94,29 @@ def ensure_test_database():
     sys.exit("Test database did not become ready")
 
 
-def test(args):
-    ensure_test_database()
+def pytest(*arguments, env=None):
     # Pytest's temporary Workspaces live outside the repository.
     basetemp = Path(tempfile.gettempdir()) / "scene-pytest"
-    run(sys.executable, "-m", "pytest", "-p", "no:cacheprovider", f"--basetemp={basetemp}", *args.pytest_args,
-        env={"TEST_DATABASE_URL": TEST_DATABASE_URL})
+    run(sys.executable, "-m", "pytest", "-p", "no:cacheprovider", f"--basetemp={basetemp}", *arguments, env=env)
+
+
+def test(args):
+    ensure_test_database()
+    pytest(*args.extra_args, env={"TEST_DATABASE_URL": TEST_DATABASE_URL})
+
+
+def test_unit(args):
+    """Tests without the `db` marker: no Docker, no database, no GPU."""
+    pytest("-m", "not db", *args.extra_args)
+
+
+def lint(args):
+    # Findings are the output, not a crash: exit with Ruff's status and no traceback.
+    sys.exit(run(sys.executable, "-m", "ruff", "check", "backend", "tasks.py", *args.extra_args, check=False).returncode)
+
+
+def format_code(args):
+    sys.exit(run(sys.executable, "-m", "ruff", "format", "backend", "tasks.py", *args.extra_args, check=False).returncode)
 
 
 def openapi(_):
@@ -192,8 +220,15 @@ def main():
         ("clean", clean, "remove all caches (Python, uv, frontend .next)"),
     ]:
         commands.add_parser(name, help=help_text).set_defaults(handler=handler)
-    tester = commands.add_parser("test", help="run pytest against a disposable test database; extra arguments go to pytest")
-    tester.set_defaults(handler=test)
+    # These pass extra arguments through to pytest or ruff.
+    passthrough = {
+        "test": (test, "run every test against a disposable test database (needs Docker)"),
+        "test-unit": (test_unit, "run the tests that need no database or Docker"),
+        "lint": (lint, "check the Python code with Ruff"),
+        "format": (format_code, "format the Python code with Ruff"),
+    }
+    for name, (handler, help_text) in passthrough.items():
+        commands.add_parser(name, help=help_text + "; extra arguments go to the tool").set_defaults(handler=handler)
     for name, handler, help_text in [("compute-image", compute_image, "build the GPU image"),
                                      ("push-compute-image", push_compute_image, "build and push the GPU image")]:
         command = commands.add_parser(name, help=help_text)
@@ -204,9 +239,9 @@ def main():
     modal.add_argument("--variant", default="fake", choices=["fake", "gpu"])
     modal.set_defaults(handler=deploy_modal)
     args, extra = parser.parse_known_args()
-    if extra and args.command != "test":
+    if extra and args.command not in passthrough:
         parser.error(f"unrecognized arguments: {' '.join(extra)}")
-    args.pytest_args = extra
+    args.extra_args = extra
     args.handler(args)
 
 

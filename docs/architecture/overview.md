@@ -60,10 +60,10 @@ sequenceDiagram
   K->>C: delete previous Stage outputs, keep raw/
   loop each of the nine Stages
     K->>C: POST /runs, then poll GET /runs/{run_id}
-    K->>P: upsert stage_runs + INSERT scene_events
+    K->>P: SceneStore: stage_runs + scene_events in one transaction
     A-->>W: SSE stage / progress events (API reads scene_events)
   end
-  K->>C: download RESULTS (graph, embeddings, mesh, recon/rgb)
+  K->>C: download Scene Results (graph, embeddings, mesh, recon/rgb)
   K->>P: publish Objects, Relations, embeddings; Scene ready
   W->>A: GET /objects, /search, POST /queries
 ```
@@ -82,6 +82,8 @@ Packages depend downward only:
 scene-core     domain models, Workspace contracts, ports, registry, Executor, config, pure-NumPy geometry
    ▲
 scene-stages   one Algorithm per Stage method + one fake per Stage; heavy deps as optional extras
+scene-store    every state write and the scene_events outbox (Postgres); depends on scene-core only
+scene-target   TargetWorkspace: the pipeline's one Target, in-process or over HTTP
    ▲
 scene-api · scene-worker · scene-compute     runtimes and adapters
 ```
@@ -90,7 +92,8 @@ scene-api · scene-worker · scene-compute     runtimes and adapters
 
 | Looking for | File |
 |---|---|
-| Stage order, Workspace folders, Manifests, `RESULTS` | [scene_core/contracts.py](../../backend/packages/scene-core/src/scene_core/contracts.py) |
+| Stage order, Workspace folders, Manifests | [scene_core/contracts.py](../../backend/packages/scene-core/src/scene_core/contracts.py) |
+| Published result files, public paths, `EMBEDDING_DIM` | [scene_core/results.py](../../backend/packages/scene-core/src/scene_core/results.py) |
 | Scene, Object, Relation, Scene Graph models | [scene_core/domain.py](../../backend/packages/scene-core/src/scene_core/domain.py) |
 | Error codes | [scene_core/errors.py](../../backend/packages/scene-core/src/scene_core/errors.py) |
 | Loading `pipeline.yaml` / `compute.yaml` | [scene_core/config.py](../../backend/packages/scene-core/src/scene_core/config.py) |
@@ -99,8 +102,8 @@ scene-api · scene-worker · scene-compute     runtimes and adapters
 | Real GPU Algorithms (DA3, GeoCalib, SAM 3, MetaCLIP 2) | [scene_stages/gpu.py](../../backend/packages/scene-stages/src/scene_stages/gpu.py) |
 | CPU Algorithms | `scene_stages/` [ingest.py](../../backend/packages/scene-stages/src/scene_stages/ingest.py), [mesh.py](../../backend/packages/scene-stages/src/scene_stages/mesh.py), [lift.py](../../backend/packages/scene-stages/src/scene_stages/lift.py), [attributes.py](../../backend/packages/scene-stages/src/scene_stages/attributes.py), [graph.py](../../backend/packages/scene-stages/src/scene_stages/graph.py) |
 | Fake Algorithms for tests and the walking skeleton | [scene_stages/fake.py](../../backend/packages/scene-stages/src/scene_stages/fake.py) |
-| Target selection and backends | [scene_worker/container.py](../../backend/services/scene-worker/src/scene_worker/container.py), [compute/http.py](../../backend/services/scene-worker/src/scene_worker/compute/http.py), [compute/local.py](../../backend/services/scene-worker/src/scene_worker/compute/local.py) |
-| Database access for the worker | [scene_worker/repository.py](../../backend/services/scene-worker/src/scene_worker/repository.py) |
+| Target selection, uploads, Stage execution, result replacement | [scene_target](../../backend/packages/scene-target/src/scene_target/__init__.py) (`TargetWorkspace`, in-process and HTTP adapters) |
+| State writes, migrations, event replay | [scene_store](../../backend/packages/scene-store/src/scene_store/__init__.py) |
 | API request/response models (exported to OpenAPI) | [scene_api/models.py](../../backend/services/scene-api/src/scene_api/models.py) |
 | Tests | [backend/tests/](../../backend/tests/), `frontend/src/**/*.test.ts(x)` |
 
@@ -121,7 +124,7 @@ No GPU provider is the default: `GPU_TARGET` must name a Target, or the worker r
 | Data | Location | Survives `tasks.py reset`? |
 |---|---|---|
 | Uploads and intermediate Stage outputs | The Target's disk (`DATA_DIR/scenes/{id}/`) | No (and lost when a rented GPU host is destroyed) |
-| Published results (`graph/`, `embeddings/`, `mesh/`, `recon/rgb/`) | `scene-data` volume, `/data/scenes/{id}/` | No |
+| Published results (`graph/`, `embeddings/`, `mesh/`, `recon/rgb/`) | `scene-data` volume, `/data/scenes/{id}/{job id}/` ([ADR-0006](../adr/0006-versioned-publication.md)) | No |
 | Scenes, Jobs, Stage Runs, events, Objects, Relations, chat | `postgres-data` volume | No |
 | Model weights | Host folder `./models` (bind mount at `MODELS_DIR`) | Yes |
 

@@ -6,8 +6,12 @@ export class ApiError extends Error {
     super(message);
   }
 }
-export function toApiError(body: unknown, fallback: string): ApiError {
-  const error = (body as { error?: { code?: string; message?: string } })
+/** The one decoder for API error bodies `{"error": {"code", "message"}}`, whatever the transport. */
+export function toApiError(body: unknown, status: number): ApiError {
+  const error = (body as { error?: { code?: string; message?: string } } | null)
     ?.error;
-  return new ApiError(error?.code || "HTTP_ERROR", error?.message || fallback);
+  return new ApiError(
+    error?.code || "HTTP_ERROR",
+    error?.message || `HTTP ${status}`,
+  );
 }

@@ -87,7 +87,13 @@ def create_app(data_dir: Path | str | None = None, *, token: str | None = None,
             manifest = get_executor().run(body.algorithm, body.scene_id, body.params, on_progress=report)
             result = {"state": "done", "manifest": manifest}
         except Exception as exc:
-            result = {"state": "failed", "error": {"code": getattr(exc, "code", "COMPUTE_FAILED"), "message": str(exc)}}
+            # The worker raises the same code and details as an in-process run would.
+            error = {"code": getattr(exc, "code", "COMPUTE_FAILED"), "message": str(exc), "details": getattr(exc, "details", None) or {}}
+            try:
+                json.dumps(error)
+            except TypeError:
+                error["details"] = {}
+            result = {"state": "failed", "error": error}
         with lock:
             record(run_id, {**runs[run_id], **result})
 

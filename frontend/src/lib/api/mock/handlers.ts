@@ -1,11 +1,12 @@
 import { http, HttpResponse } from "msw";
 import {
+  STAGES,
   progressEvent,
   type Scene,
   type ProgressEvent,
   type QueryEvent,
   type Schemas,
-} from "../port";
+} from "../types";
 import { apiOrigin } from "../http";
 import { demoObjects, roomPointCloud } from "./room";
 const base = `${apiOrigin}/api/v1/scenes`;
@@ -25,17 +26,7 @@ const scenes = new Map<string, Scene>([
   ],
 ]);
 const messages = new Map<string, Schemas["Message"][]>();
-const stages = [
-  "ingest",
-  "recon",
-  "align",
-  "mesh",
-  "segment",
-  "lift",
-  "embed",
-  "attributes",
-  "graph",
-];
+const stages = STAGES;
 const missing = () =>
   HttpResponse.json(
     { error: { code: "NOT_FOUND", message: "Scene not found" } },
@@ -161,7 +152,6 @@ export const handlers = [
       stage,
       status: "done",
       algorithm: `${stage}.fake`,
-      config_hash: "mock",
     }));
     return stream([
       ...events,

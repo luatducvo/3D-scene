@@ -5,6 +5,10 @@ from fastapi.testclient import TestClient
 from scene_api.main import create_app
 from scene_worker.runner import Worker
 from scene_core.config import PipelineConfig,ComputeConfig,TargetConfig
+from scene_target import open_target_workspace
+
+pytestmark = pytest.mark.db
+
 
 @pytest.fixture
 def client(tmp_path):
@@ -24,7 +28,7 @@ def uploaded(client):
 
 def test_scene_upload_delete(client):
     prefix=uploaded(client)
-    raw=sorted(p.name for p in (client.app.state.data_dir/"scenes"/prefix.rsplit("/",1)[1]/"raw").iterdir())
+    raw=sorted(p.name for p in (client.app.state.data_dir/"target"/"scenes"/prefix.rsplit("/",1)[1]/"raw").iterdir())
     assert [name.rsplit("-",1)[0] for name in raw]==["one","two"]
     assert client.post(prefix+"/uploads",files={"files":("bad.txt",b"x","text/plain")}).status_code==415
     assert client.delete(prefix).status_code==204
@@ -45,10 +49,19 @@ def test_pipeline_publish_and_rerun(client):
     assert [o["id"] for o in objects]==["chair-1","table-1"]
     assert objects[0]["best_views"][0]["image_url"].startswith("http://testserver/")
     assert client.get(detail["assets"]["mesh_url"]).content.startswith(b"glTF")
-    assert client.get(prefix+"/files/raw/private.jpg").status_code==403
+    assert client.get(objects[0]["best_views"][0]["image_url"]).status_code==200
+    for private in ("raw/private.jpg","keyframes/0000.jpg","instances/instances.json"):
+        assert client.get(prefix+"/files/"+private).status_code==404
     assert client.post(prefix+"/uploads",files={"files":("two.jpg",b"fake","image/jpeg")}).json()["error"]["code"]=="SCENE_LOCKED"
-    client.post(prefix+"/process",json={});runner.run_once()
-    assert [s["status"] for s in client.get(prefix).json()["stage_runs"]]==["done"]*9
+    client.post(prefix+"/process",json={})
+    assert client.get(prefix).json()["stage_runs"]==[]  # the previous Job's Stage Runs are gone
+    runner.run_once()
+    rerun=client.get(prefix).json()
+    assert [s["status"] for s in rerun["stage_runs"]]==["done"]*9
+    # A new publication gets new URLs; the previous one is removed.
+    assert rerun["assets"]["mesh_url"]!=detail["assets"]["mesh_url"]
+    assert client.get(detail["assets"]["mesh_url"]).status_code==404
+    assert client.get(rerun["assets"]["mesh_url"]).content.startswith(b"glTF")
     assert len(client.get(prefix+"/objects").json())==2
 
 def test_progress_replay_and_search(client):
@@ -127,23 +140,27 @@ def test_question_rules(client):
     assert text.count("event: tool")==6 and "QA_STEP_LIMIT" in text
 
 
-def test_delete_cleans_remote_workspaces_and_tolerates_unreachable_targets(tmp_path,monkeypatch):
-    from scene_core.config import TargetConfig
-    import scene_worker.container as container
-    deleted=[]
-    class Recorder:
-        def __init__(self,data_dir,target):self.target=target
-        def delete_workspace(self,scene_id):
-            if self.target.url=="http://down":raise ConnectionError("unreachable")
-            deleted.append((self.target.url,scene_id))
-        def close(self):pass
-    monkeypatch.setattr(container,"HttpBackend",Recorder,raising=False)
-    compute=ComputeConfig(targets={"cpu":TargetConfig(),"shared":TargetConfig(backend="http",url="http://shared",shared_storage=True),
-        "remote":TargetConfig(backend="http",url="http://remote"),"down":TargetConfig(backend="http",url="http://down"),"unset":TargetConfig(backend="http")})
-    with TestClient(create_app(database_url=os.environ["TEST_DATABASE_URL"],data_dir=tmp_path,compute=compute)) as client:
-        scene=client.post("/api/v1/scenes",json={"name":"Remote"}).json()["id"]
+def remote(tmp_path,compute_client,**overrides):
+    """A TargetWorkspace on an HTTP Target served by an in-memory scene-compute app."""
+    target=TargetConfig(**{"backend":"http","url":"http://testserver","chunk_size":512,"poll_interval":.001,**overrides})
+    pipeline=PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake.yaml").model_copy(update={"target":"remote"})
+    return open_target_workspace(tmp_path/"local",pipeline,ComputeConfig(targets={"remote":target}),client=compute_client)
+
+
+def test_delete_removes_the_target_workspace_and_tolerates_an_unreachable_target(tmp_path):
+    from scene_compute.server import create_app as create_compute_app
+    with TestClient(create_compute_app(tmp_path/"remote",chunk_bytes=512)) as compute:
+        target=remote(tmp_path,compute)
+        with TestClient(create_app(database_url=os.environ["TEST_DATABASE_URL"],data_dir=tmp_path/"local",target=target)) as client:
+            prefix=uploaded(client);scene=prefix.rsplit("/",1)[1]
+            assert (tmp_path/"remote"/"scenes"/scene/"raw").is_dir()
+            assert client.delete(prefix).status_code==204
+            assert not (tmp_path/"remote"/"scenes"/scene).exists()
+    down=PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake.yaml").model_copy(update={"target":"down"})
+    compute=ComputeConfig(targets={"down":TargetConfig(backend="http",url="http://127.0.0.1:9",startup_timeout=.2,poll_interval=.05)})
+    with TestClient(create_app(database_url=os.environ["TEST_DATABASE_URL"],data_dir=tmp_path,pipeline=down,compute=compute)) as client:
+        scene=client.post("/api/v1/scenes",json={"name":"Unreachable"}).json()["id"]
         assert client.delete(f"/api/v1/scenes/{scene}").status_code==204
-    assert deleted==[("http://remote",scene)]
 
 
 def test_worker_refuses_to_start_without_configured_gpu_targets(tmp_path, monkeypatch):
@@ -158,61 +175,65 @@ def test_worker_refuses_to_start_without_configured_gpu_targets(tmp_path, monkey
         start()
 
 
-def test_worker_refuses_stages_split_across_targets(tmp_path):
-    pipeline = PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake.yaml")
-    pipeline.stages["recon"].target = "remote"
-    compute = ComputeConfig(targets={"cpu": TargetConfig(), "remote": TargetConfig(backend="http", url="http://remote")})
-    with pytest.raises(ValueError, match="one compute Target"):
-        Worker(os.environ["TEST_DATABASE_URL"], tmp_path, pipeline, compute)
-
-
-def test_whole_pipeline_runs_on_the_gpu_host_and_returns_only_results(client, tmp_path, monkeypatch):
+def test_whole_pipeline_runs_on_the_gpu_host_and_returns_only_results(tmp_path):
     from scene_compute.server import create_app as create_compute_app
-    from scene_worker.compute.http import HttpBackend
-    monkeypatch.setenv("GPU_TARGET", "remote")
-    pipeline = PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake-gpu.yaml")
-    target = TargetConfig(backend="http", url="http://testserver", chunk_size=512, poll_interval=.001)
-    local, remote = client.app.state.data_dir, tmp_path/"remote"
-    with TestClient(create_compute_app(remote, chunk_bytes=512)) as compute:
-        runner = Worker(os.environ["TEST_DATABASE_URL"], local, pipeline, ComputeConfig(targets={"remote": target}))
-        runner.backend = client.app.state.storage = HttpBackend(local, target, client=compute)
-        prefix = uploaded(client)
-        scene = prefix.rsplit("/", 1)[1]
-        assert not (local/"scenes"/scene).exists()
-        assert len(list((remote/"scenes"/scene/"raw").iterdir())) == 2
-        (remote/"scenes"/scene/"segment").mkdir(parents=True)
-        (remote/"scenes"/scene/"segment"/"stale.npz").write_bytes(b"old")
-        for _ in range(2):
-            client.post(prefix+"/process", json={});runner.run_once()
-            detail = client.get(prefix).json()
-            assert detail["status"] == "ready", detail
-            assert [s["status"] for s in detail["stage_runs"]] == ["done"]*9
-        assert not (remote/"scenes"/scene/"segment"/"stale.npz").exists()
-        assert len(list((remote/"scenes"/scene/"raw").iterdir())) == 2
-        workspace = local/"scenes"/scene
-        assert sorted(p.name for p in workspace.iterdir()) == ["embeddings", "graph", "mesh", "recon"]
-        assert [p.name for p in (workspace/"recon").iterdir()] == ["rgb"]
-        mesh = (workspace/"mesh"/"mesh.glb").read_bytes()
-        runner.pipeline.stages["graph"].params = {"fail": "deliberate failure"}
-        client.post(prefix+"/process", json={});runner.run_once()
-        assert client.get(prefix).json()["status"] == "failed"
-    # Results stay viewable without the GPU host, and a failed Job leaves them untouched.
-    assert (workspace/"mesh"/"mesh.glb").read_bytes() == mesh
-    assert client.get(detail["assets"]["mesh_url"]).content.startswith(b"glTF")
+    local, remote_root = tmp_path/"local", tmp_path/"remote"
+    with TestClient(create_compute_app(remote_root, chunk_bytes=512)) as compute:
+        target = remote(tmp_path, compute)
+        runner = Worker(os.environ["TEST_DATABASE_URL"], local, target=target)
+        with TestClient(create_app(database_url=os.environ["TEST_DATABASE_URL"], data_dir=local, target=target)) as client:
+            prefix = uploaded(client)
+            scene = prefix.rsplit("/", 1)[1]
+            assert not (local/"scenes"/scene).exists()
+            assert len(list((remote_root/"scenes"/scene/"raw").iterdir())) == 2
+            (remote_root/"scenes"/scene/"segment").mkdir(parents=True)
+            (remote_root/"scenes"/scene/"segment"/"stale.npz").write_bytes(b"old")
+            for _ in range(2):
+                client.post(prefix+"/process", json={});runner.run_once()
+                detail = client.get(prefix).json()
+                assert detail["status"] == "ready", detail
+                assert [s["status"] for s in detail["stage_runs"]] == ["done"]*9
+            assert not (remote_root/"scenes"/scene/"segment"/"stale.npz").exists()
+            assert len(list((remote_root/"scenes"/scene/"raw").iterdir())) == 2
+            [version] = list((local/"scenes"/scene).iterdir())
+            assert f"/publications/{version.name}/" in detail["assets"]["mesh_url"]
+            workspace = version
+            assert sorted(p.name for p in workspace.iterdir()) == ["embeddings", "graph", "mesh", "recon"]
+            assert [p.name for p in (workspace/"recon").iterdir()] == ["rgb"]
+            assert_failed_reprocess_keeps_results(client, runner, prefix, detail)
+
+
+def test_a_failed_reprocess_keeps_results_on_the_in_process_target(client):
+    prefix=uploaded(client);runner=worker(client)
+    client.post(prefix+"/process",json={});runner.run_once()
+    detail=client.get(prefix).json()
+    assert detail["status"]=="ready"
+    assert_failed_reprocess_keeps_results(client,runner,prefix,detail)
+
+
+def assert_failed_reprocess_keeps_results(client, runner, prefix, detail):
+    """A Job failing at its last Stage leaves the earlier mesh, Frame images and Objects in place."""
+    mesh = client.get(detail["assets"]["mesh_url"]).content
+    runner.target.pipeline.stages["graph"].params = {"fail": "deliberate failure"}
+    client.post(prefix+"/process", json={});runner.run_once()
+    failed = client.get(prefix).json()
+    assert failed["status"] == "failed" and failed["failure"]["code"] == "FAKE_STAGE_FAILED"
+    assert failed["assets"]["mesh_url"] and client.get(failed["assets"]["mesh_url"]).content == mesh
     objects = client.get(prefix+"/objects").json()
     assert len(objects) == 2
     assert client.get(objects[0]["best_views"][0]["image_url"]).status_code == 200
+    runner.target.pipeline.stages["graph"].params = {}
 
 
 def test_search_reports_unavailable_compute_target(client, monkeypatch):
     prefix=uploaded(client);client.post(prefix+"/process",json={});worker(client).run_once()
     monkeypatch.delenv("GPU_TARGET",raising=False)
-    client.app.state.pipeline=PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake-gpu.yaml")
-    client.app.state.compute=ComputeConfig.model_validate({"targets":{"cpu":{},"down":{"backend":"http","url":"http://127.0.0.1:9","startup_timeout":0.2,"poll_interval":0.1}}})
+    compute=ComputeConfig.model_validate({"targets":{"cpu":{},"down":{"backend":"http","url":"http://127.0.0.1:9","startup_timeout":0.2,"poll_interval":0.1}}})
     for target in (None,"down"):
-        if target:monkeypatch.setenv("GPU_TARGET",target);client.app.state.pipeline=PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake-gpu.yaml")
-        client.app.state.embedder=None
-        response=client.get(prefix+"/search",params={"q":"chair"})
+        if target:monkeypatch.setenv("GPU_TARGET",target)
+        pipeline=PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake-gpu.yaml")
+        with TestClient(create_app(database_url=os.environ["TEST_DATABASE_URL"],data_dir=client.app.state.data_dir,pipeline=pipeline,compute=compute)) as other:
+            response=other.get(prefix+"/search",params={"q":"chair"})
         assert response.status_code==503,target
         assert response.json()["error"]["code"]=="COMPUTE_UNAVAILABLE"
 
@@ -220,9 +241,7 @@ def test_search_reports_unavailable_compute_target(client, monkeypatch):
 def test_worker_start_fails_jobs_interrupted_by_a_restart(client):
     prefix=uploaded(client);scene=prefix.rsplit("/",1)[1];runner=worker(client)
     assert client.post(prefix+"/process",json={}).status_code==202
-    with runner.repo.connect() as conn:  # a worker died mid-Stage
-        conn.execute("UPDATE jobs SET status='running',started_at=now() WHERE scene_id=%s",(scene,))
-        conn.execute("INSERT INTO stage_runs(scene_id,stage,algorithm,config_hash,status) VALUES(%s,'attributes','attributes.fake','x','running')",(scene,))
+    job=runner.store.claim();runner.store.stage_started(job,"attributes","attributes.fake")  # a worker died mid-Stage
     worker(client).recover_interrupted()
     detail=client.get(prefix).json()
     assert detail["status"]=="failed"
@@ -234,9 +253,9 @@ def test_worker_start_fails_jobs_interrupted_by_a_restart(client):
 
 def test_stage_progress_is_throttled_stored_and_replayed(client):
     prefix=uploaded(client);scene=prefix.rsplit("/",1)[1];runner=worker(client)
-    runner.pipeline.stages["mesh"].params["progress_steps"]=500
+    runner.target.pipeline.stages["mesh"].params["progress_steps"]=500
     client.post(prefix+"/process",json={});runner.run_once()
-    with runner.repo.connect() as conn:
+    with runner.store.connect() as conn:
         events=[r["data"] for r in conn.execute("SELECT data FROM scene_events WHERE scene_id=%s AND event='progress' ORDER BY id",(scene,)).fetchall()]
     mesh=[e for e in events if e["stage"]=="mesh"]
     assert [(e["done"],e["total"],e["unit"]) for e in mesh]==[(0,500,"step"),(500,500,"step")]
@@ -245,5 +264,35 @@ def test_stage_progress_is_throttled_stored_and_replayed(client):
     assert all(s["started_at"] for s in runs.values())
     import json
     replay=[json.loads(line[6:]) for line in client.get(prefix+"/events").text.splitlines() if line.startswith("data: ")]
-    mesh_replay=next(e for e in replay if e.get("stage")=="mesh")
-    assert mesh_replay["progress"]=={"done":500,"total":500,"unit":"step"} and mesh_replay["started_at"]
+    mesh_replay=[e for e in replay if e.get("stage")=="mesh"]
+    assert [e["type"] for e in mesh_replay]==["stage","progress"] and mesh_replay[0]["started_at"] and "progress" not in mesh_replay[0]
+    assert (mesh_replay[1]["done"],mesh_replay[1]["total"],mesh_replay[1]["unit"])==(500,500,"step")
+
+
+def test_results_published_before_versioning_are_still_served(client):
+    scene=client.post("/api/v1/scenes",json={"name":"Old"}).json()["id"]
+    legacy=client.app.state.data_dir/"scenes"/scene/"mesh"
+    legacy.mkdir(parents=True);(legacy/"mesh.glb").write_bytes(b"glTF-old")
+    url=client.get(f"/api/v1/scenes/{scene}").json()["assets"]["mesh_url"]
+    assert "/publications/legacy/" in url and client.get(url).content==b"glTF-old"
+    assert client.get(f"/api/v1/scenes/{scene}/publications/..%2F..%2Fraw/files/mesh/mesh.glb").status_code==404
+
+
+def test_answers_may_only_state_numbers_a_tool_returned(client):
+    from scene_api.qa import ScriptedLLM
+    prefix=uploaded(client);client.post(prefix+"/process",json={});worker(client).run_once()
+    unsupported={"content":"The sofa is 999 meters long.","object_ids":[]}
+    client.app.state.llm=ScriptedLLM([unsupported,unsupported])
+    text=client.post(prefix+"/queries",json={"question":"How long is the sofa?"}).text
+    assert "QA_UNGROUNDED" in text and "event: final" not in text
+    # After the corrective message the model measures, and the measured answer is accepted.
+    client.app.state.llm=ScriptedLLM([unsupported,call("measure_distance",{"a_id":"chair-1","b_id":"table-1"}),
+                                      {"content":"About 25 cm (0.25 m).","object_ids":["chair-1"]}])
+    text=client.post(prefix+"/queries",json={"question":"How far?"}).text
+    assert "event: final" in text and "0.25 m" in text
+    # A final_answer next to another tool call runs that tool first, then is checked against its result.
+    both={"tool_calls":[{"id":"1","function":{"name":"measure_distance","arguments":'{"a_id":"chair-1","b_id":"table-1"}'}},
+                        {"id":"2","function":{"name":"final_answer","arguments":'{"answer":"0.25 m","object_ids":["chair-1","table-1"]}'}}]}
+    client.app.state.llm=ScriptedLLM([both])
+    text=client.post(prefix+"/queries",json={"question":"How far?"}).text
+    assert text.count("event: tool")==1 and "event: final" in text

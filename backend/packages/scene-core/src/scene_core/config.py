@@ -1,4 +1,4 @@
-import hashlib,json,os,re
+import os,re
 from pathlib import Path
 import yaml
 from pydantic import BaseModel,Field,field_validator,model_validator
@@ -8,12 +8,11 @@ def expand_environment(path,keep_unset=False):
     return re.sub(r"\$\{(\w+)\}",lambda m:os.environ.get(m.group(1)) or (m.group(0) if keep_unset else ""),Path(path).read_text())
 class StageConfig(BaseModel):
     algorithm:str
-    target:str="cpu"
     params:dict=Field(default_factory=dict)
-    def config_hash(self):
-        return hashlib.sha256(json.dumps({"algorithm":self.algorithm,"params":self.params},sort_keys=True,separators=(",",":")).encode()).hexdigest()
 class PipelineConfig(BaseModel):
-    """Stage Targets are named through ${VAR}; an unset variable stays literal for the worker to report."""
+    """Every Stage runs on the one Target (ADR-0005), usually named through ${GPU_TARGET}; an unset variable
+    stays literal so open_target_workspace can name it."""
+    target:str="cpu"
     stages:dict[str,StageConfig]
     @model_validator(mode="after")
     def validate_stages(self):
@@ -27,7 +26,6 @@ class TargetConfig(BaseModel):
     url:str|None=None
     token:str=""
     headers:dict[str,str]=Field(default_factory=dict)
-    shared_storage:bool=False
     chunk_size:int=25*1024*1024
     startup_timeout:float=900
     poll_interval:float=1

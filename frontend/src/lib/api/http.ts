@@ -1,44 +1,61 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
-import type { SceneApi } from "./port";
+import type { ProgressEvent, QueryEvent, Schemas } from "./types";
+import { ApiError, toApiError } from "./errors";
 import { consumeSSE } from "./sse";
+export { ApiError } from "./errors";
 export const apiOrigin =
   (typeof window === "undefined"
     ? process.env.API_INTERNAL_URL
     : process.env.NEXT_PUBLIC_API_URL) || "http://localhost:8000";
-export const typedClient = createClient<paths>({ baseUrl: apiOrigin });
-export { ApiError } from "./errors";
-import { ApiError } from "./errors";
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiOrigin}/api/v1${path}`, init);
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new ApiError(
-      body.error?.code || "REQUEST_FAILED",
-      body.error?.message || `${response.status}`,
-    );
-  }
-  return response.status === 204 ? (undefined as T) : response.json();
-}
-const json = (body: unknown): RequestInit => ({
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(body),
+// fetch is looked up per request, so MSW can intercept it after this module loads.
+export const typedClient = createClient<paths>({
+  baseUrl: apiOrigin,
+  fetch: (request) => globalThis.fetch(request),
 });
-export const httpSceneApi: SceneApi = {
-  listScenes: () => request("/scenes"),
-  createScene: (name) => request("/scenes", json({ name })),
-  deleteScene: (id) => request(`/scenes/${id}`, { method: "DELETE" }),
-  getScene: (id) => request(`/scenes/${id}`),
-  startProcessing: async (id) => {
-    await request(`/scenes/${id}/process`, json({}));
+/** The response data, or the API's error as an ApiError. */
+async function data<T>(
+  call: Promise<{ data?: T; error?: unknown; response: Response }>,
+): Promise<T> {
+  const { data, error, response } = await call;
+  if (!response.ok) throw toApiError(error, response.status);
+  return data as T;
+}
+const scene = (id: string) => ({ params: { path: { scene_id: id } } });
+/** Reconnects a dropped progress stream after this delay while the Scene is processing. */
+const RECONNECT_MS = 1000;
+/** The browser's only way to the backend; MSW serves the same paths in mock mode. */
+export const sceneApi = {
+  listScenes: () => data(typedClient.GET("/api/v1/scenes")),
+  createScene: (name: string) =>
+    data(typedClient.POST("/api/v1/scenes", { body: { name } })),
+  deleteScene: async (id: string) => {
+    await data(typedClient.DELETE("/api/v1/scenes/{scene_id}", scene(id)));
   },
-  listObjects: (id) => request(`/scenes/${id}/objects`),
-  searchObjects: (id, query) =>
-    request(`/scenes/${id}/search?q=${encodeURIComponent(query)}`),
-  getMessages: (id) => request(`/scenes/${id}/messages`),
-  uploadFiles: (id, files, progress) =>
-    new Promise((resolve, reject) => {
+  getScene: (id: string) =>
+    data(typedClient.GET("/api/v1/scenes/{scene_id}", scene(id))),
+  startProcessing: async (id: string) => {
+    await data(
+      typedClient.POST("/api/v1/scenes/{scene_id}/process", scene(id)),
+    );
+  },
+  listObjects: (id: string) =>
+    data(typedClient.GET("/api/v1/scenes/{scene_id}/objects", scene(id))),
+  searchObjects: (id: string, q: string) =>
+    data(
+      typedClient.GET("/api/v1/scenes/{scene_id}/search", {
+        params: { path: { scene_id: id }, query: { q } },
+      }),
+    ),
+  getMessages: (id: string) =>
+    data(typedClient.GET("/api/v1/scenes/{scene_id}/messages", scene(id))),
+  /** XMLHttpRequest, because fetch cannot report upload progress. */
+  uploadFiles: (
+    id: string,
+    files: File[],
+    progress?: (ratio: number) => void,
+  ) =>
+    new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const body = new FormData();
       files.forEach((file) => body.append("files", file));
@@ -51,35 +68,56 @@ export const httpSceneApi: SceneApi = {
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           progress?.(1);
-          resolve();
-        } else {
-          let error;
-          try {
-            error = JSON.parse(xhr.responseText).error;
-          } catch {}
-          reject(
-            new ApiError(
-              error?.code || "UPLOAD_FAILED",
-              error?.message || `${xhr.status}`,
-            ),
-          );
+          return resolve();
         }
+        let body: unknown = null;
+        try {
+          body = JSON.parse(xhr.responseText);
+        } catch {}
+        reject(toApiError(body, xhr.status));
       };
       xhr.send(body);
     }),
-  subscribeProgress: (id, receive) => {
-    const source = new EventSource(`${apiOrigin}/api/v1/scenes/${id}/events`);
-    const handler = (event: MessageEvent) => receive(JSON.parse(event.data));
-    source.addEventListener("stage", handler);
-    source.addEventListener("status", handler);
-    source.addEventListener("progress", handler);
-    source.onmessage = handler;
-    return () => source.close();
+  /**
+   * Streams a Scene's progress: the replayed state first, then live events, until a terminal
+   * status. A dropped connection reconnects and replays; the returned function stops.
+   */
+  subscribeProgress: (id: string, receive: (event: ProgressEvent) => void) => {
+    const stop = new AbortController();
+    let finished = false;
+    void (async () => {
+      while (!finished && !stop.signal.aborted) {
+        try {
+          const response = await fetch(
+            `${apiOrigin}/api/v1/scenes/${id}/events`,
+            { signal: stop.signal, headers: { Accept: "text/event-stream" } },
+          );
+          await consumeSSE<ProgressEvent>(response, (event) => {
+            if (event.type === "status" && event.status !== "processing")
+              finished = true;
+            receive(event);
+          });
+        } catch (error) {
+          // A refused stream (for example a deleted Scene) will not succeed on retry.
+          if (error instanceof ApiError) return;
+        }
+        if (!finished && !stop.signal.aborted)
+          await new Promise((wake) => setTimeout(wake, RECONNECT_MS));
+      }
+    })();
+    return () => stop.abort();
   },
-  askQuestion: async (id, body, receive, signal) =>
+  askQuestion: async (
+    id: string,
+    body: Schemas["QueryRequest"],
+    receive: (event: QueryEvent) => void,
+    signal?: AbortSignal,
+  ) =>
     consumeSSE(
       await fetch(`${apiOrigin}/api/v1/scenes/${id}/queries`, {
-        ...json(body),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
         signal,
       }),
       receive,

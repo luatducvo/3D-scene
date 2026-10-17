@@ -5,13 +5,14 @@ from PIL import Image
 from scene_core.contracts import *
 from scene_core.ports import StageAlgorithm
 from scene_core.errors import SceneError
+from scene_core.results import EMBEDDING_DIM
 from .mesh import write_ply
 
 OBJECTS=[{"id":"chair-1","label":"chair","label_vi":"ghế","box":{"center":[1,1,0.5],"size":[0.5,0.5,1],"yaw":0},"attributes":{"color":["red"],"material":["wood"]},"best_views":[{"frame_id":"0000","bbox":[0,0,16,16],"score":1}]},{"id":"table-1","label":"table","label_vi":"bàn","box":{"center":[2,1,0.4],"size":[1,1,0.8],"yaw":0},"attributes":{"color":["brown"],"material":["wood"]},"best_views":[{"frame_id":"0000","bbox":[0,0,16,16],"score":1}]}]
 class Fake(StageAlgorithm):
     def run(self,w,p):
         if p.get("delay"): time.sleep(p["delay"])
-        if p.get("fail"): raise SceneError("FAKE_STAGE_FAILED",str(p["fail"]))
+        if p.get("fail"): raise SceneError(p.get("fail_code","FAKE_STAGE_FAILED"),str(p["fail"]),details=p.get("fail_details"))
         steps=int(p.get("progress_steps",1));self.progress(0,steps,"step")
         result=self.transform(w,p)
         for done in range(1,steps+1):self.progress(done,steps,"step")
@@ -70,14 +71,14 @@ class LiftFake(Fake):
 class EmbedFake(Fake):
     name="embed.fake";stage="embed";manifest_type=EmbedManifest;reads=["instances"];writes=["embeddings"]
     def embed_text(self,texts):
-        vectors=np.zeros((len(texts),1024),dtype=np.float32)
+        vectors=np.zeros((len(texts),EMBEDDING_DIM),dtype=np.float32)
         for i,text in enumerate(texts):
             if any(word in text.lower() for word in ("chair","ghế","sit")): vectors[i,0]=1
             if any(word in text.lower() for word in ("table","bàn")): vectors[i,1]=1
         return vectors
     def transform(self,w,p):
         np.savez(w.dir("embeddings")/"objects.npz",ids=np.array([o["id"] for o in OBJECTS]),vectors=self.embed_text([o["label"] for o in OBJECTS]))
-        return EmbedManifest(model_id="synthetic",dim=1024,embeddings_file="embeddings/objects.npz")
+        return EmbedManifest(model_id="synthetic",dim=EMBEDDING_DIM,embeddings_file="embeddings/objects.npz")
 class AttributesFake(Fake):
     name="attributes.fake";stage="attributes";manifest_type=AttributesManifest;reads=["instances"];writes=["attributes"]
     def transform(self,w,p):

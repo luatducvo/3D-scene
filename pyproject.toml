@@ -2,12 +2,14 @@
 name="scene-understanding"
 version="0.1.0"
 requires-python=">=3.12,<3.14"
-# Plain `uv sync` installs every workspace member (light deps only) for tooling and tests.
-dependencies=["scene-core", "scene-stages", "scene-api", "scene-worker", "scene-compute"]
+# Plain `uv sync` installs every workspace member (light deps, plus the mesh extra its tests need) for tooling and tests.
+dependencies=["scene-core", "scene-store", "scene-target", "scene-stages[mesh-tsdf]", "scene-api", "scene-worker", "scene-compute"]
 [tool.uv]
 package=false
 [tool.uv.sources]
 scene-core={workspace=true}
+scene-store={workspace=true}
+scene-target={workspace=true}
 scene-stages={workspace=true}
 scene-api={workspace=true}
 scene-worker={workspace=true}
@@ -18,5 +20,10 @@ members=["backend/packages/*", "backend/services/*"]
 dev=["pytest>=8", "pytest-asyncio>=0.24", "httpx>=0.28", "ruff>=0.9"]
 [tool.pytest.ini_options]
 testpaths=["backend/tests"]
+markers=["db: needs the Postgres test database (TEST_DATABASE_URL); `tasks.py test-unit` skips it"]
 [tool.ruff]
 line-length=100
+[tool.ruff.lint]
+select=["E", "F", "I", "UP", "B", "C4", "RUF"]
+# The formatter owns line length; mutable class defaults on Algorithms are read-only by convention.
+ignore=["E501", "RUF012"]

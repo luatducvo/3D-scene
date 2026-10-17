@@ -4,10 +4,7 @@ export async function consumeSSE<T>(
   receive: (event: T) => void,
 ) {
   if (!response.ok)
-    throw toApiError(
-      await response.json().catch(() => null),
-      `HTTP ${response.status}`,
-    );
+    throw toApiError(await response.json().catch(() => null), response.status);
   if (!response.body) throw new Error("Missing event stream");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -36,7 +33,7 @@ export async function consumeSSE<T>(
           ?.slice(6)
           .trim();
         // Only the `error` event aborts; ordinary payloads may carry an `error` field.
-        if (name === "error") throw toApiError(parsed, "Stream failed");
+        if (name === "error") throw toApiError(parsed, response.status);
         receive(parsed);
       }
       if (done) break;

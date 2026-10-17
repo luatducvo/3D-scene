@@ -1,0 +1,10 @@
+[project]
+name="scene-store"
+version="0.1.0"
+requires-python=">=3.12"
+dependencies=["scene-core", "psycopg[binary]==3.2.12"]
+[build-system]
+requires=["hatchling"]
+build-backend="hatchling.build"
+[tool.uv.sources]
+scene-core={workspace=true}

@@ -15,13 +15,6 @@ class BestView(BaseModel):
     bbox: tuple[int,int,int,int]
     score: float
     image_url: str | None = None
-class Instance3D(BaseModel):
-    id: str
-    label: str
-    score: float
-    num_views: int
-    points_file: str
-    best_views: list[BestView] = Field(default_factory=list)
 class SceneObject(BaseModel):
     id: str
     label: str

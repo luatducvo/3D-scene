@@ -26,9 +26,9 @@ the repository root: the uv workspace and `tasks.py` live there, not in `backend
 - Choosing a method or provider is a configuration change in `config/pipeline*.yaml`,
   `config/compute.yaml` and `.env`. Add new variables to `.env.example`; `backend/.env` holds the
   user's secrets.
-- A schema change is a new numbered file in `migrations/`; existing migrations stay as they are.
-  Migrations run only when the Postgres volume is created, so a local stack picks up a new one
-  after `uv run tasks.py reset`, which deletes every Scene.
+- A schema change is a new numbered, idempotent file in `migrations/`; existing migrations stay as
+  they are. `SceneStore.migrate` applies each file once, recorded in `schema_migrations`, when the
+  api or worker starts, so a running stack picks up a new one on restart without deleting Scenes.
 - Failures surface as an error code from
   [scene_core/errors.py](packages/scene-core/src/scene_core/errors.py). This is a learning
   project: a failing component fails the Stage, with no fallback path.

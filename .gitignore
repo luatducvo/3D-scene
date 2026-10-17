@@ -41,6 +41,7 @@ Desktop.ini
 # Local test, model and capture data
 .pytest-tmp*/
 backend/models/
+backend/data/
 samples/
 .next/
 next-env.d.ts

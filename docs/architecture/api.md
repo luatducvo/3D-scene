@@ -48,16 +48,18 @@ non-shared remote Target (an unreachable Target is only logged).
 | GET | `/scenes/{id}/search?q=` | Free-text Object search (English or Vietnamese) |
 | GET | `/scenes/{id}/messages` | Stored chat history |
 | POST | `/scenes/{id}/queries` | `{question, camera?}` → SSE answer stream |
-| GET | `/scenes/{id}/files/{path}` | Serve a published file under `keyframes/`, `mesh/`, `instances/` or `recon/`; rejects traversal |
+| GET | `/scenes/{id}/publications/{version}/files/{path}` | Serve a public file of one publication ([ADR-0006](../adr/0006-versioned-publication.md)): only `mesh/` and `recon/rgb/` ([Scene Results](pipeline.md#scene-results)); any other path, or a removed publication, is 404 `FILE_NOT_FOUND`. API responses carry these URLs for the current version; `legacy` names results published before versioning |
 
 ## SSE events
 
 **Progress** (`GET …/events`, read with `EventSource`). On connect the API replays the current
-Stage Runs (status, Manifest, error, latest progress, start time) and the Scene status from
-Postgres, then streams new rows of the `scene_events` table until the Scene is `ready` or `failed`:
+state from `SceneStore.snapshot`: one `stage` event per Stage Run, followed by a `progress` event
+when the Stage Run has reported progress, then a `status` event. It then streams new rows of the
+`scene_events` table until the Scene is `ready` or `failed`. Replay and live events have the same
+shapes; a `stage` event never carries progress, and only live events have an SSE `id`:
 
 ```jsonc
-{"type": "stage", "stage": "segment", "status": "running", "started_at": "…", "updated_at": "…"}
+{"type": "stage", "stage": "segment", "algorithm": "segment.sam3", "status": "running", "manifest": null, "error": null, "started_at": "…", "updated_at": "…"}
 {"type": "progress", "stage": "segment", "done": 48, "total": 155, "unit": "frame"}
 {"type": "stage", "stage": "segment", "status": "done", "manifest": {…}}
 {"type": "status", "status": "ready"}
@@ -66,8 +68,8 @@ Postgres, then streams new rows of the `scene_events` table until the Scene is `
 
 Stages that report progress: ingest (image), align, mesh and segment (frame), lift (mask), embed
 and attributes (object). recon and graph report nothing; the UI shows an indeterminate bar.
-`skipped` remains in the status enum only for rows written before
-[ADR-0005](../adr/0005-whole-pipeline-on-gpu-host.md).
+Stage Runs belong to the latest Job: enqueueing deletes the previous ones, so a rerun starts with
+none. A Stage Run is `running`, `done` or `failed`; migration 003 rewrote older `skipped` rows to `done`.
 
 **Answers** (`POST …/queries`, read with `fetch` and a stream):
 
@@ -83,11 +85,17 @@ carrying `{"error": {"code", "message"}}` (for example `COMPUTE_UNAVAILABLE` or 
 
 ## Database
 
-Migrations in [backend/migrations/](../../backend/migrations/) run when the Postgres volume is
-created. Tables: `scenes` (status, `failure`, published `room` info), `jobs`, `stage_runs`
+Migrations in [backend/migrations/](../../backend/migrations/) run in name order when the api or
+worker starts: `SceneStore.migrate` applies each file not yet recorded in `schema_migrations`, under
+an advisory lock so both processes can start together. Files stay idempotent, because Compose also
+runs them once when it creates the Postgres volume. The folder is `MIGRATIONS_DIR`, or found in the
+source layout when unset; configuration files likewise come from `CONFIG_DIR`. Every write goes through
+`SceneStore`; the api's own SQL only reads. Tables: `scenes` (status, `failure`, published `room` info), `jobs`, `stage_runs`
 (status, Manifest, progress), `scene_events`, `objects` (with `embedding vector(1024)` and an HNSW
-cosine index), `relations`, `messages`. The embedding dimension must equal the embed Algorithm's
-output; changing the model to another dimension needs a migration.
+cosine index), `relations`, `messages`. The embedding dimension is `EMBEDDING_DIM` in
+[results.py](../../backend/packages/scene-core/src/scene_core/results.py); a test fails when it and
+the column type differ, so changing the model to another dimension needs both a migration and that
+constant. Search rejects a query vector of another length with `EMBEDDING_DIMENSION_MISMATCH`.
 
 ## QA agent
 
@@ -97,6 +105,15 @@ OpenAI-compatible endpoint (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`; without 
 returns 503 `LLM_NOT_CONFIGURED`). It answers in the question's language, ends with a
 `final_answer` call listing the Object ids, and the API attaches one evidence image per Object and
 stores the exchange in `messages`. Tests use `ScriptedLLM`.
+
+Grounding is enforced, not only requested. Both LLM adapters return the same reply: tool calls
+(with `final_answer` among them) or plain content, which counts as a final answer. `QAAgent` runs
+every other tool in a reply before reading its `final_answer`, and collects every number the tools
+returned this question (plus numbers in the question itself). A final answer may state only those
+numbers, rounded half up to the precision it uses, also in centimeters or millimeters. The first
+answer with an unsupported number is sent back to the model with the numbers named; a second one
+ends the stream with `QA_UNGROUNDED`. Integers are compared at whole-number precision, so the check
+catches invented measurements, not every loosely rounded count.
 
 | Tool (`SceneTools`) | Behavior |
 |---|---|

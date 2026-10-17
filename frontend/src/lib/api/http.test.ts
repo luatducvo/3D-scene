@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, afterEach, expect, test } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
-import { httpSceneApi } from "./http";
+import { sceneApi } from "./http";
 const server = setupServer(
   http.get("http://localhost:8000/api/v1/scenes", () =>
     HttpResponse.json([{ id: "room", name: "Study", status: "created" }]),
@@ -17,10 +17,10 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 test("SceneApi lists captured rooms and creates a named room", async () => {
-  expect(await httpSceneApi.listScenes()).toEqual([
+  expect(await sceneApi.listScenes()).toEqual([
     { id: "room", name: "Study", status: "created" },
   ]);
-  expect(await httpSceneApi.createScene("Kitchen")).toEqual({
+  expect(await sceneApi.createScene("Kitchen")).toEqual({
     id: "new-room",
     name: "Kitchen",
   });
@@ -34,7 +34,7 @@ test("a locked capture reports the server error code to the UI", async () => {
       ),
     ),
   );
-  await expect(httpSceneApi.deleteScene("room")).rejects.toMatchObject({
+  await expect(sceneApi.deleteScene("room")).rejects.toMatchObject({
     code: "SCENE_BUSY",
     message: "Processing is active",
   });
@@ -60,10 +60,8 @@ test("questions preserve tool, split UTF-8 deltas and final citations", async ()
     ),
   );
   const events: unknown[] = [];
-  await httpSceneApi.askQuestion(
-    "room",
-    { question: "Count chairs" },
-    (event) => events.push(event),
+  await sceneApi.askQuestion("room", { question: "Count chairs" }, (event) =>
+    events.push(event),
   );
   expect(events).toEqual([
     { type: "tool", tool: "count_objects" },
@@ -97,7 +95,7 @@ test("question stream supports CRLF boundaries split between network packets", a
     ),
   );
   const events: unknown[] = [];
-  await httpSceneApi.askQuestion("room", { question: "Hello" }, (event) =>
+  await sceneApi.askQuestion("room", { question: "Hello" }, (event) =>
     events.push(event),
   );
   expect(events).toEqual([{ type: "delta", delta: "hello" }]);
@@ -112,7 +110,7 @@ test("a question reports refused and mid-stream errors with their codes", async 
     ),
   );
   await expect(
-    httpSceneApi.askQuestion("room", { question: "?" }, () => {}),
+    sceneApi.askQuestion("room", { question: "?" }, () => {}),
   ).rejects.toMatchObject({ code: "SCENE_NOT_READY" });
   server.use(
     http.post(
@@ -127,9 +125,7 @@ test("a question reports refused and mid-stream errors with their codes", async 
   );
   const seen: string[] = [];
   await expect(
-    httpSceneApi.askQuestion("room", { question: "?" }, (e) =>
-      seen.push(e.type),
-    ),
+    sceneApi.askQuestion("room", { question: "?" }, (e) => seen.push(e.type)),
   ).rejects.toMatchObject({ code: "QA_STEP_LIMIT" });
   expect(seen).toEqual(["tool"]);
 });

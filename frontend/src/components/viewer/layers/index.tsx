@@ -3,7 +3,8 @@ import { Edges, useGLTF } from "@react-three/drei";
 import { useLoader, type ThreeEvent } from "@react-three/fiber";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 import { Box3 } from "three";
-import type { SceneObject, Schemas } from "../../../lib/api/port";
+import { focus } from "../camera";
+import type { SceneObject, Schemas } from "../../../lib/api/types";
 import { useViewer } from "../../../lib/store/viewerStore";
 export type SceneLayerProps = {
   sceneId: string;
@@ -19,12 +20,16 @@ function PointCloudAsset({ url }: { url: string }) {
   const geometry = useLoader(PLYLoader, url),
     measuring = useViewer((s) => s.measuring),
     pointSize = useViewer((s) => s.pointSize),
-    setBounds = useViewer((s) => s.setBounds);
+    setLoadedBounds = useViewer((s) => s.setLoadedBounds);
   useEffect(() => {
     geometry.computeBoundingBox();
     const box = geometry.boundingBox;
-    if (box) setBounds({ min: box.min.toArray(), max: box.max.toArray() });
-  }, [geometry, setBounds]);
+    if (box)
+      setLoadedBounds("points", {
+        min: box.min.toArray(),
+        max: box.max.toArray(),
+      });
+  }, [geometry, setLoadedBounds]);
   const colored = geometry.hasAttribute("color");
   return (
     // Only listen while measuring: raycasting millions of points on every click is expensive.
@@ -45,17 +50,21 @@ export function PointCloudLayer({ assets }: SceneLayerProps) {
   ) : null;
 }
 function MeshAsset({ url }: { url: string }) {
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(url),
+    measuring = useViewer((s) => s.measuring);
   useEffect(() => {
-    if (!useViewer.getState().bounds) {
-      const box = new Box3().setFromObject(scene);
-      if (!box.isEmpty())
-        useViewer
-          .getState()
-          .setBounds({ min: box.min.toArray(), max: box.max.toArray() });
-    }
+    const box = new Box3().setFromObject(scene);
+    if (!box.isEmpty())
+      useViewer
+        .getState()
+        .setLoadedBounds("mesh", {
+          min: box.min.toArray(),
+          max: box.max.toArray(),
+        });
   }, [scene]);
-  return <primitive object={scene} onClick={measurePick} />;
+  return (
+    <primitive object={scene} onClick={measuring ? measurePick : undefined} />
+  );
 }
 export function MeshLayer({ assets }: SceneLayerProps) {
   const visible = useViewer((s) => s.layers.mesh);
@@ -79,6 +88,7 @@ export function ObjectBoxesLayer({ objects }: SceneLayerProps) {
             if (!measuring) {
               e.stopPropagation();
               select(o.id);
+              focus([o.id]);
             }
           }}
         >
