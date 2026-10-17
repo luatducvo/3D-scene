@@ -33,6 +33,31 @@ from .models import (
 )
 
 QUERY_READY_TIMEOUT_S = 10
+# Search keeps Objects whose similarity is within SEARCH_MARGIN of the best one, SEARCH_MAX_HITS in all.
+SEARCH_MARGIN = 0.05
+SEARCH_MAX_HITS = 10
+
+
+def rank_search_hits(objects, similarities, query, margin, limit=SEARCH_MAX_HITS):
+    """Every label match, then the other Objects within `margin` of the best similarity, best first,
+    while fewer than `limit` hits are kept. A label match scores its similarity plus 1."""
+    query = query.lower()
+    best = max(similarities.values(), default=0.0)
+    labelled, similar = [], []
+    for obj in objects:
+        similarity = similarities.get(obj["id"], 0.0)
+        if any(
+            label and (query in label.lower() or label.lower() in query)
+            for label in (obj["label"], obj["label_vi"])
+        ):
+            labelled.append({"object": obj, "score": similarity + 1})
+        elif similarity > 0 and similarity >= best - margin:
+            similar.append({"object": obj, "score": similarity})
+
+    def ranked(hits):
+        return sorted(hits, key=lambda hit: hit["score"], reverse=True)
+
+    return ranked(labelled) + ranked(similar)[: max(0, limit - len(labelled))]
 
 
 def create_app(
@@ -57,6 +82,7 @@ def create_app(
     app.state.data_dir = data_dir
     app.state.target = target
     app.state.llm = llm
+    app.state.search_margin = float(os.getenv("SEARCH_MARGIN", SEARCH_MARGIN))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000").split(","),
@@ -279,16 +305,7 @@ def create_app(
                     (str(vector), scene_id),
                 ).fetchall():
                     scores[row["id"]] = float(row["score"] or 0)
-        hits = []
-        for obj in objects:
-            label_match = any(
-                label and (q.lower() in label.lower() or label.lower() in q.lower())
-                for label in (obj["label"], obj["label_vi"])
-            )
-            score = scores.get(obj["id"], 0) + (1 if label_match else 0)
-            if score > 0.15:
-                hits.append({"object": obj, "score": score})
-        return sorted(hits, key=lambda hit: hit["score"], reverse=True)
+        return rank_search_hits(objects, scores, q, app.state.search_margin)
 
     @app.get("/api/v1/scenes/{scene_id}/messages", response_model=list[Message])
     def list_messages(scene_id: uuid.UUID):

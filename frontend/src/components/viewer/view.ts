@@ -2,18 +2,33 @@
 import type { SceneObject, Schemas } from "../../lib/api/types";
 export type Point = [number, number, number];
 export type Bounds = { min: Point; max: Point };
-export type Layer = "points" | "mesh" | "boxes";
+export type Layer = "points" | "mesh";
 export type Layers = Record<Layer, boolean>;
 /** The room's appearance: exactly one of the point cloud or the mesh. */
 export type ViewMode = "points" | "mesh";
 type Assets = Schemas["SceneAssets"];
-/** The point cloud when the Scene has one, else the mesh; Object boxes always. */
+/** The point cloud when the Scene has one, else the mesh. */
 export function defaultLayers(assets: Assets): Layers {
   const points = Boolean(assets.points_url);
-  return { points, mesh: !points && Boolean(assets.mesh_url), boxes: true };
+  return { points, mesh: !points && Boolean(assets.mesh_url) };
 }
 export function showMode(layers: Layers, mode: ViewMode): Layers {
   return { ...layers, points: mode === "points", mesh: mode === "mesh" };
+}
+/**
+ * Whether Objects can be hovered and highlighted in the shown view. A Scene published before
+ * membership existed, or whose membership does not match the shown geometry, needs reprocessing.
+ */
+export function highlightState(
+  assets: Assets,
+  membership: "pending" | "error" | "success",
+  mismatch: Partial<Record<ViewMode, boolean>>,
+  mode: ViewMode | null,
+): "available" | "reprocess" | "failed" {
+  // Without geometry there is nothing to highlight, and the viewer says so already.
+  if (!mode || !(assets.points_url || assets.mesh_url)) return "available";
+  if (!assets.membership_url || mismatch[mode]) return "reprocess";
+  return membership === "error" ? "failed" : "available";
 }
 export function viewMode(layers: Layers): ViewMode | null {
   return layers.points ? "points" : layers.mesh ? "mesh" : null;

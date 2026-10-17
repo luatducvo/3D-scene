@@ -67,8 +67,11 @@
   },
   "layers": {
     "points": "Point cloud",
-    "mesh": "Mesh",
-    "boxes": "Khung vật thể"
+    "mesh": "Mesh"
+  },
+  "searchErrors": {
+    "COMPUTE_UNAVAILABLE": "Tìm kiếm theo ngữ nghĩa cần máy GPU đang chạy. Hãy bật máy GPU rồi thử lại.",
+    "other": "Không thể tìm kiếm lúc này. Hãy thử lại."
   },
   "ui": {
     "navigation": "Điều hướng",
@@ -128,6 +131,8 @@
     "viewerError": "Không thể tải không gian 3D.",
     "viewerLabel": "Không gian 3D tương tác",
     "noGeometry": "Scene này chưa có dữ liệu hình học để hiển thị.",
+    "reprocessForHighlight": "Hãy xử lý lại scene này để tô sáng và di chuột chọn đồ vật trong không gian 3D.",
+    "highlightFailed": "Không thể tải dữ liệu tô sáng đồ vật.",
     "viewMode": "Chế độ xem 3D",
     "displayLayers": "Lớp hiển thị",
     "searching": "Đang tìm kiếm…",
