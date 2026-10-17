@@ -10,13 +10,16 @@ def test_compute_config_expands_environment_and_tolerates_unset_values(tmp_path,
     assert config.targets["modal"].token == ""
     assert config.targets["vast"].url is None
     path = tmp_path / "compute.yaml"
-    path.write_text("targets:\n  x:\n    backend: http\n    url: ${MISSING_URL}\n    headers: {Authorization: Bearer ${MISSING_KEY}}\n")
+    path.write_text(
+        "targets:\n  x:\n    backend: http\n    url: ${MISSING_URL}\n    headers: {Authorization: Bearer ${MISSING_KEY}}\n"
+    )
     target = ComputeConfig.load(path).targets["x"]
     assert target.url is None and target.headers == {"Authorization": "Bearer"}
 
 
 def test_pipeline_targets_come_from_environment(monkeypatch):
     from scene_core.config import PipelineConfig
+
     monkeypatch.setenv("GPU_TARGET", "vast")
     real = PipelineConfig.load("backend/config/pipeline.yaml")
     assert real.target == "vast"

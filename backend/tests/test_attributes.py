@@ -3,7 +3,6 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from PIL import Image
-
 from scene_core.contracts import SceneWorkspace
 from scene_stages.attributes import VisionAttributes
 
@@ -13,9 +12,15 @@ def test_vlm_records_valid_attributes_and_counts_malformed_output(tmp_path, monk
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             assert body["model"] == "fixture-vision"
-            assert body["messages"][1]["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+            assert body["messages"][1]["content"][1]["image_url"]["url"].startswith(
+                "data:image/jpeg;base64,"
+            )
             label = body["messages"][1]["content"][0]["text"].split()[2].rstrip(".")
-            content = json.dumps({"label_vi": "cốc", "attributes": {"color": ["red"]}}) if label == "cup" else "not JSON"
+            content = (
+                json.dumps({"label_vi": "cốc", "attributes": {"color": ["red"]}})
+                if label == "cup"
+                else "not JSON"
+            )
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -64,7 +69,7 @@ def test_vlm_request_that_never_completes_fails_only_its_object(tmp_path, monkey
                     for _ in range(100):
                         self.wfile.write(b" ")
                         self.wfile.flush()
-                        time.sleep(.1)
+                        time.sleep(0.1)
                 except OSError:
                     pass
                 return
@@ -93,7 +98,7 @@ def test_vlm_request_that_never_completes_fails_only_its_object(tmp_path, monkey
         Image.new("RGB", (8, 8)).save(workspace.dir("instances/crops") / f"{item['id']}_0.jpg")
     start = time.monotonic()
     try:
-        manifest = VisionAttributes().run(workspace, {"request_timeout_s": .5, "max_retries": 1})
+        manifest = VisionAttributes().run(workspace, {"request_timeout_s": 0.5, "max_retries": 1})
     finally:
         server.shutdown()
         server.server_close()
@@ -115,7 +120,7 @@ def test_vlm_requests_run_in_parallel_and_merge_extra_body(tmp_path, monkeypatch
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             Handler.bodies.append(body)
-            time.sleep(.5)
+            time.sleep(0.5)
             content = json.dumps({"label_vi": "ghế", "attributes": {"color": ["blue"]}})
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -137,7 +142,10 @@ def test_vlm_requests_run_in_parallel_and_merge_extra_body(tmp_path, monkeypatch
         Image.new("RGB", (8, 8)).save(workspace.dir("instances/crops") / f"{item['id']}_0.jpg")
     start = time.monotonic()
     try:
-        manifest = VisionAttributes().run(workspace, {"concurrency": 6, "extra_body": {"reasoning": {"enabled": False}}, "max_tokens": 200})
+        manifest = VisionAttributes().run(
+            workspace,
+            {"concurrency": 6, "extra_body": {"reasoning": {"enabled": False}}, "max_tokens": 200},
+        )
     finally:
         server.shutdown()
         server.server_close()
@@ -145,11 +153,18 @@ def test_vlm_requests_run_in_parallel_and_merge_extra_body(tmp_path, monkeypatch
     result = json.loads(workspace.path("attributes/attributes.json").read_text(encoding="utf-8"))
     assert list(result) == [item["id"] for item in instances]
     assert all(value["label_vi"] == "ghế" for value in result.values())
-    assert all(body["reasoning"] == {"enabled": False} and body["max_tokens"] == 200 and body["model"] == "fixture-vision" for body in Handler.bodies)
+    assert all(
+        body["reasoning"] == {"enabled": False}
+        and body["max_tokens"] == 200
+        and body["model"] == "fixture-vision"
+        for body in Handler.bodies
+    )
     assert manifest.invalid_outputs == 0
 
 
-def test_no_attributes_writes_an_empty_entry_per_instance_without_an_endpoint(tmp_path, monkeypatch):
+def test_no_attributes_writes_an_empty_entry_per_instance_without_an_endpoint(
+    tmp_path, monkeypatch
+):
     from scene_core.registry import Registry
     from scene_stages.attributes import NoAttributes
 
@@ -158,7 +173,10 @@ def test_no_attributes_writes_an_empty_entry_per_instance_without_an_endpoint(tm
     instances = [{"id": "cup", "label": "cup"}, {"id": "table", "label": "table"}]
     workspace.dir("instances").joinpath("instances.json").write_text(json.dumps(instances))
     manifest = NoAttributes().run(workspace, {})
-    assert json.loads(workspace.path("attributes/attributes.json").read_text()) == {"cup": {}, "table": {}}
+    assert json.loads(workspace.path("attributes/attributes.json").read_text()) == {
+        "cup": {},
+        "table": {},
+    }
     assert json.loads(workspace.path("attributes/errors.json").read_text()) == []
     assert manifest.num_objects == 2 and manifest.invalid_outputs == 0
     assert Registry().resolve("attributes.none") is NoAttributes

@@ -1,4 +1,5 @@
 """Metric geometry for gravity-aligned oriented boxes; NumPy only."""
+
 import numpy as np
 
 from .domain import OrientedBox
@@ -45,7 +46,17 @@ def footprint_overlap(a, b):
     polygon = _clip(footprint(a), footprint(b))
     if len(polygon) < 3:
         return 0.0
-    return abs(float(np.sum(polygon[:, 0] * np.roll(polygon[:, 1], -1) - polygon[:, 1] * np.roll(polygon[:, 0], -1)))) / 2
+    return (
+        abs(
+            float(
+                np.sum(
+                    polygon[:, 0] * np.roll(polygon[:, 1], -1)
+                    - polygon[:, 1] * np.roll(polygon[:, 0], -1)
+                )
+            )
+        )
+        / 2
+    )
 
 
 def _point_segment_distance(point, a, b):
@@ -60,11 +71,15 @@ def box_surface_distance(a, b):
     pa, pb = footprint(a), footprint(b)
     # Convex clipping handles touching footprints, including edge intersections.
     overlap = _clip(pa, pb)
-    xy = 0.0 if len(overlap) else min(
-        _point_segment_distance(point, edge_a, edge_b)
-        for points, polygon in ((pa, pb), (pb, pa))
-        for point in points
-        for edge_a, edge_b in zip(polygon, np.roll(polygon, -1, axis=0))
+    xy = (
+        0.0
+        if len(overlap)
+        else min(
+            _point_segment_distance(point, edge_a, edge_b)
+            for points, polygon in ((pa, pb), (pb, pa))
+            for point in points
+            for edge_a, edge_b in zip(polygon, np.roll(polygon, -1, axis=0))
+        )
     )
     z = max(0, abs(a.center[2] - b.center[2]) - (a.size[2] + b.size[2]) / 2)
     return float(np.hypot(xy, z))
@@ -82,7 +97,10 @@ def _convex_hull(points):
     for sequence in (points, reversed(points)):
         half = []
         for point in sequence:
-            while len(half) >= 2 and _cross(np.subtract(half[-1], half[-2]), np.subtract(point, half[-1])) <= 0:
+            while (
+                len(half) >= 2
+                and _cross(np.subtract(half[-1], half[-2]), np.subtract(point, half[-1])) <= 0
+            ):
                 half.pop()
             half.append(point)
         halves.append(half[:-1])
@@ -108,7 +126,9 @@ def fit_box(points):
     _, yaw, rotation, low, high = best
     center_xy = (low + high) / 2 @ rotation.T
     zmin, zmax = points[:, 2].min(), points[:, 2].max()
-    return OrientedBox(center=(*center_xy, (zmin + zmax) / 2), size=(*(high - low), zmax - zmin), yaw=float(yaw))
+    return OrientedBox(
+        center=(*center_xy, (zmin + zmax) / 2), size=(*(high - low), zmax - zmin), yaw=float(yaw)
+    )
 
 
 def fit_plane(points, threshold=0.02, iterations=300, seed=42):

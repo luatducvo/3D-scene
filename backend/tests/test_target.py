@@ -1,4 +1,5 @@
 """TargetWorkspace through its interface, on both adapters: in-process and HTTP to an in-memory scene-compute."""
+
 import io
 from pathlib import Path
 
@@ -15,7 +16,15 @@ CONFIG = Path(__file__).parents[1] / "config"
 
 
 def remote_target(**overrides):
-    return TargetConfig(**{"backend": "http", "url": "http://testserver", "chunk_size": 512, "poll_interval": .001, **overrides})
+    return TargetConfig(
+        **{
+            "backend": "http",
+            "url": "http://testserver",
+            "chunk_size": 512,
+            "poll_interval": 0.001,
+            **overrides,
+        }
+    )
 
 
 @pytest.fixture(params=["inprocess", "http"])
@@ -28,7 +37,12 @@ def target(request, tmp_path):
     # Small client chunks exercise chunked transfer; the server limit still fits one query embedding.
     with TestClient(create_compute_app(tmp_path / "remote", chunk_bytes=64_000)) as client:
         compute = ComputeConfig(targets={"remote": remote_target()})
-        yield open_target_workspace(local, pipeline.model_copy(update={"target": "remote"}), compute, client=client), tmp_path / "remote"
+        yield (
+            open_target_workspace(
+                local, pipeline.model_copy(update={"target": "remote"}), compute, client=client
+            ),
+            tmp_path / "remote",
+        )
 
 
 def processed(target, scene="room"):
@@ -58,18 +72,35 @@ def test_stages_run_on_the_target_and_only_results_are_published(target):
     workspace.pipeline.stages["mesh"].params["progress_steps"] = 3
     workspace.put_input("room", "one.jpg", io.BytesIO(b"synthetic"))
     reports = []
-    manifests = {stage: workspace.run_stage("room", stage, on_progress=reports.append) for stage in STAGES}
+    manifests = {
+        stage: workspace.run_stage("room", stage, on_progress=reports.append) for stage in STAGES
+    }
     assert manifests["ingest"]["num_keyframes"] == 1
-    assert reports[-1] == {"done": 1, "total": 1, "unit": "step"} and {"done": 3, "total": 3, "unit": "step"} in reports
-    assert (root / "scenes/room/keyframes").is_dir() and not (workspace.data_dir / "scenes").exists()
+    assert (
+        reports[-1] == {"done": 1, "total": 1, "unit": "step"}
+        and {"done": 3, "total": 3, "unit": "step"} in reports
+    )
+    assert (root / "scenes/room/keyframes").is_dir() and not (
+        workspace.data_dir / "scenes"
+    ).exists()
     staged = []
-    workspace.replace_results("room", "job-1", lambda results: staged.append(SceneResults(results).load()))
+    workspace.replace_results(
+        "room", "job-1", lambda results: staged.append(SceneResults(results).load())
+    )
     assert [o.id for o in staged[0].graph.objects] == ["chair-1", "table-1"]
     results = published(workspace, "job-1")
     assert [p.name for p in results.root.parent.iterdir()] == ["job-1"]
-    assert sorted(p.name for p in results.root.iterdir()) == ["embeddings", "graph", "mesh", "recon"]
+    assert sorted(p.name for p in results.root.iterdir()) == [
+        "embeddings",
+        "graph",
+        "mesh",
+        "recon",
+    ]
     assert [p.name for p in results.path("recon").iterdir()] == ["rgb"]
-    assert SceneResults(results).assets()["mesh"] and not (workspace.data_dir / "staging/scenes/room").exists()
+    assert (
+        SceneResults(results).assets()["mesh"]
+        and not (workspace.data_dir / "staging/scenes/room").exists()
+    )
 
 
 def test_a_failed_publication_leaves_the_earlier_results_untouched(target):
@@ -84,6 +115,7 @@ def test_a_failed_publication_leaves_the_earlier_results_untouched(target):
         # The new version is complete before the database commits; a failure then must remove it.
         assert results.path("mesh/mesh.glb").is_file()
         raise SceneError("RESULTS_INVALID", "deliberate failure")
+
     with pytest.raises(SceneError, match="deliberate failure"):
         workspace.replace_results("room", "job-2", publish)
     assert published(workspace, "job-1").path("mesh/mesh.glb").read_bytes() == mesh
@@ -105,17 +137,28 @@ def test_clearing_outputs_keeps_the_uploaded_inputs(target):
     workspace, root = target
     processed(workspace)
     workspace.clear_outputs("room")
-    assert sorted(p.relative_to(root / "scenes/room").as_posix() for p in (root / "scenes/room").rglob("*") if p.is_file()) == ["raw/one.jpg"]
+    assert sorted(
+        p.relative_to(root / "scenes/room").as_posix()
+        for p in (root / "scenes/room").rglob("*")
+        if p.is_file()
+    ) == ["raw/one.jpg"]
 
 
 def test_stage_failures_carry_the_algorithms_code_and_details_on_every_adapter(target):
     workspace, _ = target
     workspace.put_input("room", "one.jpg", io.BytesIO(b"synthetic"))
-    workspace.pipeline.stages["ingest"].params.update(fail="Too few sharp Frames", fail_code="NOT_ENOUGH_KEYFRAMES",
-                                                      fail_details={"rejection_counts": {"blur": 3}})
+    workspace.pipeline.stages["ingest"].params.update(
+        fail="Too few sharp Frames",
+        fail_code="NOT_ENOUGH_KEYFRAMES",
+        fail_details={"rejection_counts": {"blur": 3}},
+    )
     with pytest.raises(SceneError) as error:
         workspace.run_stage("room", "ingest")
-    assert (error.value.code, error.value.message, error.value.details) == ("NOT_ENOUGH_KEYFRAMES", "Too few sharp Frames", {"rejection_counts": {"blur": 3}})
+    assert (error.value.code, error.value.message, error.value.details) == (
+        "NOT_ENOUGH_KEYFRAMES",
+        "Too few sharp Frames",
+        {"rejection_counts": {"blur": 3}},
+    )
 
 
 def test_queries_are_embedded_by_the_embed_algorithm(target):
@@ -132,10 +175,20 @@ def test_delete_removes_the_target_workspace(target):
 
 
 def test_an_unreachable_target_is_compute_unavailable(tmp_path):
-    pipeline = PipelineConfig.load(CONFIG / "pipeline.fake.yaml").model_copy(update={"target": "down"})
-    compute = ComputeConfig(targets={"down": remote_target(url="http://127.0.0.1:9", startup_timeout=.2, poll_interval=.05)})
+    pipeline = PipelineConfig.load(CONFIG / "pipeline.fake.yaml").model_copy(
+        update={"target": "down"}
+    )
+    compute = ComputeConfig(
+        targets={
+            "down": remote_target(url="http://127.0.0.1:9", startup_timeout=0.2, poll_interval=0.05)
+        }
+    )
     workspace = open_target_workspace(tmp_path, pipeline, compute)
-    for call in (lambda: workspace.list_inputs("room"), lambda: workspace.embed_text(["chair"]), lambda: workspace.delete("room")):
+    for call in (
+        lambda: workspace.list_inputs("room"),
+        lambda: workspace.embed_text(["chair"]),
+        lambda: workspace.delete("room"),
+    ):
         with pytest.raises(SceneError) as error:
             call()
         assert error.value.code == "COMPUTE_UNAVAILABLE" and error.value.status_code == 503
@@ -147,6 +200,9 @@ def test_configuration_errors_name_what_to_set(tmp_path, monkeypatch):
     compute = ComputeConfig(targets={"cpu": TargetConfig(), "vast": TargetConfig(backend="http")})
     with pytest.raises(ValueError, match="GPU_TARGET"):
         open_target_workspace(tmp_path, pipeline, compute)
-    for name, message in (("missing", "unknown compute Target missing"), ("vast", "vast has no URL")):
+    for name, message in (
+        ("missing", "unknown compute Target missing"),
+        ("vast", "vast has no URL"),
+    ):
         with pytest.raises(ValueError, match=message):
             open_target_workspace(tmp_path, pipeline.model_copy(update={"target": name}), compute)

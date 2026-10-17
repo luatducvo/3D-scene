@@ -1,11 +1,11 @@
 """Mask graph clustering using geometric cross-view visibility consensus."""
+
 import hashlib
 import json
 from collections import defaultdict
 
 import numpy as np
 from PIL import Image
-
 from scene_core.contracts import LiftManifest
 from scene_core.ports import StageAlgorithm
 
@@ -24,7 +24,9 @@ def support(points, frame, mask, tolerance):
     pixels = np.zeros((len(points), 2), dtype=int)
     pixels[front] = np.rint(projected[front, :2] / projected[front, 2:3]).astype(int)
     h, w = mask.shape
-    visible = front & (pixels[:, 0] >= 0) & (pixels[:, 0] < w) & (pixels[:, 1] >= 0) & (pixels[:, 1] < h)
+    visible = (
+        front & (pixels[:, 0] >= 0) & (pixels[:, 0] < w) & (pixels[:, 1] >= 0) & (pixels[:, 1] < h)
+    )
     indices = np.flatnonzero(visible)
     if not len(indices):
         return 0.0
@@ -80,22 +82,37 @@ class MaskClustering(StageAlgorithm):
 
     def run(self, workspace, params):
         nodes, frames = [], {}
-        voxel = float(params.get("voxel_size_m", .02))
+        voxel = float(params.get("voxel_size_m", 0.02))
         if voxel <= 0:
             raise ValueError("voxel_size_m must be positive")
         for masks_file in sorted(workspace.path("segment/masks").glob("*.npz")):
             frame_id = masks_file.stem
-            with np.load(workspace.path(f"align/frames/{frame_id}.npz"), allow_pickle=False) as data:
+            with np.load(
+                workspace.path(f"align/frames/{frame_id}.npz"), allow_pickle=False
+            ) as data:
                 frames[frame_id] = dict(data)
             frame = frames[frame_id]
             with np.load(masks_file, allow_pickle=False) as data:
-                for index, (mask, label, score) in enumerate(zip(data["masks"], data["labels"], data["scores"])):
+                for index, (mask, label, score) in enumerate(
+                    zip(data["masks"], data["labels"], data["scores"])
+                ):
                     mask = np.asarray(mask, dtype=bool)
                     points = unproject(frame["depth"], frame["K"], frame["pose"], mask)
                     if len(points) < int(params.get("min_points", 8)):
                         continue
-                    _, unique = np.unique(np.floor(points / voxel).astype(np.int64), axis=0, return_index=True)
-                    nodes.append({"frame": frame_id, "index": index, "mask": mask, "label": str(label), "score": float(score), "points": points[unique]})
+                    _, unique = np.unique(
+                        np.floor(points / voxel).astype(np.int64), axis=0, return_index=True
+                    )
+                    nodes.append(
+                        {
+                            "frame": frame_id,
+                            "index": index,
+                            "mask": mask,
+                            "label": str(label),
+                            "score": float(score),
+                            "points": points[unique],
+                        }
+                    )
         affinity = np.zeros((len(nodes), len(nodes)))
         for i, a in enumerate(nodes):
             self.progress(i, len(nodes), "mask")
@@ -103,11 +120,25 @@ class MaskClustering(StageAlgorithm):
                 b = nodes[j]
                 if a["frame"] == b["frame"]:
                     continue
-                forward = support(a["points"], frames[b["frame"]], b["mask"], float(params.get("depth_tolerance_m", .05)))
-                reverse = support(b["points"], frames[a["frame"]], a["mask"], float(params.get("depth_tolerance_m", .05)))
+                forward = support(
+                    a["points"],
+                    frames[b["frame"]],
+                    b["mask"],
+                    float(params.get("depth_tolerance_m", 0.05)),
+                )
+                reverse = support(
+                    b["points"],
+                    frames[a["frame"]],
+                    a["mask"],
+                    float(params.get("depth_tolerance_m", 0.05)),
+                )
                 affinity[i, j] = affinity[j, i] = min(forward, reverse)
         self.progress(len(nodes), len(nodes), "mask")
-        groups = _agglomerate(affinity, [node["frame"] for node in nodes], float(params.get("consensus_threshold", .5)))
+        groups = _agglomerate(
+            affinity,
+            [node["frame"] for node in nodes],
+            float(params.get("consensus_threshold", 0.5)),
+        )
         instances = []
         for group in groups:
             members = [nodes[i] for i in sorted(group)]
@@ -121,17 +152,41 @@ class MaskClustering(StageAlgorithm):
             identity = ";".join(f"{node['frame']}:{node['index']}" for node in members)
             instance_id = "obj-" + hashlib.sha256(identity.encode()).hexdigest()[:16]
             points = np.concatenate([member["points"] for member in members])
-            _, unique = np.unique(np.floor(points / voxel).astype(np.int64), axis=0, return_index=True)
+            _, unique = np.unique(
+                np.floor(points / voxel).astype(np.int64), axis=0, return_index=True
+            )
             np.save(workspace.dir("instances/points") / f"{instance_id}.npy", points[unique])
             best_views = []
-            ranked = sorted(members, key=lambda node: node["score"] * node["mask"].sum(), reverse=True)[:int(params.get("num_best_views", 3))]
+            ranked = sorted(
+                members, key=lambda node: node["score"] * node["mask"].sum(), reverse=True
+            )[: int(params.get("num_best_views", 3))]
             for index, member in enumerate(ranked):
                 y, x = np.nonzero(member["mask"])
                 with Image.open(workspace.path(f"recon/rgb/{member['frame']}.png")) as image:
-                    pad = max(2, int(.1 * max(x.max() - x.min(), y.max() - y.min())))
-                    bbox = [max(0, int(x.min()) - pad), max(0, int(y.min()) - pad), min(image.width, int(x.max()) + pad + 1), min(image.height, int(y.max()) + pad + 1)]
-                    image.crop(bbox).save(workspace.dir("instances/crops") / f"{instance_id}_{index}.jpg")
-                best_views.append({"frame_id": member["frame"], "bbox": bbox, "score": member["score"]})
-            instances.append({"id": instance_id, "label": label, "score": max(member["score"] for member in members), "num_views": num_views, "points_file": f"instances/points/{instance_id}.npy", "best_views": best_views})
-        workspace.dir("instances").joinpath("instances.json").write_text(json.dumps(instances, indent=2), encoding="utf-8")
+                    pad = max(2, int(0.1 * max(x.max() - x.min(), y.max() - y.min())))
+                    bbox = [
+                        max(0, int(x.min()) - pad),
+                        max(0, int(y.min()) - pad),
+                        min(image.width, int(x.max()) + pad + 1),
+                        min(image.height, int(y.max()) + pad + 1),
+                    ]
+                    image.crop(bbox).save(
+                        workspace.dir("instances/crops") / f"{instance_id}_{index}.jpg"
+                    )
+                best_views.append(
+                    {"frame_id": member["frame"], "bbox": bbox, "score": member["score"]}
+                )
+            instances.append(
+                {
+                    "id": instance_id,
+                    "label": label,
+                    "score": max(member["score"] for member in members),
+                    "num_views": num_views,
+                    "points_file": f"instances/points/{instance_id}.npy",
+                    "best_views": best_views,
+                }
+            )
+        workspace.dir("instances").joinpath("instances.json").write_text(
+            json.dumps(instances, indent=2), encoding="utf-8"
+        )
         return LiftManifest(num_instances=len(instances), instances_file="instances/instances.json")

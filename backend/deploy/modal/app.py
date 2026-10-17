@@ -1,7 +1,8 @@
 """Deploy the portable HTTP server; provider SDK usage stays in this file."""
+
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import modal
 
@@ -31,7 +32,15 @@ models = modal.Volume.from_name("scene-models", create_if_missing=True)
 def serve():
     if not os.environ.get("COMPUTE_TOKEN"):
         raise RuntimeError("COMPUTE_TOKEN must be set for a public compute endpoint")
-    subprocess.Popen([
-        "/app/.venv/bin/python", "-m", "uvicorn", "scene_compute.server:app",
-        "--host", "0.0.0.0", "--port", "9000",
-    ])
+    subprocess.Popen(
+        [
+            "/app/.venv/bin/python",
+            "-m",
+            "uvicorn",
+            "scene_compute.server:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "9000",
+        ]
+    )

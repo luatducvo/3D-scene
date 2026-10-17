@@ -3,6 +3,7 @@
 Every failure leaves as a SceneError: an Algorithm's own code and details from a failed Compute Run,
 the contract's code for a rejected request, and COMPUTE_UNAVAILABLE when the Target cannot be reached.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -30,7 +31,9 @@ class HttpAdapter:
         headers = dict(target_config.headers)
         if target_config.token:
             headers["X-Compute-Token"] = target_config.token
-        self.client = client or httpx.Client(base_url=target_config.url, headers=headers, timeout=29)
+        self.client = client or httpx.Client(
+            base_url=target_config.url, headers=headers, timeout=29
+        )
 
     def _call(self, method, path, **kwargs):
         try:
@@ -40,7 +43,10 @@ class HttpAdapter:
         if response.is_error:
             try:
                 error = response.json()["error"]
-                code, message = error.get("code", "COMPUTE_FAILED"), error.get("message", str(error))
+                code, message = (
+                    error.get("code", "COMPUTE_FAILED"),
+                    error.get("message", str(error)),
+                )
             except (ValueError, KeyError, TypeError, AttributeError):
                 code, message = "COMPUTE_FAILED", f"Compute HTTP {response.status_code}"
             raise SceneError(code, message, 502)
@@ -54,7 +60,9 @@ class HttpAdapter:
                 if response.status_code == 200:
                     return
                 if 400 <= response.status_code < 500 and response.status_code != 429:
-                    raise unavailable(f"The compute Target rejected the readiness request: {response.status_code}")
+                    raise unavailable(
+                        f"The compute Target rejected the readiness request: {response.status_code}"
+                    )
             except httpx.TransportError:
                 pass
             time.sleep(self.target.poll_interval)
@@ -63,7 +71,11 @@ class HttpAdapter:
     def _files(self, scene_id, directories):
         files, cursor = [], 0
         while True:
-            value = self._call("GET", f"/workspaces/{scene_id}/files", params={"dirs": ",".join(directories), "cursor": cursor}).json()
+            value = self._call(
+                "GET",
+                f"/workspaces/{scene_id}/files",
+                params={"dirs": ",".join(directories), "cursor": cursor},
+            ).json()
             files.extend(value["files"])
             cursor = value.get("next_cursor")
             if cursor is None:
@@ -73,7 +85,12 @@ class HttpAdapter:
         offset = 0
         while True:
             chunk = stream.read(self.target.chunk_size)
-            self._call("PUT", f"/workspaces/{scene_id}/files/{relative}", params={"offset": offset, "total": size, "sha256": digest}, content=chunk)
+            self._call(
+                "PUT",
+                f"/workspaces/{scene_id}/files/{relative}",
+                params={"offset": offset, "total": size, "sha256": digest},
+                content=chunk,
+            )
             offset += len(chunk)
             if offset == size:
                 break
@@ -96,7 +113,9 @@ class HttpAdapter:
 
     def run(self, algorithm, scene_id, params, on_progress=None):
         self._wait_until_ready()
-        run_id = self._call("POST", "/runs", json={"algorithm": algorithm, "scene_id": scene_id, "params": params}).json()["run_id"]
+        run_id = self._call(
+            "POST", "/runs", json={"algorithm": algorithm, "scene_id": scene_id, "params": params}
+        ).json()["run_id"]
         deadline = time.monotonic() + RUN_LIMIT_S
         reported = None
         while time.monotonic() < deadline:
@@ -108,11 +127,18 @@ class HttpAdapter:
                 error = result.get("error") or {}
                 if not isinstance(error, dict):
                     error = {"message": str(error)}
-                raise SceneError(error.get("code", "COMPUTE_FAILED"), error.get("message", "Compute Run failed"), 502, error.get("details"))
+                raise SceneError(
+                    error.get("code", "COMPUTE_FAILED"),
+                    error.get("message", "Compute Run failed"),
+                    502,
+                    error.get("details"),
+                )
             if result["state"] == "done":
                 return result["manifest"]
             time.sleep(self.target.poll_interval)
-        raise SceneError("COMPUTE_TIMEOUT", "Compute Run exceeded the six-hour execution limit", 504)
+        raise SceneError(
+            "COMPUTE_TIMEOUT", "Compute Run exceeded the six-hour execution limit", 504
+        )
 
     def download(self, scene_id, directories, staging: SceneWorkspace):
         """Download every file under the directories into the empty staging Workspace, verifying checksums."""
@@ -121,22 +147,38 @@ class HttpAdapter:
         for item in self._files(scene_id, directories):
             relative = item["path"]
             if not any(relative.startswith(directory + "/") for directory in directories):
-                raise SceneError("COMPUTE_FAILED", "The compute Target returned a file outside the requested directories", 502)
+                raise SceneError(
+                    "COMPUTE_FAILED",
+                    "The compute Target returned a file outside the requested directories",
+                    502,
+                )
             path = staging.path(relative)
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("wb") as stream:
                 for offset in range(0, item["size"], self.target.chunk_size):
                     end = min(offset + self.target.chunk_size, item["size"]) - 1
-                    response = self._call("GET", f"/workspaces/{scene_id}/files/{relative}", headers={"Range": f"bytes={offset}-{end}"})
+                    response = self._call(
+                        "GET",
+                        f"/workspaces/{scene_id}/files/{relative}",
+                        headers={"Range": f"bytes={offset}-{end}"},
+                    )
                     if len(response.content) != end - offset + 1:
-                        raise SceneError("COMPUTE_FAILED", "The compute Target returned an incorrect range length", 502)
+                        raise SceneError(
+                            "COMPUTE_FAILED",
+                            "The compute Target returned an incorrect range length",
+                            502,
+                        )
                     stream.write(response.content)
             if sha256_file(path) != item["sha256"]:
-                raise SceneError("COMPUTE_FAILED", f"Downloaded file {relative} has a different checksum", 502)
+                raise SceneError(
+                    "COMPUTE_FAILED", f"Downloaded file {relative} has a different checksum", 502
+                )
 
     def embed(self, algorithm, texts):
         self._wait_until_ready()
-        return self._call("POST", f"/invoke/{algorithm}/embed_text", json={"texts": texts}).json()["vectors"]
+        return self._call("POST", f"/invoke/{algorithm}/embed_text", json={"texts": texts}).json()[
+            "vectors"
+        ]
 
     def delete(self, scene_id):
         self._call("DELETE", f"/workspaces/{scene_id}")

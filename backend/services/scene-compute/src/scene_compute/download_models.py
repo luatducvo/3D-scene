@@ -1,12 +1,11 @@
 """Fetch weights for every installed Algorithm of the real pipeline (not PIPELINE_CONFIG, which may select fakes) into MODELS_DIR, without loading them on a GPU."""
+
 import os
 from importlib.metadata import PackageNotFoundError
+from pathlib import Path
 
 from scene_core.config import PipelineConfig
 from scene_core.registry import Registry
-
-
-from pathlib import Path
 
 
 def _find_pipeline_config() -> str:

@@ -16,4 +16,9 @@ def test_every_configured_algorithm_and_relation_is_installed():
 
 def test_listing_algorithms_does_not_import_heavy_libraries():
     code = "import sys;from scene_core.registry import Registry;Registry().available();print('torch' in sys.modules)"
-    assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip() == "False"
+    assert (
+        subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        == "False"
+    )

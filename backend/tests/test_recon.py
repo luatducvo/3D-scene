@@ -12,6 +12,7 @@ from scene_stages import gpu
 
 class FakeDepthAnything3:
     """Stands in for depth_anything_3.api.DepthAnything3 with its documented Prediction fields."""
+
     is_metric = 1
 
     @classmethod
@@ -33,11 +34,16 @@ class FakeDepthAnything3:
         extrinsics[:, :3, 3] = [[-index, 0, 0] for index in range(count)]  # camera i sits at x = i
         confidence = np.tile(np.linspace(1, 2, width, dtype=np.float32), (count, height, 1))
         return types.SimpleNamespace(
-            depth=np.full((count, height, width), 2, np.float32), conf=confidence,
+            depth=np.full((count, height, width), 2, np.float32),
+            conf=confidence,
             extrinsics=extrinsics.astype(np.float32),
-            intrinsics=np.tile(np.array([[8, 0, 4], [0, 8, 3], [0, 0, 1]], np.float32), (count, 1, 1)),
+            intrinsics=np.tile(
+                np.array([[8, 0, 4], [0, 8, 3], [0, 0, 1]], np.float32), (count, 1, 1)
+            ),
             processed_images=np.full((count, height, width, 3), 90, np.uint8),
-            is_metric=self.is_metric, scale_factor=None)
+            is_metric=self.is_metric,
+            scale_factor=None,
+        )
 
 
 @pytest.fixture
@@ -46,14 +52,18 @@ def fake_da3(monkeypatch):
     api.DepthAnything3 = FakeDepthAnything3
     monkeypatch.setitem(sys.modules, "depth_anything_3", types.ModuleType("depth_anything_3"))
     monkeypatch.setitem(sys.modules, "depth_anything_3.api", api)
-    monkeypatch.setattr(gpu, "_cuda", lambda: types.SimpleNamespace(inference_mode=contextlib.nullcontext))
+    monkeypatch.setattr(
+        gpu, "_cuda", lambda: types.SimpleNamespace(inference_mode=contextlib.nullcontext)
+    )
     return api
 
 
 def _workspace(tmp_path, count):
     workspace = SceneWorkspace(tmp_path, "recon")
     for index in range(count):
-        Image.new("RGB", (16, 12), (index, 0, 0)).save(workspace.dir("keyframes") / f"{index:04d}.jpg")
+        Image.new("RGB", (16, 12), (index, 0, 0)).save(
+            workspace.dir("keyframes") / f"{index:04d}.jpg"
+        )
     return workspace
 
 

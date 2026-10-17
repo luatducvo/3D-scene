@@ -1,4 +1,5 @@
 """Lazy model adapters. Upstream interfaces and manual checks: docs/GPU-INTEGRATION.md."""
+
 from __future__ import annotations
 
 import json
@@ -7,12 +8,11 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-
 from scene_core.contracts import AlignManifest, EmbedManifest, ReconManifest, SegmentManifest
 from scene_core.errors import SceneError
-from scene_core.results import EMBEDDING_DIM
 from scene_core.geometry import fit_plane
 from scene_core.ports import StageAlgorithm
+from scene_core.results import EMBEDDING_DIM
 
 
 def _cache():
@@ -24,6 +24,7 @@ def _cache():
 def _cuda():
     _cache()
     import torch
+
     if not torch.cuda.is_available():
         raise SceneError("GPU_REQUIRED", "This Algorithm requires a CUDA compute Target")
     return torch
@@ -48,6 +49,7 @@ class DepthAnything3Reconstruction(StageAlgorithm):
     def download_weights(self):
         _cache()
         from huggingface_hub import snapshot_download
+
         snapshot_download(self.model_id)
 
     def run(self, workspace, params):
@@ -79,11 +81,19 @@ class DepthAnything3Reconstruction(StageAlgorithm):
         intrinsics = np.asarray(prediction.intrinsics, dtype=np.float64)
         rgb = np.asarray(prediction.processed_images)
         count = len(files)
-        if (depth.ndim != 3 or len(depth) != count or confidence.shape != depth.shape
-                or rgb.shape != (*depth.shape, 3) or intrinsics.shape != (count, 3, 3)
-                or extrinsics.shape not in ((count, 3, 4), (count, 4, 4))
-                or not np.isfinite(extrinsics).all() or not np.isfinite(intrinsics).all()):
-            raise SceneError("INVALID_MODEL_OUTPUT", "Depth Anything 3 output violates Frame shapes")
+        if (
+            depth.ndim != 3
+            or len(depth) != count
+            or confidence.shape != depth.shape
+            or rgb.shape != (*depth.shape, 3)
+            or intrinsics.shape != (count, 3, 3)
+            or extrinsics.shape not in ((count, 3, 4), (count, 4, 4))
+            or not np.isfinite(extrinsics).all()
+            or not np.isfinite(intrinsics).all()
+        ):
+            raise SceneError(
+                "INVALID_MODEL_OUTPUT", "Depth Anything 3 output violates Frame shapes"
+            )
         valid = np.isfinite(depth) & (depth > 0) & np.isfinite(confidence)
         if not valid.any():
             raise SceneError("INVALID_MODEL_OUTPUT", "Depth Anything 3 returned no valid depth")
@@ -100,31 +110,35 @@ class DepthAnything3Reconstruction(StageAlgorithm):
                 workspace.dir("recon/frames") / f"{path.stem}.npz",
                 depth=np.where(valid[index], depth[index], 0).astype(np.float32),
                 conf=np.where(valid[index], confidence[index], 0).astype(np.float32),
-                pose=np.linalg.inv(world_to_camera), K=intrinsics[index])
+                pose=np.linalg.inv(world_to_camera),
+                K=intrinsics[index],
+            )
         self.progress(1, 1, "batch")
         scale = prediction.scale_factor
-        return ReconManifest(num_frames=count, frame_ids=[path.stem for path in files],
-                             metric_scale=float(scale) if scale is not None else 1.0,
-                             image_size=(depth.shape[2], depth.shape[1]))
+        return ReconManifest(
+            num_frames=count,
+            frame_ids=[path.stem for path in files],
+            metric_scale=float(scale) if scale is not None else 1.0,
+            image_size=(depth.shape[2], depth.shape[1]),
+        )
 
 
 def _rotation_to_up(up):
     up = np.asarray(up, dtype=float)
     up /= np.linalg.norm(up)
-    target = np.array([0., 0., 1.])
+    target = np.array([0.0, 0.0, 1.0])
     cross = np.cross(up, target)
     cosine = float(up @ target)
     if cosine < -1 + 1e-8:
-        return np.diag([1., -1., -1.])
-    skew = np.array([[0, -cross[2], cross[1]], [cross[2], 0, -cross[0]],
-                     [-cross[1], cross[0], 0]])
+        return np.diag([1.0, -1.0, -1.0])
+    skew = np.array([[0, -cross[2], cross[1]], [cross[2], 0, -cross[0]], [-cross[1], cross[0], 0]])
     return np.eye(3) + skew + skew @ skew / (1 + cosine)
 
 
 def _world_points(frame, stride):
     depth = frame["depth"][::stride, ::stride]
     confidence = frame["conf"][::stride, ::stride]
-    yy, xx = np.mgrid[:depth.shape[0], :depth.shape[1]] * stride
+    yy, xx = np.mgrid[: depth.shape[0], : depth.shape[1]] * stride
     valid = np.isfinite(depth) & (depth > 0) & np.isfinite(confidence) & (confidence > 0)
     pixels = np.column_stack((xx[valid], yy[valid], np.ones(int(valid.sum()))))
     camera = (pixels @ np.linalg.inv(frame["K"]).T) * depth[valid, None]
@@ -145,16 +159,19 @@ class GeoCalibAlignment(StageAlgorithm):
     def download_weights(self):
         _cache()
         import torch
+
         destination = Path(torch.hub.get_dir()) / "geocalib" / "pinhole.tar"
         destination.parent.mkdir(parents=True, exist_ok=True)
         if not destination.exists():
             torch.hub.download_url_to_file(
                 "https://github.com/cvg/GeoCalib/releases/download/v1.0/geocalib-pinhole.tar",
-                str(destination))
+                str(destination),
+            )
 
     def run(self, workspace, params):
         _cuda()
         from geocalib import GeoCalib
+
         if self.model is None:
             self.model = GeoCalib().to("cuda").eval()
         files = sorted(workspace.path("recon/frames").glob("*.npz"))
@@ -192,9 +209,9 @@ class GeoCalibAlignment(StageAlgorithm):
             raise SceneError("ALIGNMENT_FAILED", "Too few valid depth points for floor fitting")
         if len(cloud) > 30000:
             cloud = cloud[np.random.default_rng(42).choice(len(cloud), 30000, replace=False)]
-        threshold = float(params.get("ransac_threshold_m", .02))
+        threshold = float(params.get("ransac_threshold_m", 0.02))
         remaining, horizontal, vertical = cloud.copy(), [], []
-        minimum = max(30, int(.02 * len(cloud)))
+        minimum = max(30, int(0.02 * len(cloud)))
         for _ in range(12):
             if len(remaining) < minimum:
                 break
@@ -219,27 +236,38 @@ class GeoCalibAlignment(StageAlgorithm):
         normals = np.asarray([rotation @ normal for normal, _, _ in vertical])
         angles = np.arctan2(normals[:, 1], normals[:, 0])
         votes = np.asarray([weight for _, _, weight in vertical])
-        yaw = np.arctan2(np.sum(votes * np.sin(4 * angles)),
-                         np.sum(votes * np.cos(4 * angles))) / 4
+        yaw = np.arctan2(np.sum(votes * np.sin(4 * angles)), np.sum(votes * np.cos(4 * angles))) / 4
         c, s = np.cos(-yaw), np.sin(-yaw)
         rotation = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]]) @ rotation
         floor_z = float(np.median((floor[2] @ rotation.T)[:, 2]))
         transform = np.eye(4)
         transform[:3, :3], transform[2, 3] = rotation, -floor_z
-        ceilings = [float(np.median((plane[2] @ rotation.T)[:, 2])) - floor_z
-                    for plane in horizontal if plane[0] > floor[0] + 1.5]
+        ceilings = [
+            float(np.median((plane[2] @ rotation.T)[:, 2])) - floor_z
+            for plane in horizontal
+            if plane[0] > floor[0] + 1.5
+        ]
         for path in files:
             with np.load(path, allow_pickle=False) as data:
                 frame = dict(data)
             frame["pose"] = transform @ frame["pose"]
             np.savez_compressed(workspace.dir("align/frames") / path.name, **frame)
-        walls = [{"normal": (rotation @ normal).tolist(),
-                  "offset": float(offset - (rotation @ normal) @ transform[:3, 3]),
-                  "support": weight} for normal, offset, weight in vertical]
+        walls = [
+            {
+                "normal": (rotation @ normal).tolist(),
+                "offset": float(offset - (rotation @ normal) @ transform[:3, 3]),
+                "support": weight,
+            }
+            for normal, offset, weight in vertical
+        ]
         workspace.dir("align").joinpath("walls.json").write_text(
-            json.dumps(walls), encoding="utf-8")
-        return AlignManifest(world_to_aligned=transform.tolist(), floor_z=0,
-                             ceiling_height=max(ceilings) if ceilings else None)
+            json.dumps(walls), encoding="utf-8"
+        )
+        return AlignManifest(
+            world_to_aligned=transform.tolist(),
+            floor_z=0,
+            ceiling_height=max(ceilings) if ceilings else None,
+        )
 
 
 class Sam3Segmentation(StageAlgorithm):
@@ -260,28 +288,42 @@ class Sam3Segmentation(StageAlgorithm):
     def _weights(self):
         _cache()
         from huggingface_hub import hf_hub_download
+
         return hf_hub_download("facebook/sam3", "sam3.pt")
 
     def run(self, workspace, params):
         _cuda()
-        threshold = float(params.get("score_threshold", .5))
+        threshold = float(params.get("score_threshold", 0.5))
         half = bool(params.get("half", True))
         batch_size = int(params.get("prompt_batch_size", 32))
         if batch_size < 1:
             raise SceneError("INVALID_PARAMETERS", "prompt_batch_size must be positive")
         if self.predictor is None or self.half != half:
             from ultralytics.models.sam import SAM3SemanticPredictor
-            self.predictor = SAM3SemanticPredictor(overrides={
-                "task": "segment", "mode": "predict", "model": self._weights(),
-                "quantize": 16 if half else 32, "save": False, "verbose": False})
+
+            self.predictor = SAM3SemanticPredictor(
+                overrides={
+                    "task": "segment",
+                    "mode": "predict",
+                    "model": self._weights(),
+                    "quantize": 16 if half else 32,
+                    "save": False,
+                    "verbose": False,
+                }
+            )
             self.half = half
         self.predictor.args.conf = threshold
         vocabulary_root = Path(os.environ.get("VOCABULARY_DIR", "backend/config/vocabularies"))
         vocabulary_path = vocabulary_root / params.get("vocabulary_file", "indoor-en.txt")
         if not vocabulary_path.resolve().is_relative_to(vocabulary_root.resolve()):
             raise SceneError("INVALID_VOCABULARY", "Vocabulary must be inside VOCABULARY_DIR")
-        vocabulary = list(dict.fromkeys(line.strip() for line in vocabulary_path.read_text(
-            encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")))
+        vocabulary = list(
+            dict.fromkeys(
+                line.strip()
+                for line in vocabulary_path.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.startswith("#")
+            )
+        )
         if not vocabulary:
             raise SceneError("INVALID_VOCABULARY", "Vocabulary is empty")
         files = sorted(workspace.path("recon/rgb").glob("*.png"))
@@ -298,30 +340,41 @@ class Sam3Segmentation(StageAlgorithm):
             # One image encoding per Frame; the Vocabulary is prompted in batches to bound VRAM.
             self.predictor.set_image(str(path))
             for offset in range(0, len(vocabulary), batch_size):
-                labels = vocabulary[offset:offset + batch_size]
+                labels = vocabulary[offset : offset + batch_size]
                 masks, boxes = self.predictor.inference_features(
-                    self.predictor.features, (height, width), text=labels)
+                    self.predictor.features, (height, width), text=labels
+                )
                 if masks is None:
                     continue
                 masks, boxes = _numpy(masks), _numpy(boxes)
                 if masks.shape != (len(boxes), height, width):
-                    raise SceneError("INVALID_MODEL_OUTPUT", "SAM 3 mask dimensions differ from RGB")
+                    raise SceneError(
+                        "INVALID_MODEL_OUTPUT", "SAM 3 mask dimensions differ from RGB"
+                    )
                 for mask, score, label in zip(masks, boxes[:, 4], boxes[:, 5].astype(int)):
-                    binary = mask > .5
+                    binary = mask > 0.5
                     if np.isfinite(score) and score >= threshold and binary.any():
                         candidates.append((float(score), labels[label], binary))
             kept = []
             for candidate in sorted(candidates, key=lambda item: item[0], reverse=True):
                 mask = candidate[2]
-                if any(np.count_nonzero(mask & item[2]) / np.count_nonzero(mask | item[2])
-                       > .8 for item in kept):
+                if any(
+                    np.count_nonzero(mask & item[2]) / np.count_nonzero(mask | item[2]) > 0.8
+                    for item in kept
+                ):
                     continue
                 kept.append(candidate)
-            masks = np.stack([item[2] for item in kept]) if kept else np.empty(
-                (0, height, width), dtype=bool)
-            np.savez_compressed(workspace.dir("segment/masks") / f"{path.stem}.npz",
-                                masks=masks, labels=np.asarray([item[1] for item in kept], dtype=str),
-                                scores=np.asarray([item[0] for item in kept], dtype=np.float32))
+            masks = (
+                np.stack([item[2] for item in kept])
+                if kept
+                else np.empty((0, height, width), dtype=bool)
+            )
+            np.savez_compressed(
+                workspace.dir("segment/masks") / f"{path.stem}.npz",
+                masks=masks,
+                labels=np.asarray([item[1] for item in kept], dtype=str),
+                scores=np.asarray([item[0] for item in kept], dtype=np.float32),
+            )
             total += len(kept)
         self.progress(len(selected), len(selected), "frame")
         return SegmentManifest(num_masks=total, vocabulary_size=len(vocabulary))
@@ -342,24 +395,34 @@ class MetaClipEmbeddings(StageAlgorithm):
     def download_weights(self):
         _cache()
         from huggingface_hub import snapshot_download
+
         snapshot_download(self.model_id)
 
     def _load(self, model_id=None):
         torch = _cuda()
         from transformers import AutoModel, AutoProcessor
+
         model_id = model_id or self.model_id
         if self.model is None or self.model_id != model_id:
             self.processor = AutoProcessor.from_pretrained(model_id)
             self.model = AutoModel.from_pretrained(model_id).to("cuda").eval()
             self.model_id = model_id
         if self.model.config.projection_dim != EMBEDDING_DIM:
-            raise SceneError("EMBEDDING_DIMENSION_MISMATCH", f"Expected the database's {EMBEDDING_DIM} dimensions")
+            raise SceneError(
+                "EMBEDDING_DIMENSION_MISMATCH",
+                f"Expected the database's {EMBEDDING_DIM} dimensions",
+            )
         return torch
 
     def _normalized(self, features):
         array = _numpy(features)
         norms = np.linalg.norm(array, axis=-1, keepdims=True)
-        if array.ndim != 2 or array.shape[1] != EMBEDDING_DIM or not np.isfinite(array).all() or (norms <= 0).any():
+        if (
+            array.ndim != 2
+            or array.shape[1] != EMBEDDING_DIM
+            or not np.isfinite(array).all()
+            or (norms <= 0).any()
+        ):
             raise SceneError("INVALID_MODEL_OUTPUT", "Invalid MetaCLIP embedding")
         return array / norms
 
@@ -369,15 +432,18 @@ class MetaClipEmbeddings(StageAlgorithm):
             return np.empty((0, EMBEDDING_DIM), dtype=np.float32)
         batches = []
         for start in range(0, len(texts), 32):
-            inputs = self.processor(text=texts[start:start + 32], padding=True, truncation=True,
-                                    return_tensors="pt").to("cuda")
+            inputs = self.processor(
+                text=texts[start : start + 32], padding=True, truncation=True, return_tensors="pt"
+            ).to("cuda")
             with torch.inference_mode():
                 batches.append(self._normalized(self.model.get_text_features(**inputs)))
         return np.concatenate(batches)
 
     def run(self, workspace, params):
         torch = self._load(params.get("model_id"))
-        instances = json.loads(workspace.path("instances/instances.json").read_text(encoding="utf-8"))
+        instances = json.loads(
+            workspace.path("instances/instances.json").read_text(encoding="utf-8")
+        )
         ids, vectors = [], []
         for done, instance in enumerate(instances):
             self.progress(done, len(instances), "object")
@@ -400,6 +466,11 @@ class MetaClipEmbeddings(StageAlgorithm):
             vectors.append(vector / norm)
         self.progress(len(instances), len(instances), "object")
         array = np.asarray(vectors, dtype=np.float32).reshape(-1, EMBEDDING_DIM)
-        np.savez_compressed(workspace.dir("embeddings") / "objects.npz",
-                            ids=np.asarray(ids, dtype=str), vectors=array)
-        return EmbedManifest(model_id=self.model_id, dim=EMBEDDING_DIM, embeddings_file="embeddings/objects.npz")
+        np.savez_compressed(
+            workspace.dir("embeddings") / "objects.npz",
+            ids=np.asarray(ids, dtype=str),
+            vectors=array,
+        )
+        return EmbedManifest(
+            model_id=self.model_id, dim=EMBEDDING_DIM, embeddings_file="embeddings/objects.npz"
+        )

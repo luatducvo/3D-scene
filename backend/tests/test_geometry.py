@@ -1,7 +1,13 @@
 import numpy as np
 import pytest
 from scene_core.domain import OrientedBox
-from scene_core.geometry import box_surface_distance, fit_box, fit_plane, footprint_overlap, relative_direction
+from scene_core.geometry import (
+    box_surface_distance,
+    fit_box,
+    fit_plane,
+    footprint_overlap,
+    relative_direction,
+)
 
 
 def test_rotated_box_and_true_surface_distance():

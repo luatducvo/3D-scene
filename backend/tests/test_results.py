@@ -20,7 +20,11 @@ def workspace(tmp_path):
 
 
 def write_embeddings(workspace, ids, vectors):
-    np.savez(workspace.path(SceneResults.EMBEDDINGS), ids=np.array(ids), vectors=np.asarray(vectors, dtype=np.float32))
+    np.savez(
+        workspace.path(SceneResults.EMBEDDINGS),
+        ids=np.array(ids),
+        vectors=np.asarray(vectors, dtype=np.float32),
+    )
 
 
 def test_load_returns_graph_with_one_embedding_per_object(workspace):
@@ -30,12 +34,15 @@ def test_load_returns_graph_with_one_embedding_per_object(workspace):
     assert all(v.shape == (EMBEDDING_DIM,) for v in published.embeddings.values())
 
 
-@pytest.mark.parametrize("ids,vectors,message", [
-    (["chair-1"], np.zeros((1, EMBEDDING_DIM)), "different ids"),
-    (["chair-1", "chair-1"], np.zeros((2, EMBEDDING_DIM)), "different ids"),
-    (["chair-1", "table-1"], np.zeros((2, 512)), "shape"),
-    (["chair-1", "table-1"], np.full((2, EMBEDDING_DIM), np.nan), "non-finite"),
-])
+@pytest.mark.parametrize(
+    "ids,vectors,message",
+    [
+        (["chair-1"], np.zeros((1, EMBEDDING_DIM)), "different ids"),
+        (["chair-1", "chair-1"], np.zeros((2, EMBEDDING_DIM)), "different ids"),
+        (["chair-1", "table-1"], np.zeros((2, 512)), "shape"),
+        (["chair-1", "table-1"], np.full((2, EMBEDDING_DIM), np.nan), "non-finite"),
+    ],
+)
 def test_load_rejects_embeddings_that_disagree_with_the_graph(workspace, ids, vectors, message):
     write_embeddings(workspace, ids, vectors)
     with pytest.raises(SceneError, match=message) as error:
@@ -64,9 +71,21 @@ def test_best_view_images_are_public_files(workspace):
     assert results.public_file(path) == workspace.path(path)
 
 
-@pytest.mark.parametrize("path", ["keyframes/0000.jpg", "instances/instances.json", "raw/one.jpg", "graph/scene_graph.json",
-                                  "embeddings/objects.npz", "recon/frames/0000.npz", "mesh/../raw/one.jpg", "mesh\\mesh.glb",
-                                  "mesh/missing.glb", "mesh"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "keyframes/0000.jpg",
+        "instances/instances.json",
+        "raw/one.jpg",
+        "graph/scene_graph.json",
+        "embeddings/objects.npz",
+        "recon/frames/0000.npz",
+        "mesh/../raw/one.jpg",
+        "mesh\\mesh.glb",
+        "mesh/missing.glb",
+        "mesh",
+    ],
+)
 def test_only_mesh_and_frame_images_are_public(workspace, path):
     with pytest.raises(SceneError) as error:
         SceneResults(workspace).public_file(path)
@@ -78,6 +97,8 @@ def test_embedding_dim_matches_the_objects_embedding_column():
     store = SceneStore(os.environ["TEST_DATABASE_URL"])
     store.migrate()
     with store.connect() as conn:
-        column = conn.execute("SELECT format_type(atttypid,atttypmod) AS type FROM pg_attribute "
-                              "WHERE attrelid='objects'::regclass AND attname='embedding'").fetchone()
+        column = conn.execute(
+            "SELECT format_type(atttypid,atttypmod) AS type FROM pg_attribute "
+            "WHERE attrelid='objects'::regclass AND attname='embedding'"
+        ).fetchone()
     assert column["type"] == f"vector({EMBEDDING_DIM})"

@@ -42,5 +42,8 @@ def test_keyframes_follow_capture_order(tmp_path):
         image.save(raw / f"frame-{frame}-a1b2c3d4.png")
         shades[frame] = np.asarray(image, float).mean()
     OpenCVIngest().run(workspace, {"min_keyframes": 3})
-    kept = [np.asarray(Image.open(workspace.path(f"keyframes/{i:04d}.jpg")), float).mean() for i in range(3)]
+    kept = [
+        np.asarray(Image.open(workspace.path(f"keyframes/{i:04d}.jpg")), float).mean()
+        for i in range(3)
+    ]
     assert np.allclose(kept, [shades[1], shades[2], shades[10]], atol=2)

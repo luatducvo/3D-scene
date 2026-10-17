@@ -1,23 +1,40 @@
-from abc import ABC,abstractmethod
-from typing import Any,ClassVar
+from abc import ABC, abstractmethod
+from typing import Any, ClassVar
+
 from pydantic import BaseModel
+
 from .contracts import SceneWorkspace
-from .domain import SceneObject,Relation,SceneGraphContext
+from .domain import Relation, SceneGraphContext, SceneObject
+
+
 class StageAlgorithm(ABC):
-    name:ClassVar[str]
-    stage:ClassVar[str]
-    manifest_type:ClassVar[type[BaseModel]]
-    reads:ClassVar[list[str]]
-    writes:ClassVar[list[str]]
-    def setup(self)->None: pass
-    def download_weights(self)->None: pass
-    _progress=None
-    def progress(self,done:int,total:int,unit:str)->None:
+    name: ClassVar[str]
+    stage: ClassVar[str]
+    manifest_type: ClassVar[type[BaseModel]]
+    reads: ClassVar[list[str]]
+    writes: ClassVar[list[str]]
+
+    def setup(self) -> None:
+        pass
+
+    def download_weights(self) -> None:
+        pass
+
+    _progress = None
+
+    def progress(self, done: int, total: int, unit: str) -> None:
         """Report progress within the current run as done of total units; a no-op without a sink."""
-        if self._progress is not None:self._progress({"done":int(done),"total":int(total),"unit":unit})
+        if self._progress is not None:
+            self._progress({"done": int(done), "total": int(total), "unit": unit})
+
     @abstractmethod
-    def run(self,workspace:SceneWorkspace,params:dict[str,Any])->BaseModel: ...
+    def run(self, workspace: SceneWorkspace, params: dict[str, Any]) -> BaseModel: ...
+
+
 class RelationRule(ABC):
-    predicate:ClassVar[str]
+    predicate: ClassVar[str]
+
     @abstractmethod
-    def evaluate(self,a:SceneObject,b:SceneObject,context:SceneGraphContext)->Relation|None: ...
+    def evaluate(
+        self, a: SceneObject, b: SceneObject, context: SceneGraphContext
+    ) -> Relation | None: ...

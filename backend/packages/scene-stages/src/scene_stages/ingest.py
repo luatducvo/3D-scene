@@ -1,4 +1,5 @@
 """CPU RGB ingest with upright, metadata-free keyframes and an explicit rejection report."""
+
 import json
 import re
 import subprocess
@@ -6,7 +7,6 @@ import tempfile
 
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
-
 from scene_core.contracts import IngestManifest
 from scene_core.errors import SceneError
 from scene_core.ports import StageAlgorithm
@@ -44,17 +44,37 @@ class OpenCVIngest(StageAlgorithm):
             old.unlink()
         rejected = {"blur": [], "exposure": [], "duplicate": [], "invalid": []}
         accepted, hashes = [], []
-        raw_files = sorted((p for p in workspace.path("raw").iterdir() if p.is_file()), key=capture_order)
+        raw_files = sorted(
+            (p for p in workspace.path("raw").iterdir() if p.is_file()), key=capture_order
+        )
         with tempfile.TemporaryDirectory() as temporary:
             from pathlib import Path
+
             temporary = Path(temporary)
             candidates = []
             for index, source in enumerate(raw_files):
                 if source.suffix.lower() in (".mp4", ".mov", ".avi", ".mkv", ".webm"):
                     destination = temporary / f"video-{index}"
                     destination.mkdir()
-                    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(source), "-vf", f"fps={fps}", str(destination / "%06d.png")], check=True, timeout=300)
-                    candidates.extend((path, f"{source.name}:{path.stem}") for path in sorted(destination.glob("*.png")))
+                    subprocess.run(
+                        [
+                            "ffmpeg",
+                            "-nostdin",
+                            "-v",
+                            "error",
+                            "-i",
+                            str(source),
+                            "-vf",
+                            f"fps={fps}",
+                            str(destination / "%06d.png"),
+                        ],
+                        check=True,
+                        timeout=300,
+                    )
+                    candidates.extend(
+                        (path, f"{source.name}:{path.stem}")
+                        for path in sorted(destination.glob("*.png"))
+                    )
                 else:
                     candidates.append((source, source.name))
             for index, (source, label) in enumerate(candidates):
@@ -67,12 +87,25 @@ class OpenCVIngest(StageAlgorithm):
                         if quality_filter and np.mean((gray < 10) | (gray > 245)) > 0.25:
                             rejected["exposure"].append(label)
                             continue
-                        laplacian = -4 * gray[1:-1, 1:-1] + gray[:-2, 1:-1] + gray[2:, 1:-1] + gray[1:-1, :-2] + gray[1:-1, 2:]
-                        if quality_filter and (not laplacian.size or laplacian.var() < float(params.get("blur_threshold", 100))):
+                        laplacian = (
+                            -4 * gray[1:-1, 1:-1]
+                            + gray[:-2, 1:-1]
+                            + gray[2:, 1:-1]
+                            + gray[1:-1, :-2]
+                            + gray[1:-1, 2:]
+                        )
+                        if quality_filter and (
+                            not laplacian.size
+                            or laplacian.var() < float(params.get("blur_threshold", 100))
+                        ):
                             rejected["blur"].append(label)
                             continue
                         signature = perceptual_hash(image)
-                        if quality_filter and any(np.count_nonzero(signature != previous) < int(params.get("phash_distance", 6)) for previous in hashes):
+                        if quality_filter and any(
+                            np.count_nonzero(signature != previous)
+                            < int(params.get("phash_distance", 6))
+                            for previous in hashes
+                        ):
                             rejected["duplicate"].append(label)
                             continue
                         hashes.append(signature)
@@ -84,12 +117,22 @@ class OpenCVIngest(StageAlgorithm):
                 except (UnidentifiedImageError, OSError):
                     rejected["invalid"].append(label)
             self.progress(len(candidates), len(candidates), "image")
-            selected = np.linspace(0, len(accepted) - 1, min(len(accepted), maximum), dtype=int) if accepted else []
+            selected = (
+                np.linspace(0, len(accepted) - 1, min(len(accepted), maximum), dtype=int)
+                if accepted
+                else []
+            )
             for index, source_index in enumerate(selected):
                 (output / f"{index:04d}.jpg").write_bytes(accepted[source_index].read_bytes())
-        manifest = IngestManifest(num_inputs=len(candidates), num_keyframes=len(selected), rejected=rejected)
+        manifest = IngestManifest(
+            num_inputs=len(candidates), num_keyframes=len(selected), rejected=rejected
+        )
         (output / "manifest.json").write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
         if len(selected) < minimum:
             counts = {reason: len(files) for reason, files in rejected.items()}
-            raise SceneError("NOT_ENOUGH_KEYFRAMES", f"Need {minimum} keyframes; kept {len(selected)}. Rejected: {json.dumps(counts)}", details={"rejection_counts": counts})
+            raise SceneError(
+                "NOT_ENOUGH_KEYFRAMES",
+                f"Need {minimum} keyframes; kept {len(selected)}. Rejected: {json.dumps(counts)}",
+                details={"rejection_counts": counts},
+            )
         return manifest

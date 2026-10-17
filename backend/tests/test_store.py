@@ -1,4 +1,5 @@
 """Scene Store transitions against the disposable Postgres, called directly rather than over HTTP."""
+
 import os
 
 import numpy as np
@@ -9,7 +10,6 @@ from scene_core.errors import SceneError
 from scene_core.results import EMBEDDING_DIM, PublishedScene
 from scene_stages.fake import OBJECTS
 from scene_store import SceneStore
-
 
 pytestmark = pytest.mark.db
 
@@ -37,9 +37,25 @@ def claimed(store, scene):
 
 
 def published(scene):
-    graph = SceneGraph.model_validate({"scene_id": scene, "floor_z": 0, "ceiling_height": 2.5, "objects": OBJECTS,
-                                       "relations": [{"subject_id": "chair-1", "predicate": "near", "object_id": "table-1", "value": 0.25}]})
-    return PublishedScene(graph, {o["id"]: np.full(EMBEDDING_DIM, 0.1, dtype=np.float32) for o in OBJECTS})
+    graph = SceneGraph.model_validate(
+        {
+            "scene_id": scene,
+            "floor_z": 0,
+            "ceiling_height": 2.5,
+            "objects": OBJECTS,
+            "relations": [
+                {
+                    "subject_id": "chair-1",
+                    "predicate": "near",
+                    "object_id": "table-1",
+                    "value": 0.25,
+                }
+            ],
+        }
+    )
+    return PublishedScene(
+        graph, {o["id"]: np.full(EMBEDDING_DIM, 0.1, dtype=np.float32) for o in OBJECTS}
+    )
 
 
 def live(store, scene):
@@ -58,12 +74,26 @@ def test_a_job_runs_every_stage_publishes_and_replays_as_it_happened(store):
         store.stage_done(job, stage, {"stage": stage})
     store.publish(job, published(scene))
     with store.connect() as conn:
-        assert conn.execute("SELECT status FROM jobs WHERE id=%s", (job["id"],)).fetchone()["status"] == "done"
-        assert [r["id"] for r in conn.execute("SELECT id FROM objects WHERE scene_id=%s ORDER BY id", (scene,))] == ["chair-1", "table-1"]
-        assert conn.execute("SELECT count(*) AS n FROM relations WHERE scene_id=%s", (scene,)).fetchone()["n"] == 1
+        assert (
+            conn.execute("SELECT status FROM jobs WHERE id=%s", (job["id"],)).fetchone()["status"]
+            == "done"
+        )
+        assert [
+            r["id"]
+            for r in conn.execute("SELECT id FROM objects WHERE scene_id=%s ORDER BY id", (scene,))
+        ] == ["chair-1", "table-1"]
+        assert (
+            conn.execute(
+                "SELECT count(*) AS n FROM relations WHERE scene_id=%s", (scene,)
+            ).fetchone()["n"]
+            == 1
+        )
     assert store.get_scene(scene)["status"] == "ready"
     events = live(store, scene)
-    assert events[0] == ("status", {"status": "processing"}) and events[-1] == ("status", {"status": "ready"})
+    assert events[0] == ("status", {"status": "processing"}) and events[-1] == (
+        "status",
+        {"status": "ready"},
+    )
     # Replay sends each Stage Run's final stage event and its progress, with the same shapes as live.
     snapshot = store.snapshot(scene)
     assert snapshot.status == "ready" and snapshot.cursor > 0
@@ -71,7 +101,10 @@ def test_a_job_runs_every_stage_publishes_and_replays_as_it_happened(store):
     replay_stages = [data for event, data in snapshot.events if event == "stage"]
     assert [data["stage"] for data in replay_stages] == list(STAGES)
     assert all(data == final[data["stage"]] for data in replay_stages)
-    assert [e for e in snapshot.events if e[0] == "progress"][0] == ("progress", {"stage": "ingest", "done": 1, "total": 1, "unit": "step"})
+    assert [e for e in snapshot.events if e[0] == "progress"][0] == (
+        "progress",
+        {"stage": "ingest", "done": 1, "total": 1, "unit": "step"},
+    )
     assert snapshot.events[-1] == ("status", {"status": "ready"})
 
 
@@ -91,11 +124,26 @@ def test_a_stage_failure_fails_the_stage_run_job_and_scene_with_one_shape(store)
     scene = uploaded(store)
     job = claimed(store, scene)
     store.stage_started(job, "ingest", "ingest.fake")
-    failure = store.fail(job, "ingest", "NOT_ENOUGH_KEYFRAMES", "Too few sharp Frames", {"rejection_counts": {"blur": 3}})
-    assert failure == {"stage": "ingest", "code": "NOT_ENOUGH_KEYFRAMES", "message": "Too few sharp Frames", "details": {"rejection_counts": {"blur": 3}}}
+    failure = store.fail(
+        job,
+        "ingest",
+        "NOT_ENOUGH_KEYFRAMES",
+        "Too few sharp Frames",
+        {"rejection_counts": {"blur": 3}},
+    )
+    assert failure == {
+        "stage": "ingest",
+        "code": "NOT_ENOUGH_KEYFRAMES",
+        "message": "Too few sharp Frames",
+        "details": {"rejection_counts": {"blur": 3}},
+    }
     assert store.get_scene(scene)["failure"] == failure
     stage_event, status_event = live(store, scene)[-2:]
-    assert stage_event[1]["status"] == "failed" and stage_event[1]["error"] == failure and stage_event[1]["algorithm"] == "ingest.fake"
+    assert (
+        stage_event[1]["status"] == "failed"
+        and stage_event[1]["error"] == failure
+        and stage_event[1]["algorithm"] == "ingest.fake"
+    )
     assert status_event == ("status", {"status": "failed", "error": failure})
     assert store.snapshot(scene).events[-1] == status_event
 
@@ -153,17 +201,32 @@ def test_delete_refuses_an_active_job_and_removes_the_scene(store):
 
 def test_an_answered_question_is_stored_as_one_exchange(store):
     scene = uploaded(store)
-    store.save_exchange(scene, {"question": "How many chairs?"}, {"answer": "One", "object_ids": ["chair-1"], "evidence": []})
+    store.save_exchange(
+        scene,
+        {"question": "How many chairs?"},
+        {"answer": "One", "object_ids": ["chair-1"], "evidence": []},
+    )
     with store.connect() as conn:
-        rows = conn.execute("SELECT role,content FROM messages WHERE scene_id=%s ORDER BY id", (scene,)).fetchall()
-    assert [r["role"] for r in rows] == ["user", "assistant"] and rows[1]["content"]["object_ids"] == ["chair-1"]
+        rows = conn.execute(
+            "SELECT role,content FROM messages WHERE scene_id=%s ORDER BY id", (scene,)
+        ).fetchall()
+    assert [r["role"] for r in rows] == ["user", "assistant"] and rows[1]["content"][
+        "object_ids"
+    ] == ["chair-1"]
 
 
 def test_each_migration_is_applied_once(store):
     assert store.migrate() == []  # the fixture already migrated this database
     with store.connect() as conn:
-        names = [row["name"] for row in conn.execute("SELECT name FROM schema_migrations ORDER BY name")]
-    assert names[:4] == ["001_init.sql", "002_stage_progress.sql", "003_drop_skip_residue.sql", "004_scene_publication.sql"]
+        names = [
+            row["name"] for row in conn.execute("SELECT name FROM schema_migrations ORDER BY name")
+        ]
+    assert names[:4] == [
+        "001_init.sql",
+        "002_stage_progress.sql",
+        "003_drop_skip_residue.sql",
+        "004_scene_publication.sql",
+    ]
 
 
 def test_a_missing_migrations_folder_says_what_to_set(store, tmp_path, monkeypatch):
