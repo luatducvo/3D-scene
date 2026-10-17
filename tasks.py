@@ -107,6 +107,43 @@ def disk_usage(_):
     print(f"Model cache {folder}: {size / 2**30:.2f} GiB")
 
 
+def clean(_):
+    """Remove cache directories and files (Python, uv, and frontend)."""
+    skip_dirs = {".venv", "venv", "node_modules", ".git"}
+    cache_dir_names = {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".cache"}
+    removed = 0
+
+    for root_dir, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in skip_dirs]
+        for d in list(dirs):
+            if d in cache_dir_names:
+                target = Path(root_dir) / d
+                shutil.rmtree(target, ignore_errors=True)
+                dirs.remove(d)
+                removed += 1
+        for f in files:
+            if f.endswith((".pyc", ".pyo")):
+                try:
+                    (Path(root_dir) / f).unlink()
+                    removed += 1
+                except OSError:
+                    pass
+
+    next_cache = ROOT / "frontend" / ".next"
+    if next_cache.exists():
+        shutil.rmtree(next_cache, ignore_errors=True)
+        removed += 1
+
+    fe_node_cache = ROOT / "frontend" / "node_modules" / ".cache"
+    if fe_node_cache.exists():
+        shutil.rmtree(fe_node_cache, ignore_errors=True)
+        removed += 1
+
+    if shutil.which("uv"):
+        run("uv", "cache", "clean", check=False)
+    print(f"Cleaned {removed} cache locations and cleared uv cache.")
+
+
 def image_name(args):
     """`--image` wins; otherwise COMPUTE_IMAGE_REPO:<variant>-<git short sha>, so live checks name an exact build."""
     if args.image:
@@ -152,6 +189,7 @@ def main():
         ("openapi", openapi, "export the API contract to backend/openapi/openapi.json"),
         ("download-models", download_models, "fetch model weights into the host cache"),
         ("disk-usage", disk_usage, "show Docker volume and model cache sizes"),
+        ("clean", clean, "remove all caches (Python, uv, frontend .next)"),
     ]:
         commands.add_parser(name, help=help_text).set_defaults(handler=handler)
     tester = commands.add_parser("test", help="run pytest against a disposable test database; extra arguments go to pytest")
