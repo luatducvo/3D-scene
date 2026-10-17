@@ -16,18 +16,18 @@ Parts stay Objects: door handles, drawers, outlets and switches are wanted for q
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** needs-live-check
 
-- [ ] segment: within one Frame, a mask is dropped when most of it (a `containment_threshold`
+- [x] segment: within one Frame, a mask is dropped when most of it (a `containment_threshold`
       param) lies inside a higher-scoring kept mask with the same label.
-- [ ] lift: as the Stage's last clustering step, Instances with the same label merge when their
+- [x] lift: as the Stage's last clustering step, Instances with the same label merge when their
       voxel sets overlap by more than a `merge_overlap` param of the smaller one. Best views and
       label votes recompute for the merged Instance. Nothing merges or splits after lift.
-- [ ] Different-label Instances never merge; a door handle inside a wardrobe stays its own Object.
-- [ ] Tests on synthetic masks and points: a contained same-label mask is dropped, a contained
+- [x] Different-label Instances never merge; a door handle inside a wardrobe stays its own Object.
+- [x] Tests on synthetic masks and points: a contained same-label mask is dropped, a contained
       different-label mask is kept, two same-label Instances from different Frames merge, and two
       adjacent same-label chairs do not.
-- [ ] Defaults set in `backend/config/pipeline.yaml`; docs/architecture/pipeline.md segment and
+- [x] Defaults set in `backend/config/pipeline.yaml`; docs/architecture/pipeline.md segment and
       lift rows updated.
 - [ ] Live check: reprocess `test1` on the GPU Target. Record in the GPU-INTEGRATION live check log
       the Object count before (172) and after, the same-label overlap pair count before (69) and

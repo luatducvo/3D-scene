@@ -270,6 +270,31 @@ class GeoCalibAlignment(StageAlgorithm):
         )
 
 
+def select_masks(candidates, containment_threshold, iou_threshold=0.8):
+    """Keep one Frame's `(score, label, mask)` candidates from the highest score down.
+
+    A candidate is dropped when its IoU with any kept mask exceeds `iou_threshold`, or when more
+    than `containment_threshold` of its pixels lie inside a kept mask with the same label (a seat
+    inside its whole chair). A contained mask with a different label, such as a door handle on a
+    wardrobe, is kept.
+    """
+    kept = []
+    for candidate in sorted(candidates, key=lambda item: item[0], reverse=True):
+        _, label, mask = candidate
+        area = np.count_nonzero(mask)
+        duplicate = False
+        for _, kept_label, kept_mask in kept:
+            shared = np.count_nonzero(mask & kept_mask)
+            if shared / np.count_nonzero(mask | kept_mask) > iou_threshold or (
+                label == kept_label and shared / area > containment_threshold
+            ):
+                duplicate = True
+                break
+        if not duplicate:
+            kept.append(candidate)
+    return kept
+
+
 class Sam3Segmentation(StageAlgorithm):
     name = "segment.sam3"
     stage = "segment"
@@ -298,6 +323,9 @@ class Sam3Segmentation(StageAlgorithm):
         batch_size = int(params.get("prompt_batch_size", 32))
         if batch_size < 1:
             raise SceneError("INVALID_PARAMETERS", "prompt_batch_size must be positive")
+        containment = float(params.get("containment_threshold", 0.8))
+        if not 0 < containment <= 1:
+            raise SceneError("INVALID_PARAMETERS", "containment_threshold must be in (0, 1]")
         if self.predictor is None or self.half != half:
             from ultralytics.models.sam import SAM3SemanticPredictor
 
@@ -357,15 +385,7 @@ class Sam3Segmentation(StageAlgorithm):
                     binary = mask > 0.5
                     if np.isfinite(score) and score >= threshold and binary.any():
                         candidates.append((float(score), labels[label], binary))
-            kept = []
-            for candidate in sorted(candidates, key=lambda item: item[0], reverse=True):
-                mask = candidate[2]
-                if any(
-                    np.count_nonzero(mask & item[2]) / np.count_nonzero(mask | item[2]) > 0.8
-                    for item in kept
-                ):
-                    continue
-                kept.append(candidate)
+            kept = select_masks(candidates, containment)
             masks = (
                 np.stack([item[2] for item in kept])
                 if kept
