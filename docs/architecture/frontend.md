@@ -41,6 +41,9 @@ Vitest for tests.
 | `src/lib/store/viewerStore.ts` | Viewer state: selection, highlights, measuring, layer visibility, loaded layer bounds |
 | `messages/en.json`, `messages/vi.json` | The only localized text |
 
+Translation catalogs contain the current interface strings; unused keys from the earlier Object
+list and measuring controls were removed in the [legacy cleanup](solid-review.md).
+
 ## `sceneApi`
 
 Screens use `sceneApi` from [src/lib/api](../../frontend/src/lib/api/index.ts), never `fetch`. JSON

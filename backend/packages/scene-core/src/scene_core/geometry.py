@@ -23,7 +23,7 @@ def _cross(a, b):
 
 def _clip(subject, clip):
     output = list(subject)
-    for a, b in zip(clip, np.roll(clip, -1, axis=0)):
+    for a, b in zip(clip, np.roll(clip, -1, axis=0), strict=True):
         source, output = output, []
         if not source:
             break
@@ -78,7 +78,7 @@ def box_surface_distance(a, b):
             _point_segment_distance(point, edge_a, edge_b)
             for points, polygon in ((pa, pb), (pb, pa))
             for point in points
-            for edge_a, edge_b in zip(polygon, np.roll(polygon, -1, axis=0))
+            for edge_a, edge_b in zip(polygon, np.roll(polygon, -1, axis=0), strict=True)
         )
     )
     z = max(0, abs(a.center[2] - b.center[2]) - (a.size[2] + b.size[2]) / 2)
@@ -155,11 +155,6 @@ def fit_plane(points, threshold=0.02, iterations=300, seed=42):
         normal = -normal
     offset = -float(center @ normal)
     return normal, offset, abs(points @ normal + offset) <= threshold
-
-
-def dominant_yaw(points):
-    """Find a minimum-area Manhattan envelope, modulo a quarter turn."""
-    return fit_box(points).yaw
 
 
 def relative_direction(a, b, camera_position, camera_target):

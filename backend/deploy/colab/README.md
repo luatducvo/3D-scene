@@ -8,7 +8,7 @@ command; this guide explains the steps and what to configure locally.
 
 ```
 your machine                                        Google Colab
-web · scene-api · postgres                          scene-compute (uvicorn, port 9001)
+web · scene-api · postgres                          scene-compute (uvicorn, port 9000)
 scene-worker ── HTTPS (tunnel URL, 25 MB chunks) ─> cloudflared → https://<random>.trycloudflare.com
 ```
 
@@ -26,10 +26,11 @@ Open the notebook in Colab and run its cells in order:
    token URL or upload a zip without `.venv`, `.git`, `data` and `models`).
 4. **Install** `uv sync --python 3.12 --package scene-compute --extra gpu`. Drop `--extra gpu` for
    the fake image's dependencies when you only want to test the connection.
-5. **Weights (optional, recommended).** Mounts Google Drive and sets `MODELS_DIR` there, so weights
+5. **Model cache.** Mounts Google Drive and sets `MODELS_DIR` there, so weights
    (over 10 GB) download once and survive runtime resets. Set `HF_TOKEN` for gated SAM 3 weights.
-6. **Tunnel.** Starts `cloudflared` for port 9001 and prints the public URL.
-7. **Server.** Set `COMPUTE_TOKEN`, then start uvicorn on port 9001. The cell sets
+6. **Tunnel.** Starts `cloudflared` for port 9000 and prints the public URL.
+7. **Server.** Read `COMPUTE_TOKEN` from Colab secrets, then start uvicorn on port 9000, reusing
+   the cache configuration from step 5 without printing the token. The cell sets
    `CLEAN_ON_START=1`, so every server start empties `/content/data`. Keep this cell running while
    you use the web app.
 

@@ -10,8 +10,9 @@ from scene_target import open_target_workspace
 class Worker:
     def __init__(self, database_url, data_dir, pipeline=None, compute=None, target=None):
         """target replaces the TargetWorkspace built from pipeline and compute, for tests."""
+        # SOLID review (DIP): persistence is constructed inside the orchestration module. Build
+        # SceneStore in main and inject it here if another persistence adapter becomes necessary.
         self.store = SceneStore(database_url)
-        self.data_dir = data_dir
         self.target = target or open_target_workspace(data_dir, pipeline, compute)
 
     def recover_interrupted(self):

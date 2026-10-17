@@ -121,12 +121,3 @@ class Message(BaseModel):
     role: str
     content: dict
     created_at: datetime
-
-
-class ErrorDetail(BaseModel):
-    code: str
-    message: str
-
-
-class ErrorResponse(BaseModel):
-    error: ErrorDetail

@@ -123,14 +123,12 @@ def test_a_failed_publication_leaves_the_earlier_results_untouched(target):
     assert not (workspace.data_dir / "staging/scenes/room").exists()
 
 
-def test_a_new_publication_replaces_older_versions_and_legacy_folders(target):
+def test_a_new_publication_replaces_older_versions(target):
     workspace, _ = target
     processed(workspace)
-    legacy = SceneWorkspace(workspace.data_dir, "room")
-    legacy.dir("mesh").joinpath("mesh.glb").write_bytes(b"pre-versioning")
     workspace.replace_results("room", "job-1", lambda results: None)
     workspace.replace_results("room", "job-2", lambda results: None)
-    assert [p.name for p in legacy.root.iterdir()] == ["job-2"]
+    assert [p.name for p in published(workspace, "job-2").root.parent.iterdir()] == ["job-2"]
 
 
 def test_clearing_outputs_keeps_the_uploaded_inputs(target):

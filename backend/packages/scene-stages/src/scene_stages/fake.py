@@ -6,7 +6,17 @@ import time
 
 import numpy as np
 from PIL import Image
-from scene_core.contracts import *
+from scene_core.contracts import (
+    AlignManifest,
+    AttributesManifest,
+    EmbedManifest,
+    GraphManifest,
+    IngestManifest,
+    LiftManifest,
+    MeshManifest,
+    ReconManifest,
+    SegmentManifest,
+)
 from scene_core.errors import SceneError
 from scene_core.ports import StageAlgorithm
 from scene_core.results import EMBEDDING_DIM

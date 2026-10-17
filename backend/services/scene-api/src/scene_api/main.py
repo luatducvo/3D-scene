@@ -6,18 +6,31 @@ import shutil
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import BackgroundTasks, FastAPI, File, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from scene_core.contracts import STAGES, SceneWorkspace
+from scene_core.domain import SceneObject
 from scene_core.errors import SceneError
 from scene_core.results import EMBEDDING_DIM, SceneResults
 from scene_store import SceneStore
 from scene_target import delete_quietly, open_target_workspace
 
-from .models import *
+from .models import (
+    JobCreated,
+    Message,
+    QueryEvent,
+    QueryRequest,
+    SceneCreate,
+    SceneCreated,
+    SceneDetail,
+    SceneSummary,
+    SearchHit,
+    UploadResult,
+)
 
 QUERY_READY_TIMEOUT_S = 10
 
@@ -26,6 +39,9 @@ def create_app(
     database_url=None, data_dir=None, pipeline=None, compute=None, llm=None, target=None
 ):
     """target replaces the TargetWorkspace built from pipeline and compute, for tests."""
+    # SOLID review (SRP): composition, HTTP routes, read SQL, upload coordination, search ranking
+    # and QA streaming live here. Extract the use cases behind small interfaces as these change;
+    # keep HTTP validation/serialization here and transactional writes in SceneStore.
     store = SceneStore(
         database_url or os.getenv("DATABASE_URL", "postgresql://scene:scene@localhost:5432/scene")
     )
@@ -63,19 +79,18 @@ def create_app(
     def summary(row):
         return {**row, "id": str(row["id"])}
 
-    # Scenes published before ADR-0006 keep their results directly in the Scene folder.
-    LEGACY = "legacy"
-
     def published(scene):
         return SceneWorkspace(data_dir, str(scene["id"]), scene["publication"])
 
     def url(request, scene, path):
         """A file URL naming the publication, so a new Job's assets never share a URL with an old one's."""
+        if scene["publication"] is None:
+            return None
         return str(
             request.url_for(
                 "publication_file",
                 scene_id=str(scene["id"]),
-                version=scene["publication"] or LEGACY,
+                version=scene["publication"],
                 file_path=path,
             )
         )
@@ -101,7 +116,7 @@ def create_app(
                 "SELECT * FROM stage_runs WHERE scene_id=%s", (scene_id,)
             ).fetchall()
         scene["stage_runs"] = sorted(stages, key=lambda s: STAGES.index(s["stage"]))
-        assets = SceneResults(published(row)).assets()
+        assets = SceneResults(published(row)).assets() if row["publication"] else {}
         scene["assets"] = {
             f"{key}_url": url(request, row, path) if path else None for key, path in assets.items()
         }
@@ -128,15 +143,15 @@ def create_app(
         """A public file of one publication; an older publication stays readable until it is removed."""
         store.get_scene(scene_id)
         try:
-            workspace = SceneWorkspace(
-                data_dir, str(scene_id), None if version == LEGACY else version
-            )
+            # A publication is identified by its Job UUID; flat result folders are not served.
+            uuid.UUID(version)
+            workspace = SceneWorkspace(data_dir, str(scene_id), version)
         except ValueError:
             raise SceneError("FILE_NOT_FOUND", "File not found", 404) from None
         return FileResponse(SceneResults(workspace).public_file(file_path))
 
     @app.post("/api/v1/scenes/{scene_id}/uploads", response_model=UploadResult)
-    def upload_files(scene_id: uuid.UUID, files: list[UploadFile] = File(...)):
+    def upload_files(scene_id: uuid.UUID, files: Annotated[list[UploadFile], File()]):
         with store.uploading(scene_id):
             if not files:
                 raise SceneError("INVALID_UPLOAD", "No files supplied", 400)
@@ -218,7 +233,8 @@ def create_app(
             import time
 
             while True:
-                for cursor, event, data in store.events_since(scene_id, cursor):
+                for event_id, event, data in store.events_since(scene_id, cursor):
+                    cursor = event_id
                     yield (
                         f"id: {cursor}\nevent: {event}\ndata: "
                         + json.dumps({"type": event, **data})
@@ -340,6 +356,7 @@ def create_app(
                             {"object_id": i, "frame_id": v["frame_id"], "image_url": v["image_url"]}
                             for i in event["object_ids"]
                             for v in by_id[i]["best_views"][:1]
+                            if v["image_url"]
                         ]
                         store.save_exchange(
                             scene_id,

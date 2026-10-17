@@ -1,11 +1,7 @@
 {
-  "title": "Không gian 3D",
   "scenes": "Scenes",
   "newScene": "Tạo scene",
   "name": "Tên scene",
-  "create": "Tạo scene",
-  "delete": "Xóa",
-  "open": "Mở",
   "loading": "Đang tải…",
   "error": "Đã xảy ra lỗi",
   "empty": "Chưa có căn phòng nào. Hãy chụp căn phòng đầu tiên.",
@@ -29,7 +25,6 @@
   "objects": "Đồ vật",
   "ask": "Hỏi đáp",
   "search": "Tìm trong scene…",
-  "noObjects": "Không tìm thấy đồ vật",
   "size": "Kích thước",
   "attributes": "Đặc điểm",
   "question": "Hỏi điều bạn muốn biết…",
@@ -37,8 +32,6 @@
   "stop": "Dừng",
   "tool": "Đang dùng công cụ: {tool}",
   "measure": "Đo khoảng cách",
-  "clear": "Xóa phép đo",
-  "measureHint": "Chọn hai điểm trong căn phòng",
   "report": "Báo cáo ảnh đầu vào",
   "status": {
     "created": "Đã tạo",

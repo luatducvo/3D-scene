@@ -42,7 +42,10 @@ def voxel_downsample(points, colors, voxel):
     # One integer per voxel keeps the unique pass a fast one-dimensional sort.
     flat = (keys[:, 0] * extent[1] + keys[:, 1]) * extent[2] + keys[:, 2]
     _, inverse, counts = np.unique(flat, return_inverse=True, return_counts=True)
-    mean = lambda values: np.bincount(inverse, weights=values, minlength=len(counts)) / counts
+
+    def mean(values):
+        return np.bincount(inverse, weights=values, minlength=len(counts)) / counts
+
     return (
         np.column_stack([mean(points[:, axis]) for axis in range(3)]).astype(np.float32),
         np.column_stack([mean(colors[:, channel].astype(np.float64)) for channel in range(3)]),
@@ -65,7 +68,7 @@ def depth_edges(depth, threshold):
 def colored_points(frames, rgbs, min_confidence, edge_threshold=0):
     """Back-project every confident, non-edge pixel of every aligned Frame into the aligned world."""
     clouds, colors = [], []
-    for frame, rgb in zip(frames, rgbs):
+    for frame, rgb in zip(frames, rgbs, strict=True):
         valid = (
             np.isfinite(frame["depth"])
             & (frame["depth"] > 0)
@@ -153,7 +156,7 @@ class TSDFMesh(StageAlgorithm):
         sums = np.zeros(total, np.float32)
         weights = np.zeros(total, np.float32)
         colors = np.zeros((total, 3), np.float32)
-        for done, (frame, rgb) in enumerate(zip(frames, rgbs)):
+        for done, (frame, rgb) in enumerate(zip(frames, rgbs, strict=True)):
             self.progress(done, len(frames), "frame")
             h, w = frame["depth"].shape
             for start in range(0, total, 100_000):

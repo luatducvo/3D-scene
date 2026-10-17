@@ -48,7 +48,7 @@ non-shared remote Target (an unreachable Target is only logged).
 | GET | `/scenes/{id}/search?q=` | Free-text Object search (English or Vietnamese) |
 | GET | `/scenes/{id}/messages` | Stored chat history |
 | POST | `/scenes/{id}/queries` | `{question, camera?}` → SSE answer stream |
-| GET | `/scenes/{id}/publications/{version}/files/{path}` | Serve a public file of one publication ([ADR-0006](../adr/0006-versioned-publication.md)): only `mesh/` and `recon/rgb/` ([Scene Results](pipeline.md#scene-results)); any other path, or a removed publication, is 404 `FILE_NOT_FOUND`. API responses carry these URLs for the current version; `legacy` names results published before versioning |
+| GET | `/scenes/{id}/publications/{version}/files/{path}` | Serve a public file of one publication ([ADR-0006](../adr/0006-versioned-publication.md)): only `mesh/` and `recon/rgb/` ([Scene Results](pipeline.md#scene-results)); any other path, invalid Job UUID or removed publication is 404 `FILE_NOT_FOUND`. API responses carry these URLs for the current version. Unversioned results are not served ([ADR-0007](../adr/0007-retire-unversioned-results.md)); a Scene without a publication has no asset or evidence URLs. |
 
 ## SSE events
 

@@ -2,6 +2,8 @@ from importlib.metadata import entry_points
 
 
 class Registry:
+    """SOLID (OCP/DIP): resolve installed Algorithms without importing concrete implementations here."""
+
     def __init__(self, group="scene_stages"):
         self.group = group
 
@@ -15,6 +17,3 @@ class Registry:
                 f"Expected one installed {self.group} entry point for {name}, found {len(matches)}"
             )
         return matches[0].load()
-
-    def get(self, name: str):
-        return self.resolve(name)

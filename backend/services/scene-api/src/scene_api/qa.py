@@ -276,6 +276,7 @@ class QAAgent:
     """Runs the tools the LLM asks for and accepts only answers whose numbers those tools returned."""
 
     def __init__(self, llm, max_steps=MAX_STEPS):
+        # SOLID (DIP): real and scripted LLMs share complete(); the agent owns no HTTP transport.
         self.llm, self.max_steps = llm, max_steps
 
     def answer(self, question, tools, history=()):

@@ -30,6 +30,8 @@ optional provider headers, `chunk_size` in bytes, `startup_timeout` and `poll_in
 seconds). URLs and secrets come from `backend/.env` through `${VAR}` expansion. `pipeline.yaml`
 picks one with its `target:` key.
 
+Backend values are `inprocess` and `http`; `cpu` is a Target name, not a backend alias.
+
 ## Target Workspace
 
 `TargetWorkspace` ([scene_target](../../backend/packages/scene-target/src/scene_target/__init__.py))
@@ -91,6 +93,10 @@ The `local_gpu` Compose service keeps its Target Workspaces in `/data/target` on
 
 At import, `scene_compute` sets `HF_HOME=$MODELS_DIR/hf` and `TORCH_HOME=$MODELS_DIR/torch`, so a
 provider only needs to mount a folder at `MODELS_DIR` for the weight cache.
+
+`scene_compute.download_models` reads `MODELS_PIPELINE_CONFIG` when set, otherwise the real
+`pipeline.yaml` in `CONFIG_DIR` (or the shared source-layout resolver). An explicit missing path
+fails instead of silently selecting a different configuration.
 
 ## Providers
 

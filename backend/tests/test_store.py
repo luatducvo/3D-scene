@@ -101,7 +101,7 @@ def test_a_job_runs_every_stage_publishes_and_replays_as_it_happened(store):
     replay_stages = [data for event, data in snapshot.events if event == "stage"]
     assert [data["stage"] for data in replay_stages] == list(STAGES)
     assert all(data == final[data["stage"]] for data in replay_stages)
-    assert [e for e in snapshot.events if e[0] == "progress"][0] == (
+    assert next(e for e in snapshot.events if e[0] == "progress") == (
         "progress",
         {"stage": "ingest", "done": 1, "total": 1, "unit": "step"},
     )

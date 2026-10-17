@@ -142,6 +142,9 @@ The frontend stores nothing.
 
 ## Where to go next
 
+The [SOLID review and cleanup record](solid-review.md) describes current interface strengths,
+remaining inline findings and the obsolete paths removed on 2026-10-17.
+
 | You are working on | Read |
 |---|---|
 | A Stage, its inputs/outputs, the Job runner or Publication | [pipeline.md](pipeline.md) |

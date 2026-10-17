@@ -305,16 +305,19 @@ def test_worker_refuses_to_start_without_configured_gpu_targets(tmp_path, monkey
     for name in ("GPU_TARGET", "VAST_URL"):
         monkeypatch.delenv(name, raising=False)
     config = Path(__file__).parents[1] / "config"
-    start = lambda: Worker(
-        os.environ["TEST_DATABASE_URL"],
-        tmp_path,
-        PipelineConfig.load(config / "pipeline.fake-gpu.yaml"),
-        ComputeConfig.load(config / "compute.yaml"),
-    )
+
+    def start():
+        return Worker(
+            os.environ["TEST_DATABASE_URL"],
+            tmp_path,
+            PipelineConfig.load(config / "pipeline.fake-gpu.yaml"),
+            ComputeConfig.load(config / "compute.yaml"),
+        )
+
     with pytest.raises(ValueError, match="GPU_TARGET"):
         start()
     monkeypatch.setenv("GPU_TARGET", "vast")
-    with pytest.raises(ValueError, match="vast.*URL"):
+    with pytest.raises(ValueError, match=r"vast.*URL"):
         start()
 
 
@@ -417,7 +420,6 @@ def test_search_reports_unavailable_compute_target(client, monkeypatch):
 
 def test_worker_start_fails_jobs_interrupted_by_a_restart(client):
     prefix = uploaded(client)
-    scene = prefix.rsplit("/", 1)[1]
     runner = worker(client)
     assert client.post(prefix + "/process", json={}).status_code == 202
     job = runner.store.claim()
@@ -477,13 +479,19 @@ def test_stage_progress_is_throttled_stored_and_replayed(client):
     )
 
 
-def test_results_published_before_versioning_are_still_served(client):
+def test_unpublished_scenes_do_not_serve_flat_result_folders(client):
     scene = client.post("/api/v1/scenes", json={"name": "Old"}).json()["id"]
-    legacy = client.app.state.data_dir / "scenes" / scene / "mesh"
-    legacy.mkdir(parents=True)
-    (legacy / "mesh.glb").write_bytes(b"glTF-old")
-    url = client.get(f"/api/v1/scenes/{scene}").json()["assets"]["mesh_url"]
-    assert "/publications/legacy/" in url and client.get(url).content == b"glTF-old"
+    flat_results = client.app.state.data_dir / "scenes" / scene / "mesh"
+    flat_results.mkdir(parents=True)
+    (flat_results / "mesh.glb").write_bytes(b"glTF-old")
+    assert client.get(f"/api/v1/scenes/{scene}").json()["assets"] == {
+        "mesh_url": None,
+        "points_url": None,
+    }
+    assert (
+        client.get(f"/api/v1/scenes/{scene}/publications/legacy/files/mesh/mesh.glb").status_code
+        == 404
+    )
     assert (
         client.get(
             f"/api/v1/scenes/{scene}/publications/..%2F..%2Fraw/files/mesh/mesh.glb"

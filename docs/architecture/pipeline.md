@@ -55,7 +55,8 @@ rows and their `scene_events` in one transaction. Every Target operation is one 
    replaces the Scene's Objects, Relations and room info, sets `scenes.publication` to the Job id
    and marks the Job `done` and the Scene `ready`, in one transaction. A failure removes the new
    folder; after the commit every older folder of the Scene is removed
-   ([ADR-0006](../adr/0006-versioned-publication.md)).
+   ([ADR-0006](../adr/0006-versioned-publication.md)). Only Job-versioned publications are served;
+   there is no read path for unversioned results ([ADR-0007](../adr/0007-retire-unversioned-results.md)).
 
 Any failure marks the running Stage Run, the Job and the Scene `failed` with
 `{stage, code, message, details}`, with the Algorithm's own code and details on every Target. A
@@ -126,6 +127,10 @@ Each row is the contract every replacement Algorithm must honor. Parameters are 
 | 9 | graph | `graph.geometric` | `align/`, `instances/`, `embeddings/`, `attributes/` → `graph/` | Fit gravity-aligned oriented boxes, apply every configured Relation rule to every Object pair, write the Scene Graph. Each Instance id becomes exactly one Object id. |
 
 Live verification of the GPU adapters is tracked in [GPU-INTEGRATION.md](../GPU-INTEGRATION.md).
+
+`instances/instances.json` is a JSON list of Instances for both real and fake lift Algorithms;
+the older object wrapper is unsupported. Aligned Frame/RGB pairs and mask/label/score arrays must
+have equal lengths; consumers fail on mismatches rather than silently truncating them.
 
 ## Relations
 

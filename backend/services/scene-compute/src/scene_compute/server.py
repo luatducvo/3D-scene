@@ -55,6 +55,9 @@ def create_app(
     chunk_bytes: int | None = None,
     executor=None,
 ) -> FastAPI:
+    # SOLID review (SRP): Compute Run scheduling/records and Workspace file transfer have separate
+    # reasons to change. Extract those modules behind the existing HTTP contract; keep provider
+    # details out of both and retain this function as the composition root.
     root = Path(data_dir or os.environ.get("DATA_DIR", "data")).resolve()
     auth_token = token if token is not None else os.environ.get("COMPUTE_TOKEN", "")
     limit = chunk_bytes or int(float(os.environ.get("CHUNK_SIZE_MB", "25")) * 1_000_000)
@@ -210,7 +213,7 @@ def create_app(
                 "sha256": digest_file(path),
             }
             if (
-                len(json.dumps({"files": result + [item], "next_cursor": index + 1}).encode())
+                len(json.dumps({"files": [*result, item], "next_cursor": index + 1}).encode())
                 > limit
             ):
                 if not result:
@@ -348,7 +351,9 @@ def create_app(
             result = await asyncio.wait_for(asyncio.wrap_future(future), timeout=28)
         except TimeoutError:
             future.cancel()
-            raise ContractError("REQUEST_TIMEOUT", "Embedding invocation exceeded time limit", 504)
+            raise ContractError(
+                "REQUEST_TIMEOUT", "Embedding invocation exceeded time limit", 504
+            ) from None
         if len(json.dumps(result).encode()) > limit:
             raise ContractError("BODY_TOO_LARGE", "Embedding response exceeds chunk limit", 413)
         return result

@@ -351,7 +351,9 @@ class Sam3Segmentation(StageAlgorithm):
                     raise SceneError(
                         "INVALID_MODEL_OUTPUT", "SAM 3 mask dimensions differ from RGB"
                     )
-                for mask, score, label in zip(masks, boxes[:, 4], boxes[:, 5].astype(int)):
+                for mask, score, label in zip(
+                    masks, boxes[:, 4], boxes[:, 5].astype(int), strict=True
+                ):
                     binary = mask > 0.5
                     if np.isfinite(score) and score >= threshold and binary.any():
                         candidates.append((float(score), labels[label], binary))

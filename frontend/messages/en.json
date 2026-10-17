@@ -1,11 +1,7 @@
 {
-  "title": "Scene Studio",
   "scenes": "Scenes",
   "newScene": "New scene",
   "name": "Scene name",
-  "create": "Create scene",
-  "delete": "Delete",
-  "open": "Open",
   "loading": "Loading…",
   "error": "Something went wrong",
   "empty": "No scenes yet. Capture your first room.",
@@ -29,7 +25,6 @@
   "objects": "Objects",
   "ask": "Ask",
   "search": "Search in scene…",
-  "noObjects": "No objects found",
   "size": "Size",
   "attributes": "Attributes",
   "question": "Ask about your room…",
@@ -37,8 +32,6 @@
   "stop": "Stop",
   "tool": "Using tool: {tool}",
   "measure": "Measure",
-  "clear": "Clear measurement",
-  "measureHint": "Select two points in the room",
   "report": "Ingest report",
   "status": {
     "created": "Created",

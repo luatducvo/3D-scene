@@ -94,7 +94,7 @@ class MaskClustering(StageAlgorithm):
             frame = frames[frame_id]
             with np.load(masks_file, allow_pickle=False) as data:
                 for index, (mask, label, score) in enumerate(
-                    zip(data["masks"], data["labels"], data["scores"])
+                    zip(data["masks"], data["labels"], data["scores"], strict=True)
                 ):
                     mask = np.asarray(mask, dtype=bool)
                     points = unproject(frame["depth"], frame["K"], frame["pose"], mask)

@@ -111,8 +111,6 @@ class GeometricGraph(StageAlgorithm):
 
     def run(self, workspace, params):
         instances = json.loads(workspace.path("instances/instances.json").read_text())
-        if isinstance(instances, dict):
-            instances = instances["instances"]
         attributes_path = workspace.path("attributes/attributes.json")
         attributes = json.loads(attributes_path.read_text()) if attributes_path.exists() else {}
         alignment_path = workspace.path("align/manifest.json")
@@ -144,6 +142,9 @@ class GeometricGraph(StageAlgorithm):
         relations = []
         for rule in rules:
             for a in objects:
+                # SOLID review (OCP/LSP): dispatch still knows one concrete predicate and supplies
+                # a dummy second Object. Let RelationRule declare its Object/room evaluation scope
+                # so another room Relation can be registered without changing this loop.
                 candidates = (
                     [a]
                     if rule.predicate == "against_wall"

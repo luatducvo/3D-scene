@@ -8,6 +8,8 @@ from .domain import Relation, SceneGraphContext, SceneObject
 
 
 class StageAlgorithm(ABC):
+    """Workspace transformation shared by real and fake Algorithms; no transport or persistence."""
+
     name: ClassVar[str]
     stage: ClassVar[str]
     manifest_type: ClassVar[type[BaseModel]]
@@ -15,10 +17,12 @@ class StageAlgorithm(ABC):
     writes: ClassVar[list[str]]
 
     def setup(self) -> None:
-        pass
+        """Optional lifecycle hook; CPU Algorithms need no model initialization."""
+        return None
 
     def download_weights(self) -> None:
-        pass
+        """Optional lifecycle hook; Algorithms without weights need no override (ISP)."""
+        return None
 
     _progress = None
 

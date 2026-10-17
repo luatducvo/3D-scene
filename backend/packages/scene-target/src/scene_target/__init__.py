@@ -13,7 +13,6 @@ from pathlib import Path
 
 from scene_core.config import ComputeConfig, PipelineConfig
 from scene_core.contracts import OUTPUTS, SceneWorkspace
-from scene_core.errors import SceneError
 from scene_core.resources import backend_folder
 from scene_core.results import SceneResults
 
@@ -23,7 +22,10 @@ from ._inprocess import InProcessAdapter
 
 def configuration():
     """The pipeline and compute configuration named by PIPELINE_CONFIG and COMPUTE_CONFIG; unset, the files in CONFIG_DIR."""
-    folder = lambda: backend_folder("config", "CONFIG_DIR")
+
+    def folder():
+        return backend_folder("config", "CONFIG_DIR")
+
     pipeline = PipelineConfig.load(os.getenv("PIPELINE_CONFIG") or folder() / "pipeline.fake.yaml")
     compute_path = Path(os.getenv("COMPUTE_CONFIG") or folder() / "compute.yaml")
     return pipeline, ComputeConfig.load(compute_path) if compute_path.exists() else ComputeConfig()
@@ -33,6 +35,8 @@ class TargetWorkspace:
     """Scene inputs, Stage execution, results and query embedding on the pipeline's Target, by scene_id."""
 
     def __init__(self, pipeline: PipelineConfig, data_dir, adapter):
+        # SOLID review (DIP): both adapters satisfy an implicit interface. A typed Protocol would
+        # make their shared contract explicit without coupling TargetWorkspace to either implementation.
         self.pipeline = pipeline
         self.data_dir = Path(data_dir)
         self._adapter = adapter
@@ -63,7 +67,7 @@ class TargetWorkspace:
         The results land in staging and are renamed to DATA_DIR/scenes/{scene}/{version}, complete and
         never modified again, before publish(that Workspace) commits the database (ADR-0006). If anything
         fails first, the folder is removed and the earlier publication stays served. After the commit,
-        every other version and any pre-versioning result folder of the Scene is removed.
+        every other publication folder of the Scene is removed.
         """
         staging = SceneWorkspace(self.data_dir / "staging", scene_id, version)
         published = SceneWorkspace(self.data_dir, scene_id, version)
@@ -120,7 +124,7 @@ def open_target_workspace(
     if name not in compute.targets:
         raise ValueError(f"Pipeline uses unknown compute Target {name}")
     target = compute.targets[name]
-    if target.backend in ("cpu", "inprocess"):
+    if target.backend == "inprocess":
         return TargetWorkspace(pipeline, data_dir, InProcessAdapter(Path(data_dir) / "target"))
     if target.backend != "http":
         raise ValueError(f"Unsupported compute backend {target.backend}")

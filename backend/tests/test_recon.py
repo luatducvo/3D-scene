@@ -28,7 +28,7 @@ class FakeDepthAnything3:
         return self
 
     def inference(self, images, **kwargs):
-        self.calls = getattr(self, "calls", []) + [(images, kwargs)]
+        self.calls = [*getattr(self, "calls", []), (images, kwargs)]
         count, height, width = len(images), 6, 8
         extrinsics = np.tile(np.eye(4)[:3], (count, 1, 1))
         extrinsics[:, :3, 3] = [[-index, 0, 0] for index in range(count)]  # camera i sits at x = i

@@ -38,5 +38,7 @@ class Executor:
         if method != "embed_text":
             raise ValueError("Unsupported invoke method")
         with self._lock:
+            # SOLID review (ISP/DIP): embed_text is an optional capability absent from StageAlgorithm.
+            # Give embedding Algorithms a narrow capability interface instead of adding it to every Stage.
             value = self.algorithm(algorithm).embed_text(**payload)
             return {"vectors": value.tolist() if hasattr(value, "tolist") else value}
