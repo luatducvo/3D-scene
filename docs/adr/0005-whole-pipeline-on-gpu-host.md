@@ -1,6 +1,6 @@
 # ADR-0005: Run the whole pipeline on the GPU host
 
-Status: accepted. Date: 2026-10-17. Deviates from [SPEC](SPEC.md) user stories 18, 19, 20 and 57,
+Status: accepted. Date: 2026-10-17. Deviates from [SPEC](../SPEC.md) user stories 18, 19, 20 and 57,
 the Stage skip rule, and the out-of-scope line "the user's own machine is the source of truth".
 
 ## Context

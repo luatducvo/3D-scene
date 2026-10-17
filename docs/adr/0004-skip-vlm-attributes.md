@@ -1,6 +1,6 @@
 # ADR-0004: Skip VLM attributes
 
-Status: accepted. Date: 2026-10-15. Deviates from [SPEC](SPEC.md) user stories 30 and 38 and the M5
+Status: accepted. Date: 2026-10-15. Deviates from [SPEC](../SPEC.md) user stories 30 and 38 and the M5
 acceptance criterion "labels in both languages and attributes".
 
 ## Context

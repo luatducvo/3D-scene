@@ -7,7 +7,7 @@ and [template settings](https://docs.vast.ai/guides/templates/template-settings)
 
 scene-compute runs on one Target, `vast`, which is one rented instance. The same Target runs
 either the fake image or the GPU image, which holds every GPU Algorithm
-([ADR-0002](../../../docs/ADR-0002-single-gpu-image-ultralytics-sam3.md)).
+([ADR-0002](../../../docs/adr/0002-single-gpu-image-ultralytics-sam3.md)).
 
 ## 1. Publish the images
 

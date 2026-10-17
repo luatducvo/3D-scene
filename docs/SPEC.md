@@ -1,8 +1,8 @@
 # Spec — 3D Scene Understanding System
 
-> Status: ready for implementation · Source of truth for *what* to build. `docs/ARCHITECTURE.md`
+> Status: implemented; live GPU checks pending ([GPU-INTEGRATION](GPU-INTEGRATION.md)) · Source of truth for *what* to build. [architecture/](architecture/overview.md)
 > describes *how*; where the two disagree, this spec wins until the architecture doc is updated
-> (first milestone).
+> (first milestone). Accepted ADRs in [adr/](adr/) amend this spec where they say so.
 
 ## Problem Statement
 
@@ -56,9 +56,9 @@ the Targets before starting the system, and switching provider is a configuratio
 15. As a user, I want an ingest report listing which files were rejected and why (blur, exposure, duplicate), so that I learn how to capture better.
 16. As a user, I want processing to fail early with a clear "not enough keyframes" message, including rejection counts, when too few usable frames remain, so that I do not wait for a meaningless reconstruction.
 17. As a user, I want a failed Scene to show which Stage failed and the error message, so that I can understand what went wrong.
-18. ~~As a learner, I want to rerun a Scene from a chosen Stage onwards, so that I can compare a new method without redoing earlier Stages.~~ Withdrawn by [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md): every Job runs from the start.
-19. ~~As a learner, I want unchanged Stages (same algorithm and parameters, outputs still present) to be skipped on rerun, so that experiments are fast and cheap.~~ Withdrawn by [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md).
-20. ~~As a learner, I want every Stage after a rerun Stage to run again, so that downstream results never depend on stale inputs.~~ Withdrawn by [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md).
+18. ~~As a learner, I want to rerun a Scene from a chosen Stage onwards, so that I can compare a new method without redoing earlier Stages.~~ Withdrawn by [ADR-0005](adr/0005-whole-pipeline-on-gpu-host.md): every Job runs from the start.
+19. ~~As a learner, I want unchanged Stages (same algorithm and parameters, outputs still present) to be skipped on rerun, so that experiments are fast and cheap.~~ Withdrawn by [ADR-0005](adr/0005-whole-pipeline-on-gpu-host.md).
+20. ~~As a learner, I want every Stage after a rerun Stage to run again, so that downstream results never depend on stale inputs.~~ Withdrawn by [ADR-0005](adr/0005-whole-pipeline-on-gpu-host.md).
 
 ### Reconstruction and geometry
 21. As a user, I want the reconstruction to be in meters, so that sizes and distances are real.
@@ -105,7 +105,7 @@ the Targets before starting the system, and switching provider is a configuratio
 54. As an operator, I want one GPU image that runs unchanged on Modal, RunPod (Pod or Serverless), Vast.ai, a local GPU or any Docker host, so that I never write provider-specific application code.
 55. As an operator using Modal, I want Modal to build the GPU image from the project's own build definition, so that I do not push a 10+ GB image from a home connection.
 56. As an operator, I want the worker to wait through remote cold starts, so that a sleeping GPU container does not fail a Job.
-57. As an operator, I want remote targets to receive only the inputs they need, skip files already present (by checksum), and return outputs to my machine, so that transfers are minimal and my machine remains the source of truth. Amended by [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md): the whole pipeline runs on the GPU Target and only publication inputs and served assets return.
+57. As an operator, I want remote targets to receive only the inputs they need, skip files already present (by checksum), and return outputs to my machine, so that transfers are minimal and my machine remains the source of truth. Amended by [ADR-0005](adr/0005-whole-pipeline-on-gpu-host.md): the whole pipeline runs on the GPU Target and only publication inputs and served assets return.
 58. As an operator, I want file transfers chunked under the strictest provider body limit, so that the same contract works on every provider.
 59. As an operator, I want remote GPU endpoints protected by a shared token, so that a public proxy URL is not an open door.
 60. As an operator, I want model weights cached on my host (and on a provider volume remotely), so that a full reset does not re-download tens of gigabytes.
@@ -125,7 +125,7 @@ the Targets before starting the system, and switching provider is a configuratio
 ## Implementation Decisions
 
 ### Domain language
-- Canonical terms (to be recorded in the repo glossary): **Scene**, **Keyframe**, **Frame**, **Stage**, **Algorithm**, **Target**, **Workspace**, **Manifest**, **Vocabulary**, **Job**, **Stage Run**, **Compute Run**, **Instance**, **Object**, **Relation**, **Scene Graph**.
+- Canonical terms (recorded in [CONTEXT.md](../CONTEXT.md)): **Scene**, **Keyframe**, **Frame**, **Stage**, **Algorithm**, **Target**, **Workspace**, **Manifest**, **Vocabulary**, **Job**, **Stage Run**, **Compute Run**, **Instance**, **Object**, **Relation**, **Scene Graph**.
 - "Run" is never used bare. A **Job** is one processing request for a Scene (queued by Process). A **Stage Run** is the record of a completed Stage with its algorithm and config hash. A **Compute Run** is one execution of an Algorithm on a GPU target.
 - An **Instance** (output of lifting: points, label, best views) becomes exactly one **Object** (box, attributes) with the same id. No merging or splitting after lifting.
 
@@ -142,31 +142,31 @@ the Targets before starting the system, and switching provider is a configuratio
 - **Executor lives in scene-core**, so both the GPU server and the worker's in-process backend share it without the worker depending on the GPU server package.
 - **Registration is by package entry points only**, resolved lazily. Groups: one for Stage Algorithms, one for Relation rules. No decorator-based registry. Listing available Algorithms must not import heavy libraries.
 - **Walking skeleton first.** Every layer is wired end-to-end with fake Algorithms before any real model is integrated; real Algorithms then replace fakes Stage by Stage.
-- **No GPU provider is the default.** GPU Stages name their Target through `GPU_TARGET`, in the real and the fake GPU pipeline alike; every real GPU Algorithm ships in one image ([ADR-0002](ADR-0002-single-gpu-image-ultralytics-sam3.md)); the worker refuses to start when a selected Target is unset or has no URL. Vast.ai, rented by hand, is the first provider exercised live. The Modal deployment builds the image from the same Dockerfile used everywhere; other providers pull the image built locally and pushed to Docker Hub. Modal, local GPU, RunPod and generic Docker hosts are written but not exercised during development. See [VAST-PLAN](VAST-PLAN.md).
+- **No GPU provider is the default.** GPU Stages name their Target through `GPU_TARGET`, in the real and the fake GPU pipeline alike; every real GPU Algorithm ships in one image ([ADR-0002](adr/0002-single-gpu-image-ultralytics-sam3.md)); the worker refuses to start when a selected Target is unset or has no URL. Vast.ai, rented by hand, is the first provider exercised live. The Modal deployment builds the image from the same Dockerfile used everywhere; other providers pull the image built locally and pushed to Docker Hub. Modal, local GPU, RunPod and generic Docker hosts are written but not exercised during development. See the [Vast.ai plan](../.scratch/scene-understanding/vast-plan.md).
 - **Task runner** is a stdlib-only Python script invoked through `uv`, replacing the Makefile.
 - **Lift** is an in-house re-implementation of MaskClustering's view-consensus approach (masks → 3D points via aligned depth and poses → mask graph weighted by cross-view consensus → iterative clustering → score×area label voting), not a vendored research repo. The registry key stays `lift.maskclustering`.
 
 ### Scene lifecycle rules
-- Status flow: `created → uploaded → processing → ready | failed`. Re-processing (always from the start, [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)) is allowed from `ready` or `failed`.
+- Status flow: `created → uploaded → processing → ready | failed`. Re-processing (always from the start, [ADR-0005](adr/0005-whole-pipeline-on-gpu-host.md)) is allowed from `ready` or `failed`.
 - Uploads are accepted only in `created` or `uploaded`. Otherwise: HTTP 409, code `SCENE_LOCKED`.
 - At most one active Job (queued or running) per Scene, enforced by a partial unique index. Process, upload or delete while a Job is active: HTTP 409, code `SCENE_BUSY`.
 - Ingest has a `min_keyframes` parameter (default 10). Below it the Stage fails with code `NOT_ENOUGH_KEYFRAMES` and the rejection counts per reason.
-- Stage skip rule: none. Every Job runs all nine Stages ([ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)).
+- Stage skip rule: none. Every Job runs all nine Stages ([ADR-0005](adr/0005-whole-pipeline-on-gpu-host.md)).
 - Deleting a Scene removes database rows, the local Scene folder, and Workspaces on every non-shared remote target.
 
 ### API contract
 - Versioned under `/api/v1`; OpenAPI exported from the API models is the source of truth and is committed; the frontend generates types from it.
-- Endpoints as in the architecture doc §9.2. Questions use `POST /scenes/{scene_id}/queries` (the doc's sequence diagram saying `/query` is a typo).
+- Endpoints as in [architecture/api.md](architecture/api.md). Questions use `POST /scenes/{scene_id}/queries` (the doc's sequence diagram saying `/query` is a typo).
 - Error body `{"error": {"code", "message"}}`, UPPER_SNAKE_CASE codes, matching HTTP status. Codes introduced here: `SCENE_LOCKED`, `SCENE_BUSY`, `NOT_ENOUGH_KEYFRAMES` (surfaced as the Scene's failure), `COMPUTE_UNAVAILABLE` (HTTP 503 when the embed Stage's Target is unset or unreachable for a query).
 - Progress SSE replays current Stage Run state (including the latest progress and start time) on connect, then streams `stage`, `progress` and `status` events. Answer SSE streams `tool`, `delta`, `final` (`answer`, `object_ids`, `evidence`).
 - All file URLs are absolute and issued by the API; the files endpoint serves only whitelisted subfolders and rejects traversal.
 - Units are SI; coordinates are z-up with floor at z = 0.
 
 ### Compute contract
-- As specified in the architecture doc §6.2 (readiness ping, info, Workspace file listing with checksums, chunked upload with offset/total/checksum, ranged download, Workspace delete, asynchronous Compute Runs with polling, short synchronous invoke). Every request finishes in under 30 s; every body is at most the configured chunk size (default 25 MB). App auth via `X-Compute-Token`.
+- As specified in [architecture/compute.md](architecture/compute.md) (readiness ping, info, Workspace file listing with checksums, chunked upload with offset/total/checksum, ranged download, Workspace delete, asynchronous Compute Runs with polling, short synchronous invoke). Every request finishes in under 30 s; every body is at most the configured chunk size (default 25 MB). App auth via `X-Compute-Token`.
 
 ### Schema
-- As in the architecture doc §9.4, plus the partial unique index on active Jobs per Scene. The object embedding column dimension must equal the embedding model's output dimension; verify it when integrating the real embedding model.
+- As in [backend/migrations/](../backend/migrations/), plus the partial unique index on active Jobs per Scene. The object embedding column dimension must equal the embedding model's output dimension; verify it when integrating the real embedding model.
 
 ### QA agent
 - The LLM plans and phrases; all numbers come from tools. Tools: find objects, count objects, measure distance, get relations, relative direction, get object, get room info. At most 6 tool-calling steps. Answers in the question's language. Conversation persisted per Scene.
@@ -188,7 +188,7 @@ Each ends in something runnable in the browser.
 - **M2:** the same flow with fake GPU Stages targeting a configured remote Target completes; files round-trip by checksum; a Target that is not yet ready is waited for, not failed (including cold starts on providers that scale to zero).
 - **M3:** the user's room capture produces a mesh where the floor is at z ≈ 0, walls are axis-aligned and a known dimension (e.g. a door's height ≈ 2 m) is plausible; rejected files are listed by reason.
 - **M4:** searching a visible object by an English or Vietnamese phrase ranks it in the top results and highlights it.
-- **M5:** every Object has a box, labels in both languages and attributes; relations shown for an Object agree with what is visible. Amended by [ADR-0004](ADR-0004-skip-vlm-attributes.md): the pipeline skips VLM attributes, so Objects have no `label_vi` or attributes, and user stories 30 (attributes) and 38 are not served.
+- **M5:** every Object has a box, labels in both languages and attributes; relations shown for an Object agree with what is visible. Amended by [ADR-0004](adr/0004-skip-vlm-attributes.md): the pipeline skips VLM attributes, so Objects have no `label_vi` or attributes, and user stories 30 (attributes) and 38 are not served.
 - **M6:** a question in Vietnamese is answered in Vietnamese, cites Object ids, highlights them and flies the camera; distances in the answer equal the tool's output.
 - **M7/M8:** features listed above are present; M8 targets are documented but not required to be exercised.
 - Judgement of reconstruction and perception quality is qualitative (no benchmarks).
@@ -210,7 +210,7 @@ Each ends in something runnable in the browser.
 Additional pure unit tests only for numeric geometry: box fitting, footprint overlap, distances, plane fitting, and each Relation rule's thresholds.
 
 ### Prior art
-- None in the repository yet (it contains only a scaffold). The first tests written in M1 at seams 1 and 3 become the prior art for later milestones.
+- `backend/tests/test_api.py` (seam 1), `test_compute_contract.py` (seam 2), the per-Stage tests (seam 3) and the frontend `*.test.ts(x)` files (seam 4) are the prior art for new tests.
 
 ### Manual verification
 - Real GPU Algorithms are smoke-tested on the configured provider (Vast.ai first) with the user's room capture at M3–M6, checked against the acceptance criteria above.
@@ -222,7 +222,7 @@ Additional pure unit tests only for numeric geometry: box fitting, footprint ove
 - Multiple rooms or whole buildings in one Scene; merging Scenes; adding photos to an already-processed Scene.
 - Editing Scenes (moving, relabeling or deleting Objects by hand).
 - Cancelling a running Job.
-- Redis, object storage, cloud persistence of Scenes; the user's own machine is the source of truth. Intermediate Stage outputs live only on the GPU Target ([ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)).
+- Redis, object storage, cloud persistence of Scenes; the user's own machine is the source of truth. Intermediate Stage outputs live only on the GPU Target ([ADR-0005](adr/0005-whole-pipeline-on-gpu-host.md)).
 - Native mobile app or in-app camera capture.
 - Exercising Modal, local GPU, RunPod and generic targets during development (written and documented only).
 - Fine-tuning or training any model.
@@ -233,4 +233,3 @@ Additional pure unit tests only for numeric geometry: box fitting, footprint ove
 - Prerequisites the user must provide: a Vast.ai account with credit, a public Docker Hub repository for the GPU images, a Hugging Face token and gated access to SAM 3 (both available), and an OpenAI-compatible cloud API key for LLM and VLM.
 - Verify before integrating: Hugging Face model ids, Depth Anything 3's inference arguments and `Prediction` fields, the embedding model's output dimension, Modal's support for building from a Dockerfile together with web-server, concurrency and startup-timeout options, and torch version compatibility across GPU dependency groups.
 - The user commits changes; implementing agents only edit files.
-- No issue tracker is configured, so this spec lives in the repository rather than as a `ready-for-agent` issue. Running `/setup-matt-pocock-skills` later would allow publishing it as one.

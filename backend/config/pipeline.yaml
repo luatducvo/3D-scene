@@ -32,7 +32,7 @@ stages:
     target: "${GPU_TARGET}"
     params: {model_id: facebook/metaclip-2-worldwide-huge-quickgelu}
   attributes:
-    # attributes.vlm_api is disabled; see docs/ADR-0004-skip-vlm-attributes.md.
+    # attributes.vlm_api is disabled; see docs/adr/0004-skip-vlm-attributes.md.
     algorithm: attributes.none
     target: "${GPU_TARGET}"
   graph:

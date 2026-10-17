@@ -27,7 +27,7 @@ The real pipeline uses the GPU image, which holds every GPU Algorithm:
 `uv run tasks.py deploy-modal --variant gpu` deploys it as the Modal app `scene-compute-gpu`.
 Set `MODAL_COMPUTE_URL` to the printed URL, select `config/pipeline.yaml` and keep
 `GPU_TARGET=modal`. Choose a GPU with at least 48 GB of VRAM, because every model stays loaded
-(ARCHITECTURE §6.8).
+([compute.md](../../../docs/architecture/compute.md#the-gpu-image)).
 
 The app uses one GPU container with concurrent HTTP requests so polling remains available during
 a Compute Run. Model downloads persist in the `scene-models` Volume at `/models`; Scene files

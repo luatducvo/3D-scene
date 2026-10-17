@@ -19,7 +19,7 @@ inverted to camera-to-world poses. The least confident 10 % of pixels and invali
 DA3 pins `numpy<2` and depends on xformers, which fixes the Torch version. xformers 0.0.35, the
 newest release, ships kernels built for Torch 2.10 + CUDA 12.8; with Torch 2.14 they fail to load and
 DA3 falls back to slower, memory-hungry attention. The `gpu` extra therefore pins Torch 2.10,
-torchvision 0.25 and xformers 0.0.35 (NumPy 1.26.4; 2026-10-17). See [ADR-0003](ADR-0003-depth-anything-3-point-cloud.md).
+torchvision 0.25 and xformers 0.0.35 (NumPy 1.26.4; 2026-10-17). See [ADR-0003](adr/0003-depth-anything-3-point-cloud.md).
 
 GeoCalib's [inference example](https://github.com/cvg/GeoCalib#setup-and-demo) defines the model call.
 Its [Gravity class](https://github.com/cvg/GeoCalib/blob/main/geocalib/gravity.py) exposes `vec3d`;
@@ -28,7 +28,7 @@ through camera poses, robustly combines estimates, fits horizontal/vertical plan
 the floor and Manhattan wall directions. Absence of a floor or walls fails clearly.
 
 SAM 3 runs through [Ultralytics](https://docs.ultralytics.com/models/sam-3/) (AGPL-3.0, see
-[ADR-0002](ADR-0002-single-gpu-image-ultralytics-sam3.md)). The adapter was written against
+[ADR-0002](adr/0002-single-gpu-image-ultralytics-sam3.md)). The adapter was written against
 `ultralytics==8.4.177`: `SAM3SemanticPredictor.inference_features` filters by `args.conf`, applies
 per-class NMS and returns masks already resized to the source image, with the class column indexing
 the text batch. `quantize: 16` selects fp16. The gated `sam3.pt` comes from `facebook/sam3` through

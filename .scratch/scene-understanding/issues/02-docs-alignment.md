@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** done — glossary lives in GLOSSARY.md
+**Status:** done — glossary lives in CONTEXT.md
 
 - [ ] A root glossary defines Scene, Keyframe, Frame, Stage, Algorithm, Target, Workspace, Manifest, Vocabulary, Job, Stage Run, Compute Run, Instance, Object, Relation, Scene Graph, with no implementation details.
 - [ ] ADR-0001 records "the worker publishes the Scene Graph into Postgres; Algorithms never touch the database", with the alternative considered.

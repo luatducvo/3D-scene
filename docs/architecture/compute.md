@@ -1,0 +1,101 @@
+# Compute: Targets and the GPU server
+
+Where Stages execute and how the worker talks to a GPU host. Read [overview.md](overview.md) first.
+
+## Principle: one image, one HTTP contract
+
+GPU providers have no common API: Modal speaks its Python SDK, RunPod its handlers, Vast.ai and
+Colab hand you a machine. What all of them accept is a `linux/amd64` CUDA Docker image running an
+HTTP server. So the system defines its own small HTTP contract, implements it once in
+`scene-compute`, and ships that as one image. The worker has a single remote backend,
+`HttpBackend`. Switching provider means deploying the same image there and pointing a Target at
+its URL; Algorithms, the Executor, the server and the worker never change.
+
+```mermaid
+flowchart LR
+  R[runner] --> PB{pipeline_backend}
+  PB --> IP[InProcessBackend<br/>Target cpu · fake pipeline]
+  PB --> HB[HttpBackend]
+  HB -->|compute contract| L[scene-compute<br/>local_gpu · shared storage]
+  HB -->|compute contract| V[scene-compute<br/>vast · colab · modal · runpod · generic]
+  IP & L & V --> EX[Executor → registry → StageAlgorithm.run]
+```
+
+## Targets
+
+[compute.yaml](../../backend/config/compute.yaml) names the Targets. Each is either `inprocess`
+(`cpu`: the worker runs Algorithms itself on `DATA_DIR`) or `http` (URL, `X-Compute-Token`,
+optional provider headers, `shared_storage`, `chunk_size` in bytes, `startup_timeout` and
+`poll_interval` in seconds). URLs and secrets come from `backend/.env` through `${VAR}` expansion.
+
+`pipeline_backend` in [container.py](../../backend/services/scene-worker/src/scene_worker/container.py)
+refuses to start when a Stage's Target variable is unset, the Target is unknown, an HTTP Target has
+no URL, or Stages name more than one Target. The same backend also stores uploads: `scene-api`
+streams each uploaded file into the Target's `raw/` (`put_file`), so uploading needs the Target up.
+
+Query-time text embedding reuses the embed Stage's Algorithm and Target, waits at most 10 s for
+readiness, and otherwise answers `COMPUTE_UNAVAILABLE` (HTTP 503).
+
+## The compute contract
+
+Rules every `scene-compute` deployment satisfies
+([server.py](../../backend/services/scene-compute/src/scene_compute/server.py)):
+
+1. Listens on `0.0.0.0:${PORT}` (default 9000).
+2. Every request finishes in under 30 s; long work runs as an asynchronous Compute Run and is polled.
+3. Every request and response body is at most the chunk size (default 25,000,000 bytes), under
+   RunPod Serverless's 30 MB limit. Files move in chunks.
+4. App auth is `X-Compute-Token`, checked against `COMPUTE_TOKEN` on every path except `/ping`;
+   `Authorization` stays free for the provider's own key.
+5. Errors use the API's shape, `{"error": {"code", "message"}}`. Paths are checked against traversal.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/ping` | Readiness |
+| GET | `/info` | Image version, GPU name, registered Algorithms |
+| GET | `/workspaces/{scene_id}/files?dirs=a,b` | List files with `size` and `sha256` |
+| PUT | `/workspaces/{scene_id}/files/{path}?offset=&total=&sha256=` | Write one chunk; the last chunk verifies the checksum |
+| GET | `/workspaces/{scene_id}/files/{path}` | Download, with `Range` for chunks |
+| DELETE | `/workspaces/{scene_id}/files?dirs=a,b` | Delete Stage outputs before a Job |
+| DELETE | `/workspaces/{scene_id}` | Delete a Scene's Workspace (on Scene delete) |
+| POST | `/runs` | `{algorithm, scene_id, params}` → `202 {run_id}` |
+| GET | `/runs/{run_id}` | `{state: queued\|running\|done\|failed, manifest?, error?, progress?}` |
+| POST | `/invoke/{algorithm}/{method}` | Short synchronous call, e.g. `embed_text` |
+
+With `shared_storage: true` (the `local_gpu` Compose service mounting the same volume) the worker
+skips file transfer. Compute Runs run one at a time per server. A restarted server marks stale runs
+`COMPUTE_INTERRUPTED`; with `CLEAN_ON_START=1` (set by the Colab notebook) it also deletes
+`DATA_DIR/scenes` and `DATA_DIR/runs` on start.
+
+At import, `scene_compute` sets `HF_HOME=$MODELS_DIR/hf` and `TORCH_HOME=$MODELS_DIR/torch`, so a
+provider only needs to mount a folder at `MODELS_DIR` for the weight cache.
+
+## Providers
+
+| Provider | How it runs the image | Notes |
+|---|---|---|
+| Local GPU | Compose profile `local-gpu` (`uv run tasks.py up-local-gpu`) | Needs the NVIDIA Container Toolkit. Shared storage, no token. |
+| Vast.ai | Rented machine, SSH launch mode, On-start script starts uvicorn | First provider exercised live. URL changes per rental; SSH tunnel for real captures. [Runbook](../../backend/deploy/vast/README.md) |
+| Google Colab | Notebook runs the server behind a Cloudflare Tunnel | Disposable: a runtime restart loses uploads. [Guide](../../backend/deploy/colab/README.md) |
+| Modal | `Image.from_dockerfile` built remotely, `@modal.web_server` | No registry push. [Guide](../../backend/deploy/modal/README.md) |
+| RunPod Pod / Serverless | Registry image; Serverless via the load-balancing endpoint | 100 s / 5.5 min request limits; token mandatory behind the proxy. [Guide](../../backend/deploy/runpod/README.md) |
+| Any Docker host | `docker run --gpus all -p 9000:9000 …` | [Guide](../../backend/deploy/generic/README.md) |
+
+Modal, RunPod and generic hosts are written but not exercised during development. Live results
+go in [GPU-INTEGRATION.md](../GPU-INTEGRATION.md#live-check-log).
+
+## The GPU image
+
+[compute.Dockerfile](../../backend/docker/compute.Dockerfile), built from the repository root. Empty
+`EXTRAS` gives the light **fake** image (contract fakes, for testing a provider connection);
+`EXTRAS=gpu` gives the **gpu** image with every real Algorithm (the `gpu` extra in
+[scene-compute/pyproject.toml](../../backend/services/scene-compute/pyproject.toml), which also pins
+Torch for xformers). Build and push with `uv run tasks.py push-compute-image [--extras gpu]`; tags are
+`{fake|gpu}-<git short sha>` under `COMPUTE_IMAGE_REPO`.
+
+The Executor keeps every loaded model in VRAM, so a GPU Target needs at least 48 GB; more than
+80 Keyframes in one DA3 pass need 80 GB ([ADR-0002](../adr/0002-single-gpu-image-ultralytics-sam3.md)).
+
+Licenses accepted for this learning project: Ultralytics is AGPL-3.0, DA3 Nested Giant is
+CC BY-NC 4.0 ([ADR-0002](../adr/0002-single-gpu-image-ultralytics-sam3.md),
+[ADR-0003](../adr/0003-depth-anything-3-point-cloud.md)).
