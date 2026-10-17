@@ -38,6 +38,12 @@ at runtime. Every GPU Algorithm resolves in one environment. The compute
 Dockerfile uses CUDA 12.8.1. NumPy 1.26.4 (required by Depth Anything 3) also satisfies Ultralytics. PyTorch/Torchvision pins still require a complete GPU image build and
 inference check; compatible declared versions do not prove every kernel works together.
 
+`mesh.tsdf` and `lift.maskclustering` run on CuPy (`cupy-cuda12x`, the `gpu-arrays` extra) with
+`device: cuda`; it uses the CUDA 12 libraries of the compute image or the Colab runtime. Their
+NumPy path is what the tests cover, so the CuPy path needs a live check. `segment.sam3` prompts
+`prompt_batch_size: 128` labels at once on an 80 GB GPU; lower it if SAM 3 runs out of memory.
+`embed.metaclip2` embeds every Object's crops in batches of `batch_size` (64).
+
 MetaCLIP's [model configuration](https://huggingface.co/facebook/metaclip-2-worldwide-huge-quickgelu/blob/main/config.json)
 sets projection dimension 1024, matching the database. The adapter checks it at runtime.
 The [Transformers 4.57.6 implementation](https://github.com/huggingface/transformers/blob/v4.57.6/src/transformers/models/metaclip_2/modeling_metaclip_2.py)

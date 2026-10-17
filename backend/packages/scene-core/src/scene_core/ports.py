@@ -37,6 +37,9 @@ class StageAlgorithm(ABC):
 
 class RelationRule(ABC):
     predicate: ClassVar[str]
+    # The widest horizontal gap in meters between two Objects' footprints at which the rule can
+    # hold. The graph skips pairs that are certainly farther apart; None evaluates every pair.
+    reach: ClassVar[float | None] = None
 
     @abstractmethod
     def evaluate(

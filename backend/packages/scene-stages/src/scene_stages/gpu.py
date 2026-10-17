@@ -446,27 +446,42 @@ class MetaClipEmbeddings(StageAlgorithm):
         instances = json.loads(
             workspace.path("instances/instances.json").read_text(encoding="utf-8")
         )
-        ids, vectors = [], []
-        for done, instance in enumerate(instances):
-            self.progress(done, len(instances), "object")
-            crops, weights = [], []
+        batch_size = int(params.get("batch_size", 64))
+        if batch_size < 1:
+            raise SceneError("INVALID_PARAMETERS", "batch_size must be positive")
+        # Every Object's crops go through the model in shared batches, not one call per Object.
+        crops, owners, weights = [], [], []
+        for number, instance in enumerate(instances):
+            scored = []
             for index, view in enumerate(instance["best_views"]):
                 path = workspace.path(f"instances/crops/{instance['id']}_{index}.jpg")
                 with Image.open(path) as source:
                     crops.append(source.convert("RGB"))
-                weights.append(max(0, float(view["score"])))
-            if not crops or sum(weights) <= 0:
+                owners.append(number)
+                scored.append(max(0, float(view["score"])))
+            if not scored or sum(scored) <= 0:
                 raise SceneError("MISSING_EVIDENCE", f"No scored crops for {instance['id']}")
-            inputs = self.processor(images=crops, return_tensors="pt").to("cuda")
+            weights.extend(scored)
+        features = []
+        for start in range(0, len(crops), batch_size):
+            self.progress(start, len(crops), "image")
+            inputs = self.processor(
+                images=crops[start : start + batch_size], return_tensors="pt"
+            ).to("cuda")
             with torch.inference_mode():
-                features = self._normalized(self.model.get_image_features(**inputs))
-            vector = np.average(features, axis=0, weights=weights)
+                features.append(self._normalized(self.model.get_image_features(**inputs)))
+        self.progress(len(crops), len(crops), "image")
+        features = np.concatenate(features) if features else np.empty((0, EMBEDDING_DIM))
+        owners, weights = np.asarray(owners), np.asarray(weights)
+        ids, vectors = [], []
+        for number, instance in enumerate(instances):
+            mine = owners == number
+            vector = np.average(features[mine], axis=0, weights=weights[mine])
             norm = np.linalg.norm(vector)
             if not np.isfinite(norm) or norm <= 0:
                 raise SceneError("INVALID_MODEL_OUTPUT", "Object embedding has zero norm")
             ids.append(instance["id"])
             vectors.append(vector / norm)
-        self.progress(len(instances), len(instances), "object")
         array = np.asarray(vectors, dtype=np.float32).reshape(-1, EMBEDDING_DIM)
         np.savez_compressed(
             workspace.dir("embeddings") / "objects.npz",

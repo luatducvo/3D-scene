@@ -1,9 +1,11 @@
 """CPU RGB ingest with upright, metadata-free keyframes and an explicit rejection report."""
 
 import json
+import os
 import re
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -94,18 +96,19 @@ class OpenCVIngest(StageAlgorithm):
                     )
                 else:
                     candidates.append((source, source.name))
-            for index, (source, label) in enumerate(candidates):
-                self.progress(index, len(candidates), "image")
+            long_side = int(params.get("long_side", 1600))
+            blur_threshold = float(params.get("blur_threshold", 100))
+
+            def examine(index, source):
+                """Decode, check and stage one candidate; independent of the others, so they run at once."""
                 try:
                     with Image.open(source) as original:
-                        long_side = int(params.get("long_side", 1600))
                         ready = ready_keyframe(original, long_side)
                         image = ImageOps.exif_transpose(original).convert("RGB")
                         image.thumbnail((long_side,) * 2)
                         gray = np.asarray(image.convert("L"), dtype=float)
                         if quality_filter and np.mean((gray < 10) | (gray > 245)) > 0.25:
-                            rejected["exposure"].append(label)
-                            continue
+                            return "exposure", None, None
                         laplacian = (
                             -4 * gray[1:-1, 1:-1]
                             + gray[:-2, 1:-1]
@@ -114,29 +117,41 @@ class OpenCVIngest(StageAlgorithm):
                             + gray[1:-1, 2:]
                         )
                         if quality_filter and (
-                            not laplacian.size
-                            or laplacian.var() < float(params.get("blur_threshold", 100))
+                            not laplacian.size or laplacian.var() < blur_threshold
                         ):
-                            rejected["blur"].append(label)
-                            continue
-                        signature = perceptual_hash(image)
-                        if quality_filter and any(
-                            np.count_nonzero(signature != previous)
-                            < int(params.get("phash_distance", 6))
-                            for previous in hashes
-                        ):
-                            rejected["duplicate"].append(label)
-                            continue
-                        hashes.append(signature)
+                            return "blur", None, None
                         path = temporary / f"accepted-{index}.jpg"
                         if ready:
                             path.write_bytes(source.read_bytes())
                         else:
                             # A fresh image guarantees EXIF, GPS and other metadata never survive.
                             Image.fromarray(np.asarray(image)).save(path, quality=95)
-                        accepted.append(path)
+                        return None, perceptual_hash(image), path
                 except (UnidentifiedImageError, OSError):
-                    rejected["invalid"].append(label)
+                    return "invalid", None, None
+
+            # Decoding releases the GIL, so threads use every core; duplicates are then judged in
+            # capture order, against the photos kept before each one, exactly as one at a time.
+            workers = int(params.get("workers", os.cpu_count() or 1))
+            with ThreadPoolExecutor(max(1, workers)) as pool:
+                examined = pool.map(examine, range(len(candidates)), (s for s, _ in candidates))
+                for index, ((_, label), (reason, signature, path)) in enumerate(
+                    zip(candidates, examined, strict=True)
+                ):
+                    self.progress(index, len(candidates), "image")
+                    if reason:
+                        rejected[reason].append(label)
+                        continue
+                    if quality_filter and any(
+                        np.count_nonzero(signature != previous)
+                        < int(params.get("phash_distance", 6))
+                        for previous in hashes
+                    ):
+                        rejected["duplicate"].append(label)
+                        path.unlink()
+                        continue
+                    hashes.append(signature)
+                    accepted.append(path)
             self.progress(len(candidates), len(candidates), "image")
             selected = (
                 np.linspace(0, len(accepted) - 1, min(len(accepted), maximum), dtype=int)

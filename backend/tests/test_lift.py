@@ -1,9 +1,10 @@
 import json
 
 import numpy as np
+import pytest
 from PIL import Image
 from scene_core.contracts import SceneWorkspace
-from scene_stages.lift import MaskClustering
+from scene_stages.lift import MaskClustering, unproject, view_support
 
 
 def test_two_views_of_one_mask_become_one_stable_instance(tmp_path):
@@ -37,6 +38,64 @@ def test_two_views_of_one_mask_become_one_stable_instance(tmp_path):
     assert json.loads(workspace.path("instances/instances.json").read_text())[0]["id"] == first_id
 
 
+def pairwise_support(points, frame, mask, tolerance):
+    """The per-pair definition view_support must reproduce: project one node into another's Frame."""
+    camera = (points - frame["pose"][:3, 3]) @ frame["pose"][:3, :3]
+    projected = camera @ frame["K"].T
+    front = camera[:, 2] > 1e-6
+    pixels = np.zeros((len(points), 2), dtype=int)
+    pixels[front] = np.rint(projected[front, :2] / projected[front, 2:3]).astype(int)
+    h, w = mask.shape
+    visible = (
+        front & (pixels[:, 0] >= 0) & (pixels[:, 0] < w) & (pixels[:, 1] >= 0) & (pixels[:, 1] < h)
+    )
+    x, y = pixels[visible].T
+    observed = frame["depth"][y, x]
+    agree = (
+        np.isfinite(observed) & (observed > 0) & (abs(observed - camera[visible, 2]) <= tolerance)
+    )
+    return float(mask[y[agree], x[agree]].mean()) if agree.any() else 0.0
+
+
+def test_view_support_matches_the_per_pair_projection(tmp_path):
+    rng = np.random.default_rng(3)
+    frames = {}
+    for index in range(4):
+        depth = rng.uniform(0.8, 1.6, (24, 32))
+        depth[rng.random((24, 32)) < 0.1] = np.nan
+        angle = 0.08 * index
+        pose = np.eye(4)
+        pose[:3, :3] = [
+            [np.cos(angle), 0, np.sin(angle)],
+            [0, 1, 0],
+            [-np.sin(angle), 0, np.cos(angle)],
+        ]
+        pose[:3, 3] = [0.05 * index, 0, 0]
+        frames[f"{index:04d}"] = {
+            "depth": depth,
+            "pose": pose,
+            "K": np.array([[30.0, 0, 16], [0, 30.0, 12], [0, 0, 1]]),
+        }
+    nodes = []
+    for frame_id, frame in frames.items():
+        for _ in range(3):
+            mask = np.zeros((24, 32), bool)
+            top, left = rng.integers(0, 14), rng.integers(0, 20)
+            mask[top : top + 10, left : left + 12] = True
+            points = unproject(frame["depth"], frame["K"], frame["pose"], mask)
+            nodes.append({"frame": frame_id, "mask": mask, "points": points})
+    support = view_support(nodes, frames, 0.3)
+    for i, a in enumerate(nodes):
+        for j, b in enumerate(nodes):
+            expected = (
+                0.0
+                if a["frame"] == b["frame"]
+                else pairwise_support(a["points"], frames[b["frame"]], b["mask"], 0.3)
+            )
+            assert support[i, j] == pytest.approx(expected)
+    assert 0 < support.max() <= 1
+
+
 def test_separate_objects_seen_in_three_views_stay_separate_instances(tmp_path):
     workspace = SceneWorkspace(tmp_path, "two-objects")
     for frame in ("0000", "0001", "0002"):
@@ -66,3 +125,18 @@ def test_separate_objects_seen_in_three_views_stay_separate_instances(tmp_path):
         ("chair", 3),
         ("table", 3),
     ]
+
+
+def test_device_cuda_without_cupy_or_a_gpu_fails_instead_of_falling_back():
+    from scene_core.errors import SceneError
+    from scene_stages.arrays import array_module
+
+    assert array_module({}) is np
+    try:
+        import cupy  # noqa: F401
+    except ImportError:
+        with pytest.raises(SceneError) as error:
+            array_module({"device": "cuda"})
+        assert error.value.code == "GPU_REQUIRED"
+    with pytest.raises(ValueError):
+        array_module({"device": "tpu"})

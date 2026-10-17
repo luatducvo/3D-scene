@@ -28,6 +28,7 @@ class SpatialRule(RelationRule):
 
 class On(SpatialRule):
     predicate = "on"
+    reach = 0.0  # needs overlapping footprints
 
     def evaluate(self, a, b, context):
         if abs(bounds(a.box)[0] - bounds(b.box)[1]) <= 0.04 and overlap_ratio(a, b) >= 0.3:
@@ -36,6 +37,7 @@ class On(SpatialRule):
 
 class Above(SpatialRule):
     predicate = "above"
+    reach = 0.0
 
     def evaluate(self, a, b, context):
         if (
@@ -48,6 +50,7 @@ class Above(SpatialRule):
 
 class Under(SpatialRule):
     predicate = "under"
+    reach = 0.0
 
     def evaluate(self, a, b, context):
         if Above().evaluate(b, a, context):
@@ -56,6 +59,7 @@ class Under(SpatialRule):
 
 class Inside(SpatialRule):
     predicate = "inside"
+    reach = 0.0
 
     def evaluate(self, a, b, context):
         area = a.box.size[0] * a.box.size[1]
@@ -70,6 +74,7 @@ class Inside(SpatialRule):
 
 class NextTo(SpatialRule):
     predicate = "next_to"
+    reach = 0.6  # surface distance, never shorter than the horizontal gap
 
     def evaluate(self, a, b, context):
         vertical_overlap = min(bounds(a.box)[1], bounds(b.box)[1]) - max(
@@ -82,6 +87,7 @@ class NextTo(SpatialRule):
 
 class Near(SpatialRule):
     predicate = "near"
+    reach = 1.0
 
     def evaluate(self, a, b, context):
         distance = box_surface_distance(a, b)
@@ -139,16 +145,27 @@ class GeometricGraph(StageAlgorithm):
         )
         available = {ep.name: ep for ep in entry_points(group="scene_relations")}
         rules = [available[name].load()() for name in configured]
+        # A footprint lies within its circumscribed circle, so two Objects whose circles are more than
+        # a rule's reach apart cannot satisfy it; the polygon geometry then never runs for them.
+        centers = np.array([obj.box.center[:2] for obj in objects]).reshape(-1, 2)
+        radii = np.array([np.hypot(*obj.box.size[:2]) / 2 for obj in objects])
+        gaps = (
+            np.linalg.norm(centers[:, None] - centers[None], axis=-1) - radii[:, None] - radii[None]
+        )
         relations = []
         for rule in rules:
-            for a in objects:
+            for i, a in enumerate(objects):
                 # SOLID review (OCP/LSP): dispatch still knows one concrete predicate and supplies
                 # a dummy second Object. Let RelationRule declare its Object/room evaluation scope
                 # so another room Relation can be registered without changing this loop.
                 candidates = (
                     [a]
                     if rule.predicate == "against_wall"
-                    else [b for b in objects if b.id != a.id]
+                    else [
+                        b
+                        for j, b in enumerate(objects)
+                        if b.id != a.id and (rule.reach is None or gaps[i, j] <= rule.reach + 1e-6)
+                    ]
                 )
                 for b in candidates:
                     relation = rule.evaluate(a, b, context)

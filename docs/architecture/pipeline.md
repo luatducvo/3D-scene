@@ -94,6 +94,16 @@ scenes/{scene_id}/
 
 Each Stage folder also holds its `manifest.json`.
 
+## Array module
+
+`mesh.tsdf` and `lift.maskclustering` compute through
+[arrays.py](../../backend/packages/scene-stages/src/scene_stages/arrays.py): `array_module(params)`
+returns NumPy for `device: cpu` (the default) and CuPy for `device: cuda`. CuPy mirrors the NumPy
+API, so one implementation runs in tests on NumPy and on a CUDA Target on CuPy; `pipeline.yaml` sets
+`device: cuda`. CuPy comes from the `gpu-arrays` extra, part of the `gpu` image. `device: cuda`
+without CuPy or a GPU fails the Stage with `GPU_REQUIRED`; nothing falls back to the CPU. Marching
+cubes, PLY/GLB export and crop writing stay on the CPU.
+
 ## Scene Results
 
 `SceneResults` in [results.py](../../backend/packages/scene-core/src/scene_core/results.py) is the
@@ -116,15 +126,15 @@ Each row is the contract every replacement Algorithm must honor. Parameters are 
 
 | # | Stage | Algorithm | Reads → writes | Contract |
 |---|---|---|---|---|
-| 1 | ingest | `ingest.opencv` | `raw/` → `keyframes/` | Apply EXIF orientation, strip metadata (incl. GPS), resize to `long_side` and re-encode as JPEG 95. An upright RGB JPEG already within `long_side` with only JFIF and ICC segments, as the frontend uploads, is kept byte for byte, so it is compressed once. Split video with ffmpeg. Optional blur/exposure/duplicate rejection (`quality_filter`). Sort names naturally so Keyframes follow capture order; sample down to `max_keyframes`. Fewer than `min_keyframes` fails with `NOT_ENOUGH_KEYFRAMES` and rejection counts. |
+| 1 | ingest | `ingest.opencv` | `raw/` → `keyframes/` | Apply EXIF orientation, strip metadata (incl. GPS), resize to `long_side` and re-encode as JPEG 95. An upright RGB JPEG already within `long_side` with only JFIF and ICC segments, as the frontend uploads, is kept byte for byte, so it is compressed once. Split video with ffmpeg. Optional blur/exposure/duplicate rejection (`quality_filter`). Candidates are decoded and checked on `workers` threads (default: every core); duplicates are judged afterwards in capture order. Sort names naturally so Keyframes follow capture order; sample down to `max_keyframes`. Fewer than `min_keyframes` fails with `NOT_ENOUGH_KEYFRAMES` and rejection counts. |
 | 2 | recon | `recon.da3` | `keyframes/` → `recon/` | Depth Anything 3 Nested Giant: metric depth and poses for all Keyframes in one `inference()` call, poses from the ray head. Writes `rgb/` and `frames/` (depth m, conf, camera-to-world pose, K). A non-metric prediction fails with `INVALID_MODEL_OUTPUT`. See [ADR-0003](../adr/0003-depth-anything-3-point-cloud.md). |
 | 3 | align | `align.geocalib_ransac` | `recon/` → `align/` | GeoCalib gravity per Frame, RANSAC floor plane, rotate to z-up with the floor at z = 0, Manhattan yaw so walls follow x/y, ceiling height from the highest large horizontal plane. From here on, poses come from `align/`. |
-| 4 | mesh | `mesh.tsdf` | `recon/`, `align/` → `mesh/` | `points.ply`: confident, edge-free pixels back-projected, averaged on a voxel grid, capped at `max_points`, binary PLY with colors (the viewer's default layer). `mesh.glb`: NumPy TSDF fusion + marching cubes. Bounds use percentiles so far outliers are ignored. |
+| 4 | mesh | `mesh.tsdf` | `recon/`, `align/` → `mesh/` | `points.ply`: confident, edge-free pixels back-projected, averaged on a voxel grid, capped at `max_points`, binary PLY with colors (the viewer's default layer). `mesh.glb`: TSDF fusion in passes of `chunk_voxels` + marching cubes on the CPU. Bounds use percentiles so far outliers are ignored. The point cloud and TSDF run on CuPy with `device: cuda` (see [Array module](#array-module)). |
 | 5 | segment | `segment.sam3` | `recon/rgb` → `segment/` | SAM 3 through Ultralytics ([ADR-0002](../adr/0002-single-gpu-image-ultralytics-sam3.md)), every `frame_stride`-th Frame, prompted with the Vocabulary in [indoor-en.txt](../../backend/config/vocabularies/indoor-en.txt). |
-| 6 | lift | `lift.maskclustering` | `recon/`, `align/`, `segment/` → `instances/` | In-house MaskClustering view consensus: masks → 3D points, cross-view consensus graph, iterative clustering, score × area label voting. Drops Instances seen in fewer than `min_views`; picks best views and saves crops. |
-| 7 | embed | `embed.metaclip2` | `instances/` → `embeddings/` | MetaCLIP 2: score-weighted mean of crop embeddings, L2-normalized, 1024-d. `embed_text` serves query-time search (multilingual). |
+| 6 | lift | `lift.maskclustering` | `recon/`, `align/`, `segment/` → `instances/` | In-house MaskClustering view consensus: masks → 3D points, cross-view consensus graph (each Frame projects every other Frame's points once; per-node sums give each mask's share), iterative clustering, score × area label voting. Runs on CuPy with `device: cuda`. Drops Instances seen in fewer than `min_views`; picks best views and saves crops. |
+| 7 | embed | `embed.metaclip2` | `instances/` → `embeddings/` | MetaCLIP 2: every Object's crops in shared batches of `batch_size`, then a score-weighted mean per Object, L2-normalized, 1024-d. `embed_text` serves query-time search (multilingual). |
 | 8 | attributes | `attributes.none` | `instances/` → `attributes/` | Writes an empty entry per Instance and calls nothing ([ADR-0004](../adr/0004-skip-vlm-attributes.md)). `attributes.vlm_api` (OpenAI-compatible vision model, `VLM_*`) stays registered for switching back. |
-| 9 | graph | `graph.geometric` | `align/`, `instances/`, `embeddings/`, `attributes/` → `graph/` | Fit gravity-aligned oriented boxes, apply every configured Relation rule to every Object pair, write the Scene Graph. Each Instance id becomes exactly one Object id. |
+| 9 | graph | `graph.geometric` | `align/`, `instances/`, `embeddings/`, `attributes/` → `graph/` | Fit gravity-aligned oriented boxes, apply every configured Relation rule to every Object pair within the rule's `reach` (pairs whose footprint circles are farther apart cannot satisfy it and are skipped), write the Scene Graph. Each Instance id becomes exactly one Object id. |
 
 Live verification of the GPU adapters is tracked in [GPU-INTEGRATION.md](../GPU-INTEGRATION.md).
 

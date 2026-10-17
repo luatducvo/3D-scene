@@ -12,7 +12,7 @@ points; each recipe touches only the files it names.
 | GPU provider | A guide or deploy file under `backend/deploy/<provider>/` | A Target in `compute.yaml` (URL, headers) |
 | Embedding model | A `StageAlgorithm` with `embed_text` | `pipeline.yaml` embed Stage; migrate `vector(dim)` |
 | LLM / VLM | Nothing (OpenAI-compatible) | `LLM_*` / `VLM_*` in `.env` |
-| Spatial Relation | A `RelationRule` + an entry point in group `scene_relations` | `graph.params.relations` |
+| Spatial Relation | A `RelationRule` (set `reach` when the rule needs the two footprints within a horizontal gap, so the graph can skip farther pairs) + an entry point in group `scene_relations` | `graph.params.relations` |
 | QA capability | A tool definition and handler in `SceneTools` ([qa.py](../../backend/services/scene-api/src/scene_api/qa.py)) | Nothing |
 | 3D rendering | A layer component | `sceneLayers` in [layers/index.tsx](../../frontend/src/components/viewer/layers/index.tsx) |
 | API contract | Routes and models in `scene_api`, then `uv run main.py openapi` | Frontend: `npm run api:sync` |

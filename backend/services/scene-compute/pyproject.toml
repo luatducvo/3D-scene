@@ -6,7 +6,7 @@ dependencies = ["scene-core", "scene-stages", "fastapi>=0.115", "uvicorn>=0.34",
 
 [project.optional-dependencies]
 # Every Algorithm ships in one image (ADR-0002); the whole pipeline runs on it (ADR-0005).
-gpu = ["scene-stages[recon-da3,align-geocalib,mesh-tsdf,segment-sam3,embed-metaclip2]",
+gpu = ["scene-stages[recon-da3,align-geocalib,mesh-tsdf,gpu-arrays,segment-sam3,embed-metaclip2]",
        # xformers 0.0.35 (newest) ships kernels built for Torch 2.10 + CUDA 12.8; newer Torch disables them.
        "torch==2.10.*", "torchvision==0.25.*", "xformers==0.0.35"]
 

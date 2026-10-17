@@ -9,6 +9,8 @@ from PIL import Image
 from scene_core.contracts import LiftManifest
 from scene_core.ports import StageAlgorithm
 
+from .arrays import array_module, to_numpy
+
 
 def unproject(depth, intrinsics, pose, mask):
     y, x = np.nonzero(mask & np.isfinite(depth) & (depth > 0))
@@ -17,28 +19,66 @@ def unproject(depth, intrinsics, pose, mask):
     return (rays * z[:, None]) @ pose[:3, :3].T + pose[:3, 3]
 
 
-def support(points, frame, mask, tolerance):
-    camera = (points - frame["pose"][:3, 3]) @ frame["pose"][:3, :3]
-    projected = camera @ frame["K"].T
-    front = camera[:, 2] > 1e-6
-    pixels = np.zeros((len(points), 2), dtype=int)
-    pixels[front] = np.rint(projected[front, :2] / projected[front, 2:3]).astype(int)
-    h, w = mask.shape
-    visible = (
-        front & (pixels[:, 0] >= 0) & (pixels[:, 0] < w) & (pixels[:, 1] >= 0) & (pixels[:, 1] < h)
-    )
-    indices = np.flatnonzero(visible)
-    if not len(indices):
-        return 0.0
-    x, y = pixels[indices].T
-    valid_depth = np.isfinite(frame["depth"][y, x]) & (frame["depth"][y, x] > 0)
-    consistent = valid_depth & (abs(frame["depth"][y, x] - camera[indices, 2]) <= tolerance)
-    if not consistent.any():
-        return 0.0
-    return float(mask[y[consistent], x[consistent]].mean())
+def view_support(nodes, frames, tolerance, xp=np, progress=None):
+    """support[a, b]: of node a's points that project into node b's Frame and agree with its depth
+    within `tolerance`, the share that falls inside b's mask; 0 when none agree, and for two nodes
+    of one Frame.
+
+    Each Frame projects every other Frame's points once, and per-node sums replace a projection per
+    node pair, so the work grows with Frames times points rather than with node pairs.
+    """
+    count = len(nodes)
+    result = np.zeros((count, count))
+    if not count:
+        return result
+    order = {frame_id: index for index, frame_id in enumerate(frames)}
+    node_frame = np.array([order[node["frame"]] for node in nodes])
+    sizes = [len(node["points"]) for node in nodes]
+    points = xp.asarray(np.concatenate([node["points"] for node in nodes]))
+    owner = xp.asarray(np.repeat(np.arange(count), sizes))
+    owner_frame = xp.asarray(node_frame)[owner]
+    for done, (frame_id, frame) in enumerate(frames.items()):
+        if progress:
+            progress(done, len(frames))
+        members = np.flatnonzero(node_frame == order[frame_id])
+        if not len(members):
+            continue
+        pose, depth = xp.asarray(frame["pose"]), xp.asarray(frame["depth"])
+        camera = (points - pose[:3, 3]) @ pose[:3, :3]
+        projected = camera @ xp.asarray(frame["K"]).T
+        front = (camera[:, 2] > 1e-6) & (owner_frame != order[frame_id])
+        z = xp.where(front, projected[:, 2], 1.0)
+        x, y = xp.rint(projected[:, 0] / z), xp.rint(projected[:, 1] / z)
+        h, w = depth.shape
+        rows = xp.flatnonzero(front & (x >= 0) & (x < w) & (y >= 0) & (y < h))
+        x, y = x[rows].astype(xp.int64), y[rows].astype(xp.int64)
+        observed = depth[y, x]
+        agree = (
+            xp.isfinite(observed)
+            & (observed > 0)
+            & (xp.abs(observed - camera[rows, 2]) <= tolerance)
+        )
+        rows, x, y = rows[agree], x[agree], y[agree]
+        agreeing = xp.bincount(owner[rows], minlength=count)
+        inside = xp.stack(
+            [
+                xp.bincount(
+                    owner[rows],
+                    weights=xp.asarray(nodes[m]["mask"])[y, x].astype(float),
+                    minlength=count,
+                )
+                for m in members
+            ],
+            axis=1,
+        )
+        shares = xp.where(agreeing[:, None] > 0, inside / xp.maximum(agreeing, 1)[:, None], 0.0)
+        result[:, members] = to_numpy(shares)
+    if progress:
+        progress(len(frames), len(frames))
+    return result
 
 
-def _agglomerate(affinity, node_frames, threshold):
+def _agglomerate(affinity, node_frames, threshold, xp=np):
     """Greedily merge the pair of groups with the highest mean pairwise affinity above threshold.
 
     Groups sharing a Frame never merge. Each group is stored at the index of its lowest member and
@@ -51,17 +91,17 @@ def _agglomerate(affinity, node_frames, threshold):
     frame_ids = {frame: index for index, frame in enumerate(dict.fromkeys(node_frames))}
     seen = np.zeros((count, len(frame_ids)))
     seen[np.arange(count), [frame_ids[frame] for frame in node_frames]] = 1
-    conflict = seen @ seen.T > 0
-    totals = affinity.astype(float).copy()
-    sizes = np.ones(count)
-    alive = np.ones(count, bool)
+    conflict = xp.asarray(seen @ seen.T > 0)
+    totals = xp.asarray(affinity, dtype=float).copy()
+    sizes = xp.ones(count)
+    alive = xp.ones(count, bool)
     members = {i: {i} for i in range(count)}
-    upper = np.triu(np.ones((count, count), bool), 1)
+    upper = xp.triu(xp.ones((count, count), bool), 1)
     while True:
         allowed = upper & alive[:, None] & alive[None, :] & ~conflict
-        mean = np.where(allowed, totals / np.outer(sizes, sizes), -np.inf)
-        flat = int(np.argmax(mean))
-        if not mean.flat[flat] > threshold:
+        mean = xp.where(allowed, totals / xp.outer(sizes, sizes), -xp.inf)
+        flat = int(xp.argmax(mean))
+        if not float(mean.ravel()[flat]) > threshold:
             break
         first, second = divmod(flat, count)
         totals[first] += totals[second]
@@ -113,31 +153,21 @@ class MaskClustering(StageAlgorithm):
                             "points": points[unique],
                         }
                     )
-        affinity = np.zeros((len(nodes), len(nodes)))
-        for i, a in enumerate(nodes):
-            self.progress(i, len(nodes), "mask")
-            for j in range(i + 1, len(nodes)):
-                b = nodes[j]
-                if a["frame"] == b["frame"]:
-                    continue
-                forward = support(
-                    a["points"],
-                    frames[b["frame"]],
-                    b["mask"],
-                    float(params.get("depth_tolerance_m", 0.05)),
-                )
-                reverse = support(
-                    b["points"],
-                    frames[a["frame"]],
-                    a["mask"],
-                    float(params.get("depth_tolerance_m", 0.05)),
-                )
-                affinity[i, j] = affinity[j, i] = min(forward, reverse)
-        self.progress(len(nodes), len(nodes), "mask")
+        xp = array_module(params)
+        support = view_support(
+            nodes,
+            frames,
+            float(params.get("depth_tolerance_m", 0.05)),
+            xp,
+            lambda done, total: self.progress(done, total, "frame"),
+        )
+        # Two masks agree as much as the weaker of their two directions.
+        affinity = np.minimum(support, support.T)
         groups = _agglomerate(
             affinity,
             [node["frame"] for node in nodes],
             float(params.get("consensus_threshold", 0.5)),
+            xp,
         )
         instances = []
         for group in groups:
