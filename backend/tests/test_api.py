@@ -5,6 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 from scene_api.main import create_app
 from scene_core.config import ComputeConfig, PipelineConfig, TargetConfig
+from scene_core.membership import ObjectMembership
+from scene_core.results import SceneResults
 from scene_target import open_target_workspace
 from scene_worker.runner import Worker
 
@@ -84,11 +86,16 @@ def test_pipeline_publish_and_rerun(client):
     assert objects[0]["best_views"][0]["frame_id"] == "0000"
     assert "image_url" not in objects[0]["best_views"][0]
     assert client.get(detail["assets"]["mesh_url"]).content.startswith(b"glTF")
+    membership = ObjectMembership.decode(client.get(detail["assets"]["membership_url"]).content)
+    assert membership.ids == ["chair-1", "table-1"]
+    assert all(len(membership.points(i)) for i in range(2))
     # Frame images stay on the Target (ADR-0008).
     frame = detail["assets"]["mesh_url"].replace("mesh/mesh.glb", "recon/rgb/0000.png")
     assert client.get(frame).status_code == 404
     for private in ("raw/private.jpg", "keyframes/0000.jpg", "instances/instances.json"):
         assert client.get(prefix + "/files/" + private).status_code == 404
+    for private in ("instances/points/chair-1.npy", "graph/scene_graph.json"):
+        assert client.get(frame.replace("recon/rgb/0000.png", private)).status_code == 404
     assert (
         client.post(
             prefix + "/uploads", files={"files": ("two.jpg", b"fake", "image/jpeg")}
@@ -512,6 +519,18 @@ def test_stage_progress_is_throttled_stored_and_replayed(client):
     )
 
 
+def test_a_scene_published_before_membership_reports_no_membership_url(client):
+    prefix = uploaded(client)
+    client.post(prefix + "/process", json={})
+    worker(client).run_once()
+    scene = prefix.rsplit("/", 1)[1]
+    [version] = list((client.app.state.data_dir / "scenes" / scene).iterdir())
+    (version / SceneResults.MEMBERSHIP).unlink()
+    assets = client.get(prefix).json()["assets"]
+    assert assets["membership_url"] is None
+    assert assets["mesh_url"] and assets["points_url"]
+
+
 def test_unpublished_scenes_do_not_serve_flat_result_folders(client):
     scene = client.post("/api/v1/scenes", json={"name": "Old"}).json()["id"]
     flat_results = client.app.state.data_dir / "scenes" / scene / "mesh"
@@ -520,6 +539,7 @@ def test_unpublished_scenes_do_not_serve_flat_result_folders(client):
     assert client.get(f"/api/v1/scenes/{scene}").json()["assets"] == {
         "mesh_url": None,
         "points_url": None,
+        "membership_url": None,
     }
     assert (
         client.get(f"/api/v1/scenes/{scene}/publications/legacy/files/mesh/mesh.glb").status_code
