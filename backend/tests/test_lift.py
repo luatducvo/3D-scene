@@ -121,7 +121,7 @@ def test_separate_objects_seen_in_three_views_stay_separate_instances(tmp_path):
     manifest = MaskClustering().run(workspace, {"min_views": 2})
     instances = json.loads(workspace.path("instances/instances.json").read_text())
     assert manifest.num_instances == 2
-    assert sorted((item["label"], item["num_views"]) for item in instances) == [
+    assert sorted((instance["label"], instance["num_views"]) for instance in instances) == [
         ("chair", 3),
         ("table", 3),
     ]
@@ -176,7 +176,7 @@ def seat_and_chair(seat_label):
     return {"0000": [("office chair", 0.9, chair)], "0001": [(seat_label, 0.8, seat)]}
 
 
-def test_same_label_instances_from_different_frames_merge_into_one(tmp_path):
+def test_same_label_groups_from_different_frames_merge_into_one(tmp_path):
     workspace = SceneWorkspace(tmp_path, "nested")
     write_frames(workspace, seat_and_chair("office chair"))
     unmerged = MaskClustering().run(workspace, {"min_views": 1, "merge_overlap": 1.0})
@@ -190,16 +190,16 @@ def test_same_label_instances_from_different_frames_merge_into_one(tmp_path):
     assert instances[0]["score"] == pytest.approx(0.9)
     # Best views recompute over the merged members: the larger, higher-scoring chair view first.
     assert [view["frame_id"] for view in instances[0]["best_views"]] == ["0000", "0001"]
-    # With min_views 2 neither part alone would survive; merged, the chair does.
-    assert MaskClustering().run(workspace, {"min_views": 2}).num_instances == 1
+    # min_views applies before the merge: two single-view parts never add up to an Instance.
+    assert MaskClustering().run(workspace, {"min_views": 2}).num_instances == 0
 
 
-def test_a_contained_instance_with_another_label_stays_its_own(tmp_path):
+def test_a_contained_group_with_another_label_stays_its_own(tmp_path):
     workspace = SceneWorkspace(tmp_path, "part")
     write_frames(workspace, seat_and_chair("cushion"))
     MaskClustering().run(workspace, {"min_views": 1, "merge_overlap": 0.5})
     instances = json.loads(workspace.path("instances/instances.json").read_text())
-    assert sorted(item["label"] for item in instances) == ["cushion", "office chair"]
+    assert sorted(instance["label"] for instance in instances) == ["cushion", "office chair"]
 
 
 def test_adjacent_same_label_chairs_stay_separate(tmp_path):
@@ -215,26 +215,46 @@ def test_adjacent_same_label_chairs_stay_separate(tmp_path):
     )
     instances = json.loads(workspace.path("instances/instances.json").read_text())
     assert manifest.num_instances == 2
-    assert [item["num_views"] for item in instances] == [2, 2]
+    assert [instance["num_views"] for instance in instances] == [2, 2]
 
 
 def test_merge_same_label_takes_the_highest_overlap_first_and_repeats():
     def cells(*xs):
         return np.array([[x, 0, 0] for x in xs])
 
+    def label_of(names):
+        return lambda group: names[min(group)]
+
     groups = merge_same_label(
         [{0}, {1}, {2}, {3}],
-        ["chair", "chair", "chair", "lamp"],
+        label_of(["chair", "chair", "chair", "lamp"]),
         [cells(0, 1, 2, 3), cells(2, 3, 4, 5), cells(4, 5, 6, 7), cells(0, 1, 2, 3)],
         0.4,
     )
     # 0 and 1 share half of each; merged, they hold half of 2; the lamp never joins.
     assert groups == [{0, 1, 2}, {3}]
     # Exactly half is not more than half.
-    assert merge_same_label([{0}, {1}], ["chair"] * 2, [cells(0, 1), cells(1, 2)], 0.5) == [
-        {0},
-        {1},
-    ]
+    assert merge_same_label(
+        [{0}, {1}], label_of(["chair"] * 2), [cells(0, 1), cells(1, 2)], 0.5
+    ) == [{0}, {1}]
+
+
+def test_merge_same_label_votes_the_label_again_after_each_merge():
+    def cells(*xs):
+        return np.array([[x, 0, 0] for x in xs])
+
+    def label_of(group):
+        # Stands in for a vote that the merged members can change: two seats make a chair.
+        return "chair" if group >= {0, 1} else ["seat", "seat", "chair"][min(group)]
+
+    groups = merge_same_label(
+        [{0}, {1}, {2}],
+        label_of,
+        [cells(0, 1), cells(0, 1, 2), cells(1, 2, 3)],
+        0.5,
+    )
+    # The seats merge first (full overlap); only the re-voted label lets the chair join them.
+    assert groups == [{0, 1, 2}]
 
 
 def test_merge_overlap_outside_zero_to_one_is_rejected(tmp_path):

@@ -116,23 +116,22 @@ def _agglomerate(affinity, node_frames, threshold, xp=np):
     return [members[i] for i in sorted(members)]
 
 
-def merge_same_label(groups, labels, voxels, threshold):
+def merge_same_label(groups, label_of, voxels, threshold):
     """Merge groups with the same label whose voxel sets overlap by more than `threshold` of the
     smaller set, highest overlap first, until no such pair remains; return the merged groups.
 
-    `voxels[i]` holds group i's integer voxel coordinates, shape (N, 3). Groups with different
-    labels never merge, so a door handle inside a wardrobe stays its own group. A merged group
-    takes the position of its first part, and ties go to the lowest (first, second) pair.
+    `label_of(group)` votes a group's label and is asked again after each merge. `voxels[i]` holds
+    group i's integer voxel coordinates, shape (N, 3). Groups with different labels never merge, so
+    a door handle inside a wardrobe stays its own group. A merged group takes the position of its
+    first part, and ties go to the lowest (first, second) pair.
     """
     groups = [set(group) for group in groups]
+    labels = [label_of(group) for group in groups]
     cells = [set(map(tuple, np.asarray(keys).tolist())) for keys in voxels]
     bounds = [
         (np.min(keys, axis=0), np.max(keys, axis=0)) if len(keys) else None for keys in voxels
     ]
     alive = [True] * len(groups)
-    by_label = defaultdict(list)
-    for index, label in enumerate(labels):
-        by_label[label].append(index)
 
     def overlap(i, j):
         if bounds[i] is None or bounds[j] is None:
@@ -141,12 +140,19 @@ def merge_same_label(groups, labels, voxels, threshold):
             return 0.0
         return len(cells[i] & cells[j]) / min(len(cells[i]), len(cells[j]))
 
+    def pairs_of(i, others):
+        return {
+            (min(i, j), max(i, j)): value
+            for j in others
+            if j != i
+            and alive[j]
+            and labels[j] == labels[i]
+            and (value := overlap(i, j)) > threshold
+        }
+
     pairs = {}
-    for members in by_label.values():
-        for position, i in enumerate(members):
-            for j in members[position + 1 :]:
-                if (value := overlap(i, j)) > threshold:
-                    pairs[i, j] = value
+    for i in range(len(groups)):
+        pairs.update(pairs_of(i, range(i + 1, len(groups))))
     while pairs:
         first, second = max(pairs, key=lambda pair: (pairs[pair], -pair[0], -pair[1]))
         groups[first] |= groups[second]
@@ -156,10 +162,9 @@ def merge_same_label(groups, labels, voxels, threshold):
             np.maximum(bounds[first][1], bounds[second][1]),
         )
         alive[second] = False
+        labels[first] = label_of(groups[first])
         pairs = {pair: value for pair, value in pairs.items() if not {first, second} & set(pair)}
-        for other in by_label[labels[first]]:
-            if other != first and alive[other] and (value := overlap(first, other)) > threshold:
-                pairs[min(first, other), max(first, other)] = value
+        pairs.update(pairs_of(first, range(len(groups))))
     return [group for group, keep in zip(groups, alive, strict=True) if keep]
 
 
@@ -227,11 +232,15 @@ class MaskClustering(StageAlgorithm):
             float(params.get("consensus_threshold", 0.5)),
             xp,
         )
-        # Last clustering step: same-label groups that occupy the same space are one thing, such
-        # as a seat seen alone in one Frame and its whole chair in another.
+        # Groups seen in too few Frames are dropped first, so merging cannot raise fragments into
+        # an Instance.
+        min_views = int(params.get("min_views", 2))
+        groups = [group for group in groups if len({nodes[i]["frame"] for i in group}) >= min_views]
+        # Last clustering step: surviving same-label groups that occupy the same space are one
+        # thing, such as a chair seen whole in some Frames and only as its seat in others.
         groups = merge_same_label(
             groups,
-            [_vote([nodes[i] for i in group]) for group in groups],
+            lambda group: _vote([nodes[i] for i in group]),
             [
                 np.floor(np.concatenate([nodes[i]["points"] for i in group]) / voxel).astype(
                     np.int64
@@ -244,8 +253,6 @@ class MaskClustering(StageAlgorithm):
         for group in groups:
             members = [nodes[i] for i in sorted(group)]
             num_views = len({node["frame"] for node in members})
-            if num_views < int(params.get("min_views", 2)):
-                continue
             label = _vote(members)
             identity = ";".join(f"{node['frame']}:{node['index']}" for node in members)
             instance_id = "obj-" + hashlib.sha256(identity.encode()).hexdigest()[:16]

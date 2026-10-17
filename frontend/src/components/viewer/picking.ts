@@ -2,18 +2,22 @@
  * GPU picking. A room layer that has Object membership adds a pick twin of its geometry: the same
  * position (and index) buffers, coloured by owning Object (`owners`, `pickColors` in highlight.ts).
  * `pickAt` draws the twins into a single scissored pixel under the cursor and reads it back, so a
- * pick fills and reads one pixel and never walks the points on the CPU.
+ * pick fills and reads one pixel and never walks the points on the CPU. Ids are never blended: a
+ * point is one vertex, and a mesh twin's pick shader passes ids as `flat` varyings, so a triangle
+ * whose vertices have different owners takes one of them (the last vertex's) instead of a mix that
+ * would decode to an unrelated Object.
  */
 import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  GLSL3,
   Mesh,
-  MeshBasicMaterial,
   NoBlending,
   Points,
   PointsMaterial,
   Scene,
+  ShaderMaterial,
   Vector2,
   WebGLRenderTarget,
   type Camera,
@@ -29,18 +33,39 @@ const pickScene = new Scene();
 pickScene.matrixAutoUpdate = false;
 pickScene.matrixWorldAutoUpdate = false;
 
-function twinGeometry(source: BufferGeometry, colors: Uint8Array) {
+function twinGeometry(
+  source: BufferGeometry,
+  colors: Uint8Array,
+  attribute: string,
+) {
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", source.getAttribute("position"));
   if (source.index) geometry.setIndex(source.index);
-  geometry.setAttribute("color", new BufferAttribute(colors, 3, true));
+  geometry.setAttribute(attribute, new BufferAttribute(colors, 3, true));
   return geometry;
 }
+
+/** The mesh twin's id attribute: RGB bytes from `pickColors`, read as normalized floats. */
+export const PICK_ATTRIBUTE = "pickColor";
+// `flat` gives every fragment of a triangle the provoking vertex's id, never an interpolated one.
+const PICK_VERTEX_SHADER = /* glsl */ `
+in vec3 ${PICK_ATTRIBUTE};
+flat out vec3 vPickColor;
+void main() {
+  vPickColor = ${PICK_ATTRIBUTE};
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+const PICK_FRAGMENT_SHADER = /* glsl */ `
+flat in vec3 vPickColor;
+out highp vec4 pickOutput;
+void main() {
+  pickOutput = vec4(vPickColor, 1.0);
+}`;
 
 /** A pick twin of a point cloud; its size follows the display material's. */
 export function pointsTwin(source: BufferGeometry, colors: Uint8Array) {
   return new Points(
-    twinGeometry(source, colors),
+    twinGeometry(source, colors, "color"),
     new PointsMaterial({
       sizeAttenuation: true,
       vertexColors: true,
@@ -50,16 +75,18 @@ export function pointsTwin(source: BufferGeometry, colors: Uint8Array) {
   );
 }
 
-/** A pick twin of one mesh, culling the same faces as the display material. */
+/** A pick twin of one mesh with the flat pick shader, culling the same faces as the display. */
 export function meshTwin(
   source: BufferGeometry,
   colors: Uint8Array,
   side: Side,
 ) {
   return new Mesh(
-    twinGeometry(source, colors),
-    new MeshBasicMaterial({
-      vertexColors: true,
+    twinGeometry(source, colors, PICK_ATTRIBUTE),
+    new ShaderMaterial({
+      glslVersion: GLSL3,
+      vertexShader: PICK_VERTEX_SHADER,
+      fragmentShader: PICK_FRAGMENT_SHADER,
       side,
       toneMapped: false,
       blending: NoBlending,

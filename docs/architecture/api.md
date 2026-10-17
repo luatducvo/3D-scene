@@ -52,9 +52,9 @@ non-shared remote Target (an unreachable Target is only logged).
 
 ## Search
 
-`search` embeds the query on the Target (ADR-0005; an unset or unreachable Target is 503
+`similarities` embeds the query on the Target (ADR-0005; an unset or unreachable Target is 503
 `COMPUTE_UNAVAILABLE`, and the frontend shows its own message for that code) and compares it with
-each Object's stored embedding by cosine similarity. `rank_search_hits` in
+each Object's stored embedding by cosine similarity. For `GET /search`, `rank_search_hits` in
 [main.py](../../backend/services/scene-api/src/scene_api/main.py) then keeps:
 
 - every **label match** (the query contains the Object's `label` or `label_vi`, or the reverse),
@@ -64,8 +64,9 @@ each Object's stored embedding by cosine similarity. `rank_search_hits` in
 
 Text-to-image cosines of the embedding model sit in a narrow band, so an absolute threshold kept most
 of the room; the margin keeps only the Objects close to the best match, and label matches are never
-cut. `find_objects` and `count_objects` in the QA agent use the same ranking, so a count by
-similarity alone is at most 10.
+cut. This cut is for `GET /search` only. `find_objects` and `count_objects` in the QA agent rank
+with `rank_tool_hits` instead, uncut so a count stays whole: every Object whose similarity, plus 1
+for a label match, exceeds 0.15 (`TOOL_MIN_SCORE`), best first.
 
 ## Scene assets
 
@@ -209,7 +210,7 @@ catches invented measurements, not every loosely rounded count.
 | Tool (`SceneTools`) | Behavior |
 |---|---|
 | `find_objects` | Embedding search on the Target plus label matching |
-| `count_objects` | Counts the [search](#search) hits: label matches plus Objects near the best similarity |
+| `count_objects` | Counts every tool hit ([Search](#search)): label matches plus Objects with similarity above 0.15, uncut |
 | `get_object` | Label, size, attributes |
 | `get_room_info` | Floor area, ceiling height, Object counts by label |
 | `measure_distance` | Surface-to-surface or center-to-center, meters |
