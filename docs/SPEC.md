@@ -56,9 +56,9 @@ the Targets before starting the system, and switching provider is a configuratio
 15. As a user, I want an ingest report listing which files were rejected and why (blur, exposure, duplicate), so that I learn how to capture better.
 16. As a user, I want processing to fail early with a clear "not enough keyframes" message, including rejection counts, when too few usable frames remain, so that I do not wait for a meaningless reconstruction.
 17. As a user, I want a failed Scene to show which Stage failed and the error message, so that I can understand what went wrong.
-18. As a learner, I want to rerun a Scene from a chosen Stage onwards, so that I can compare a new method without redoing earlier Stages.
-19. As a learner, I want unchanged Stages (same algorithm and parameters, outputs still present) to be skipped on rerun, so that experiments are fast and cheap.
-20. As a learner, I want every Stage after a rerun Stage to run again, so that downstream results never depend on stale inputs.
+18. ~~As a learner, I want to rerun a Scene from a chosen Stage onwards, so that I can compare a new method without redoing earlier Stages.~~ Withdrawn by [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md): every Job runs from the start.
+19. ~~As a learner, I want unchanged Stages (same algorithm and parameters, outputs still present) to be skipped on rerun, so that experiments are fast and cheap.~~ Withdrawn by [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md).
+20. ~~As a learner, I want every Stage after a rerun Stage to run again, so that downstream results never depend on stale inputs.~~ Withdrawn by [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md).
 
 ### Reconstruction and geometry
 21. As a user, I want the reconstruction to be in meters, so that sizes and distances are real.
@@ -105,7 +105,7 @@ the Targets before starting the system, and switching provider is a configuratio
 54. As an operator, I want one GPU image that runs unchanged on Modal, RunPod (Pod or Serverless), Vast.ai, a local GPU or any Docker host, so that I never write provider-specific application code.
 55. As an operator using Modal, I want Modal to build the GPU image from the project's own build definition, so that I do not push a 10+ GB image from a home connection.
 56. As an operator, I want the worker to wait through remote cold starts, so that a sleeping GPU container does not fail a Job.
-57. As an operator, I want remote targets to receive only the inputs they need, skip files already present (by checksum), and return outputs to my machine, so that transfers are minimal and my machine remains the source of truth.
+57. As an operator, I want remote targets to receive only the inputs they need, skip files already present (by checksum), and return outputs to my machine, so that transfers are minimal and my machine remains the source of truth. Amended by [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md): the whole pipeline runs on the GPU Target and only publication inputs and served assets return.
 58. As an operator, I want file transfers chunked under the strictest provider body limit, so that the same contract works on every provider.
 59. As an operator, I want remote GPU endpoints protected by a shared token, so that a public proxy URL is not an open door.
 60. As an operator, I want model weights cached on my host (and on a provider volume remotely), so that a full reset does not re-download tens of gigabytes.
@@ -147,11 +147,11 @@ the Targets before starting the system, and switching provider is a configuratio
 - **Lift** is an in-house re-implementation of MaskClustering's view-consensus approach (masks → 3D points via aligned depth and poses → mask graph weighted by cross-view consensus → iterative clustering → score×area label voting), not a vendored research repo. The registry key stays `lift.maskclustering`.
 
 ### Scene lifecycle rules
-- Status flow: `created → uploaded → processing → ready | failed`. Re-processing (from a Stage) is allowed from `ready` or `failed`.
+- Status flow: `created → uploaded → processing → ready | failed`. Re-processing (always from the start, [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)) is allowed from `ready` or `failed`.
 - Uploads are accepted only in `created` or `uploaded`. Otherwise: HTTP 409, code `SCENE_LOCKED`.
 - At most one active Job (queued or running) per Scene, enforced by a partial unique index. Process, upload or delete while a Job is active: HTTP 409, code `SCENE_BUSY`.
 - Ingest has a `min_keyframes` parameter (default 10). Below it the Stage fails with code `NOT_ENOUGH_KEYFRAMES` and the rejection counts per reason.
-- Stage skip rule: skip when a Stage Run exists with the same config hash (algorithm + params) **and** its output folders still exist; once any Stage runs, every later Stage runs.
+- Stage skip rule: none. Every Job runs all nine Stages ([ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)).
 - Deleting a Scene removes database rows, the local Scene folder, and Workspaces on every non-shared remote target.
 
 ### API contract
@@ -222,7 +222,7 @@ Additional pure unit tests only for numeric geometry: box fitting, footprint ove
 - Multiple rooms or whole buildings in one Scene; merging Scenes; adding photos to an already-processed Scene.
 - Editing Scenes (moving, relabeling or deleting Objects by hand).
 - Cancelling a running Job.
-- Redis, object storage, cloud persistence of Scenes; the user's own machine is the source of truth.
+- Redis, object storage, cloud persistence of Scenes; the user's own machine is the source of truth. Intermediate Stage outputs live only on the GPU Target ([ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)).
 - Native mobile app or in-app camera capture.
 - Exercising Modal, local GPU, RunPod and generic targets during development (written and documented only).
 - Fine-tuning or training any model.

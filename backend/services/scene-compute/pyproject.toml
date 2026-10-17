@@ -5,8 +5,10 @@ requires-python = ">=3.12"
 dependencies = ["scene-core", "scene-stages", "fastapi>=0.115", "uvicorn>=0.34", "httpx>=0.28"]
 
 [project.optional-dependencies]
-# Every GPU Algorithm ships in one image (docs/ADR-0002-single-gpu-image-ultralytics-sam3.md).
-gpu = ["scene-stages[recon-da3,align-geocalib,segment-sam3,embed-metaclip2]"]
+# Every Algorithm ships in one image (ADR-0002); the whole pipeline runs on it (ADR-0005).
+gpu = ["scene-stages[recon-da3,align-geocalib,mesh-tsdf,segment-sam3,embed-metaclip2]",
+       # xformers 0.0.35 (newest) ships kernels built for Torch 2.10 + CUDA 12.8; newer Torch disables them.
+       "torch==2.10.*", "torchvision==0.25.*", "xformers==0.0.35"]
 
 [tool.uv.sources]
 scene-core = { workspace = true }

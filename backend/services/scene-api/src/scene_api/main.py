@@ -1,4 +1,4 @@
-import json,os,re,shutil,uuid
+import json,logging,os,re,shutil,uuid
 from pathlib import Path
 from contextlib import asynccontextmanager
 import httpx
@@ -35,7 +35,6 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
     def create_scene(body:SceneCreate):
         scene_id=uuid.uuid4()
         with repo.connect() as conn: conn.execute("INSERT INTO scenes(id,name) VALUES(%s,%s)",(scene_id,body.name.strip()))
-        SceneWorkspace(data_dir,str(scene_id)).dir("raw")
         return {"id":str(scene_id)}
     @app.get("/api/v1/scenes",response_model=list[SceneSummary])
     def list_scenes():
@@ -79,9 +78,11 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
             for upload in files:
                 if Path(upload.filename or "").suffix.lower() not in allowed or not (upload.content_type or "").startswith(("image/","video/")):
                     raise SceneError("UNSUPPORTED_MEDIA","Only photos or a video are accepted",415)
-            folder=SceneWorkspace(data_dir,str(scene_id)).dir("raw")
+            store=input_store()
             video_ext={".mp4",".mov",".mkv",".webm"}
-            existing=list(folder.iterdir())
+            try:existing=[Path(p) for p in store.list_files(str(scene_id),"raw")]
+            except (ComputeError,httpx.TransportError) as exc:
+                raise SceneError("COMPUTE_UNAVAILABLE",f"The compute Target that stores uploads is unavailable: {exc}",503) from exc
             is_video=any(Path(u.filename).suffix.lower() in video_ext for u in files)
             if (is_video and (len(files)!=1 or existing)) or any(f.suffix.lower() in video_ext for f in existing):
                 raise SceneError("INVALID_UPLOAD","Upload photos or one video, without mixing them",400)
@@ -91,17 +92,19 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
                     # The original stem keeps capture order for ingest; the suffix keeps names unique.
                     stem=re.sub(r"[^A-Za-z0-9_-]","_",Path(upload.filename).stem)[:80]
                     name=f"{stem}-{uuid.uuid4().hex[:8]}{Path(upload.filename).suffix.lower()}"
-                    with (folder/name).open("wb") as dest:
-                        shutil.copyfileobj(upload.file,dest,length=1024*1024)
+                    store.put_file(str(scene_id),f"raw/{name}",upload.file)
                     saved.append(name)
                 conn.execute("UPDATE scenes SET status='uploaded' WHERE id=%s",(scene_id,))
-            except Exception:
-                for name in saved:(folder/name).unlink(missing_ok=True)
+            except Exception as exc:
+                try:store.clear(str(scene_id),[f"raw/{name}" for name in saved])
+                except Exception:logging.exception("Could not remove partial upload of Scene %s",scene_id)
+                if isinstance(exc,(ComputeError,httpx.TransportError)):
+                    raise SceneError("COMPUTE_UNAVAILABLE",f"The compute Target that stores uploads is unavailable: {exc}",503) from exc
                 raise
             return {"filenames":saved}
     @app.post("/api/v1/scenes/{scene_id}/process",response_model=JobCreated,status_code=202)
-    def process_scene(scene_id:uuid.UUID,body:ProcessRequest):
-        return {"job_id":repo.enqueue(scene_id,body.from_stage)}
+    def process_scene(scene_id:uuid.UUID):
+        return {"job_id":repo.enqueue(scene_id)}
     def public_objects(scene_id,request):
         objects=repo.objects(scene_id)
         for obj in objects:
@@ -140,6 +143,15 @@ def create_app(database_url=None,data_dir=None,pipeline=None,compute=None,llm=No
                     if event["event"]=="status" and event["data"]["status"] in ("ready","failed"):return
                 time.sleep(0.2)
         return StreamingResponse(stream(),media_type="text/event-stream",headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+    def input_store():
+        """Uploads live only on the pipeline's Target, never in local Scene storage (ADR-0005)."""
+        if getattr(app.state,"storage",None) is None:
+            from scene_worker.container import configuration,pipeline_backend
+            defaults=None if app.state.pipeline and app.state.compute else configuration()
+            pipeline=app.state.pipeline or defaults[0];compute_config=app.state.compute or defaults[1]
+            try:app.state.storage=pipeline_backend(data_dir,pipeline,compute_config,QUERY_READY_TIMEOUT_S)
+            except ValueError as exc:raise SceneError("COMPUTE_UNAVAILABLE",str(exc),503) from exc
+        return app.state.storage
     def query_embedder():
         """Queries are embedded by the pipeline's own embed Algorithm on its Target, created once."""
         if getattr(app.state,"embedder",None) is None:

@@ -24,13 +24,13 @@ class Repository:
         row=conn.execute("INSERT INTO scene_events(scene_id,event,data) VALUES(%s,%s,%s) RETURNING id",(scene_id,event,Jsonb(data))).fetchone()
         conn.execute("SELECT pg_notify('scene_events',%s)",(str(scene_id),))
         return row["id"]
-    def enqueue(self,scene_id,from_stage):
+    def enqueue(self,scene_id):
         with self.connect() as conn:
             scene=self.get_scene(scene_id,conn,True);self.assert_idle(scene_id,conn)
             if scene["status"] not in ("uploaded","ready","failed"):
                 raise SceneError("SCENE_NOT_UPLOADED","Upload files before processing",409)
             job_id=uuid.uuid4()
-            conn.execute("INSERT INTO jobs(id,scene_id,from_stage) VALUES(%s,%s,%s)",(job_id,scene_id,from_stage))
+            conn.execute("INSERT INTO jobs(id,scene_id) VALUES(%s,%s)",(job_id,scene_id))
             conn.execute("UPDATE scenes SET status='processing',failure=NULL WHERE id=%s",(scene_id,))
             self.event(conn,scene_id,"status",{"status":"processing"})
             conn.execute("SELECT pg_notify('jobs_queued',%s)",(str(job_id),))

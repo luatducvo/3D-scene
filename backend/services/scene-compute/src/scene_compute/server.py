@@ -93,6 +93,10 @@ def create_app(data_dir: Path | str | None = None, *, token: str | None = None,
 
     @asynccontextmanager
     async def lifespan(app):
+        # Disposable hosts such as Colab start empty, so nothing from an earlier session lingers.
+        if os.environ.get("CLEAN_ON_START") == "1":
+            for folder in ("scenes", "runs"):
+                shutil.rmtree(root / folder, ignore_errors=True)
         # An interrupted process cannot resume model execution. Never leave stale running records.
         for path in (root / "runs").glob("*.json"):
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -204,6 +208,18 @@ def create_app(data_dir: Path | str | None = None, *, token: str | None = None,
         if range_header:
             headers["Content-Range"] = f"bytes {start}-{end}/{size}"
         return Response(data, status_code=206 if range_header else 200, headers=headers, media_type="application/octet-stream")
+
+    @app.delete("/workspaces/{scene_id}/files", status_code=204)
+    def delete_files(scene_id: str, dirs: str):
+        scene_root = workspace(scene_id)
+        folders = [safe_path(scene_root, part) for part in dirs.split(",") if part]
+        with lock:
+            if any(r["scene_id"] == scene_id and r["state"] in ("queued", "running") for r in runs.values()):
+                raise ContractError("WORKSPACE_BUSY", "Workspace has an active Compute Run", 409)
+            for folder in folders:
+                if folder.is_file():
+                    folder.unlink()
+                shutil.rmtree(folder, ignore_errors=True)
 
     @app.delete("/workspaces/{scene_id}", status_code=204)
     def delete_workspace(scene_id: str):

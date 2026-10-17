@@ -82,15 +82,17 @@ The only boundary between frontend and backend is `WEB → API` over HTTP. The f
 
 | # | Stage | Port | Default algorithm | Default target |
 |---|---|---|---|---|
-| 1 | Ingest + quality check | `StageAlgorithm` | `ingest.opencv` | `cpu` (in-process) |
+| 1 | Ingest + quality check | `StageAlgorithm` | `ingest.opencv` | GPU target |
 | 2 | 3D reconstruction | `StageAlgorithm` | `recon.da3` | GPU target |
 | 3 | Gravity alignment | `StageAlgorithm` | `align.geocalib_ransac` | GPU target |
-| 4 | Mesh | `StageAlgorithm` | `mesh.tsdf` | `cpu` |
+| 4 | Mesh | `StageAlgorithm` | `mesh.tsdf` | GPU target |
 | 5 | 2D segmentation | `StageAlgorithm` | `segment.sam3` | GPU target |
-| 6 | 2D → 3D lifting | `StageAlgorithm` | `lift.maskclustering` | cpu |
+| 6 | 2D → 3D lifting | `StageAlgorithm` | `lift.maskclustering` | GPU target |
 | 7 | Object embeddings | `StageAlgorithm` | `embed.metaclip2` | GPU target |
-| 8 | Attributes | `StageAlgorithm` | `attributes.none` ([ADR-0004](ADR-0004-skip-vlm-attributes.md)); `attributes.vlm_api` available | `cpu` |
-| 9 | Scene graph | `StageAlgorithm` | `graph.geometric` | `cpu` |
+| 8 | Attributes | `StageAlgorithm` | `attributes.none` ([ADR-0004](ADR-0004-skip-vlm-attributes.md)); `attributes.vlm_api` available | GPU target |
+| 9 | Scene graph | `StageAlgorithm` | `graph.geometric` | GPU target |
+
+Every Stage runs on one Target, the GPU image in the real pipeline ([ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)). Uploaded files are stored on that Target too, never in local Scene storage. The fake pipeline runs all of them on `cpu`.
 
 At query time, the API uses:
 - `TextEmbedder`: the `embed.metaclip2` algorithm, invoked on its configured target.
@@ -528,7 +530,7 @@ class SceneWorkspace:
 | Scenes, jobs, objects, relations, embeddings, chat history | `scene-api`, `scene-worker` | PostgreSQL (`postgres-data` volume) |
 | Run records of the local GPU server | `scene-compute` | `scene-data` volume: `/data/runs/` |
 | Model weights (local GPU) | `scene-compute` on first use or `uv run tasks.py download-models` | Host folder `./models` |
-| Copies on remote GPU hosts | `HttpBackend` file sync | Provider disk or volume. Disposable cache; outputs are pulled back into `scene-data` after each run |
+| Copies on remote GPU hosts | `HttpBackend` file sync | Provider disk or volume. Holds every intermediate output during a Job; only `RESULTS` are pulled back into `scene-data` after the last Stage ([ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)) |
 | Model weights on remote hosts | the remote `scene-compute` | Provider volume mounted at `MODELS_DIR` (Modal Volume `scene-models`, RunPod `/workspace/models` or a network volume) |
 
 The frontend stores no data.
@@ -698,7 +700,9 @@ without a URL. Query-time embedding waits at most 10 s for readiness and otherwi
 
 ### 6.4 Backends in the worker (`scene_worker.compute`)
 
-**`InProcessBackend`**: imports the algorithm through the registry and runs it directly on `DATA_DIR`. Used for CPU stages; the worker image only installs light extras.
+**`InProcessBackend`**: imports the algorithm through the registry and runs it directly on `DATA_DIR`. Used by the fake pipeline; the worker image only installs light extras.
+
+Since [ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md), `HttpBackend.run` uploads only inputs present locally and never downloads outputs; `fetch(scene_id, RESULTS)` downloads results once after the last Stage. The sketch below predates that change.
 
 **`HttpBackend`**: the only remote backend.
 
@@ -865,7 +869,7 @@ Official provider API references are linked in the guides. API verification does
 successful deployment: live checks require the user's provider account and credentials. Vast.ai is
 the first provider exercised live; Modal, local GPU, RunPod and generic hosts are not exercised during
 development. Remote disks
-are caches; local Scene storage remains authoritative.
+hold every intermediate output during a Job; only results return to local Scene storage ([ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)).
 
 ### 6.8 GPU image and sizing
 
@@ -903,8 +907,8 @@ extra makes its implementation usable.
 The executable [real pipeline](../backend/config/pipeline.yaml) maps the nine Stage names to
 Algorithm, Target and parameters in processing order. GPU Stages (recon, align, segment, embed) name their Target through
 `${GPU_TARGET}`, in the real and the fake GPU pipeline alike. No provider is the default, so the operator sets these in `.env`;
-an unset variable stays literal and the worker reports it by name. CPU Stages use `cpu`. The
-config hash excludes the Target, so moving Stages to another provider does not rerun them.
+an unset variable stays literal and the worker reports it by name. Every Stage names the same
+Target; the worker refuses a pipeline split across Targets ([ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)).
 The [fake GPU example](../backend/config/pipeline.fake-gpu.yaml) exercises the same remote contract
 without model weights. The default walking skeleton uses fake Algorithms on CPU. Real-model
 configuration requires the selected optional dependencies and verified model access.
@@ -932,7 +936,7 @@ A worker that restarts finds Jobs still `running` from its previous process, mar
 
 ### 7.4 Runner (`scene_worker.runner`)
 
-A stage is skipped when a previous run exists with the same **config hash** (algorithm + params) and its output folders still exist. `from_stage` forces a rerun from a given stage onwards, which is the normal workflow when swapping a method.
+Every Job runs all Stages from the uploaded inputs: the runner deletes the remote Workspace and local Stage outputs, runs each Stage as its own Compute Run, fetches `RESULTS` and publishes ([ADR-0005](ADR-0005-whole-pipeline-on-gpu-host.md)). The skip logic sketched below was removed.
 
 ```python
 class PipelineRunner:
@@ -1169,7 +1173,7 @@ rows, local Scene files and every non-shared remote Workspace.
 | GET | `/api/v1/scenes/{scene_id}` | Status, stage runs, ingest report, `mesh_url` |
 | DELETE | `/api/v1/scenes/{scene_id}` | Delete database rows and the scene folder (and remote copies) |
 | POST | `/api/v1/scenes/{scene_id}/uploads` | Multipart upload of images or a video, streamed to `raw/` |
-| POST | `/api/v1/scenes/{scene_id}/process` | Enqueue processing; optional `{from_stage}` |
+| POST | `/api/v1/scenes/{scene_id}/process` | Enqueue processing of every Stage from the start |
 | GET | `/api/v1/scenes/{scene_id}/events` | SSE progress |
 | GET | `/api/v1/scenes/{scene_id}/objects` | Objects with boxes, attributes, evidence URLs |
 | GET | `/api/v1/scenes/{scene_id}/search?q=` | Free-text object search |
@@ -1648,7 +1652,7 @@ CMD ["node", "server.js"]
 2. Add an extra `recon-mymethod`, include it in the `gpu` extra of scene-compute, and add an entry point.
 3. Set `algorithm: recon.mymethod` in `pipeline.yaml`.
 4. Rebuild and redeploy the compute image (`uv run tasks.py up-local-gpu`, or `uv run tasks.py push-compute-image` and redeploy on the provider).
-5. Reprocess with `from_stage: recon`.
+5. Process the Scene again (every Job runs all Stages).
 
 No change to the runner, other stages, the API or the frontend.
 
@@ -1718,7 +1722,7 @@ NEXT_PUBLIC_API_MODE=mock npm run dev
 
 ### 13.3 Day-to-day
 
-- Changed an algorithm: rebuild and redeploy the compute image, then `POST /api/v1/scenes/{scene_id}/process` with `{"from_stage": "<stage>"}`.
+- Changed an algorithm: rebuild and redeploy the compute image, then `POST /api/v1/scenes/{scene_id}/process`.
 - Changed `pipeline.yaml`, `compute.yaml` or a Target variable in `.env`: `uv run tasks.py up` (recreates the containers with the new values).
 - Check a target: `curl -H "X-Compute-Token: $COMPUTE_TOKEN" <url>/info`.
 - Disk usage: `uv run tasks.py disk-usage` (Docker volumes and the model cache). Remove one scene with `DELETE /api/v1/scenes/{scene_id}`.

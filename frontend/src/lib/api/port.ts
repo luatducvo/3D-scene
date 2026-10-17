@@ -31,7 +31,7 @@ export interface SceneApi {
     files: File[],
     progress?: (ratio: number) => void,
   ): Promise<void>;
-  startProcessing(id: string, stage?: string): Promise<void>;
+  startProcessing(id: string): Promise<void>;
   listObjects(id: string): Promise<SceneObject[]>;
   searchObjects(id: string, query: string): Promise<Schemas["SearchHit"][]>;
   subscribeProgress(

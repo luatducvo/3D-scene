@@ -247,16 +247,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProcessRequest"
-              }
-            }
-          }
-        },
         "responses": {
           "202": {
             "description": "Successful Response",
@@ -846,34 +836,6 @@
           "size"
         ],
         "title": "OrientedBox"
-      },
-      "ProcessRequest": {
-        "properties": {
-          "from_stage": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "ingest",
-                  "recon",
-                  "align",
-                  "mesh",
-                  "segment",
-                  "lift",
-                  "embed",
-                  "attributes",
-                  "graph"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "From Stage"
-          }
-        },
-        "type": "object",
-        "title": "ProcessRequest"
       },
       "QueryEvent": {
         "properties": {

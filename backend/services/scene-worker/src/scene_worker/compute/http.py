@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 import time
 from pathlib import Path
 
 import httpx
 
 from scene_core.contracts import SceneWorkspace
+
+from .local import LocalFiles
 
 
 class ComputeError(RuntimeError):
@@ -27,6 +30,7 @@ class HttpBackend:
         if target_config.token:
             headers["X-Compute-Token"] = target_config.token
         self.client = client or httpx.Client(base_url=target_config.url, headers=headers, timeout=29)
+        self.local = LocalFiles(data_dir) if target_config.shared_storage else None
 
     def _call(self, method, path, **kwargs):
         response = self.client.request(method, path, **kwargs)
@@ -66,6 +70,8 @@ class HttpBackend:
 
     def _sync_up(self, scene_id, directories):
         workspace = SceneWorkspace(self.data_dir, scene_id)
+        # Only uploaded inputs live locally; outputs of earlier Stages already sit on the Target.
+        directories = [d for d in directories if any(p.is_file() for p in workspace.path(d).rglob("*"))]
         remote = {item["path"]: item["sha256"] for item in self._files(scene_id, directories)}
         for directory in directories:
             for path in sorted(workspace.path(directory).rglob("*")):
@@ -77,16 +83,19 @@ class HttpBackend:
                 if remote.get(relative) == digest:
                     continue
                 with path.open("rb") as stream:
-                    offset = 0
-                    while True:
-                        chunk = stream.read(self.target.chunk_size)
-                        self._call("PUT", f"/workspaces/{scene_id}/files/{relative}", params={"offset": offset, "total": size, "sha256": digest}, content=chunk)
-                        offset += len(chunk)
-                        if offset == size:
-                            break
+                    self._upload(scene_id, relative, stream, digest, size)
 
-    def _sync_down(self, scene_id, directories):
-        workspace = SceneWorkspace(self.data_dir, scene_id)
+    def _upload(self, scene_id, relative, stream, digest, size):
+        offset = 0
+        while True:
+            chunk = stream.read(self.target.chunk_size)
+            self._call("PUT", f"/workspaces/{scene_id}/files/{relative}", params={"offset": offset, "total": size, "sha256": digest}, content=chunk)
+            offset += len(chunk)
+            if offset == size:
+                break
+
+    def _sync_down(self, scene_id, directories, data_dir):
+        workspace = SceneWorkspace(data_dir, scene_id)
         remote_files = self._files(scene_id, directories)
         expected = set()
         for item in remote_files:
@@ -134,11 +143,44 @@ class HttpBackend:
                 error = result.get("error", "Compute Run failed")
                 raise ComputeError(error.get("message", str(error)) if isinstance(error, dict) else error)
             if result["state"] == "done":
-                if not self.target.shared_storage:
-                    self._sync_down(scene_id, writes)
+                # Outputs stay on the Target for the next Stage; fetch() returns the results at the end.
                 return result["manifest"]
             time.sleep(self.target.poll_interval)
         raise ComputeError("Compute Run exceeded six-hour execution limit")
+
+    def put_file(self, scene_id, relative, stream):
+        """Store an uploaded input on the Target only; stream must be seekable."""
+        if self.local:
+            return self.local.put_file(scene_id, relative, stream)
+        self._wait_until_ready()
+        stream.seek(0)
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        size = stream.seek(0, 2)
+        stream.seek(0)
+        self._upload(scene_id, relative, stream, digest, size)
+
+    def list_files(self, scene_id, directory):
+        if self.local:
+            return self.local.list_files(scene_id, directory)
+        self._wait_until_ready()
+        return [item["path"] for item in self._files(scene_id, [directory])]
+
+    def clear(self, scene_id, paths):
+        """Delete Workspace files or directories on the Target."""
+        if self.local:
+            return self.local.clear(scene_id, paths)
+        self._wait_until_ready()
+        self._call("DELETE", f"/workspaces/{scene_id}/files", params={"dirs": ",".join(paths)})
+
+    def fetch(self, scene_id, directories, staging_dir):
+        """Download the given directories into staging_dir and return that Workspace."""
+        if self.local:
+            return self.local.fetch(scene_id, directories, staging_dir)
+        self._wait_until_ready()
+        staging = SceneWorkspace(staging_dir, scene_id)
+        shutil.rmtree(staging.root, ignore_errors=True)
+        self._sync_down(scene_id, directories, staging_dir)
+        return staging
 
     def invoke(self, algorithm, method, payload):
         self._wait_until_ready()

@@ -19,9 +19,8 @@ def test_pipeline_targets_come_from_environment(monkeypatch):
     from scene_core.config import PipelineConfig
     monkeypatch.setenv("GPU_TARGET", "vast")
     real = PipelineConfig.load("backend/config/pipeline.yaml").stages
-    assert {real[s].target for s in ("recon", "align", "segment", "embed")} == {"vast"}
-    assert real["lift"].target == real["ingest"].target == "cpu"
+    assert {stage.target for stage in real.values()} == {"vast"}
     assert real["ingest"].params["max_keyframes"] == 80
     assert real["ingest"].params["quality_filter"] is False
     fake = PipelineConfig.load("backend/config/pipeline.fake-gpu.yaml").stages
-    assert {fake[s].target for s in ("recon", "align", "segment", "lift", "embed")} == {"vast"}
+    assert {stage.target for stage in fake.values()} == {"vast"}

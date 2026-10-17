@@ -1,9 +1,8 @@
 """Exercise the HTTP contract with non-shared storage and tiny transfer chunks."""
 import hashlib
+
 import pytest
-
 from fastapi.testclient import TestClient
-
 from scene_compute.server import create_app
 
 
@@ -32,7 +31,7 @@ def test_chunked_upload_is_atomic_and_verifies_checksum(tmp_path):
 
 def test_remote_fake_stage_roundtrip_skip_failure_and_cleanup(tmp_path):
     from scene_core.config import TargetConfig
-    from scene_worker.compute.http import HttpBackend, ComputeError
+    from scene_worker.compute.http import ComputeError, HttpBackend
 
     local, remote = tmp_path / "local", tmp_path / "remote"
     raw = local / "scenes/room/raw"
@@ -47,7 +46,10 @@ def test_remote_fake_stage_roundtrip_skip_failure_and_cleanup(tmp_path):
         result = backend.run("ingest.fake", "room", {"progress_steps": 3}, ["raw"], ["keyframes"], on_progress=reports.append)
         assert result["num_keyframes"] == 1
         assert reports[-1] == {"done": 3, "total": 3, "unit": "step"}
-        assert (local / "scenes/room/keyframes/0000.jpg").read_bytes() == (remote / "scenes/room/keyframes/0000.jpg").read_bytes()
+        assert not (local / "scenes/room/keyframes").exists()
+        results = backend.fetch("room", ["keyframes"], tmp_path / "staging")
+        assert results.path("keyframes/0000.jpg").read_bytes() == (remote / "scenes/room/keyframes/0000.jpg").read_bytes()
+        assert not (local / "scenes/room/keyframes").exists()
         requests.clear()
         backend.run("ingest.fake", "room", {}, ["raw"], ["keyframes"])
         assert not any(method == "PUT" for method, _ in requests)
@@ -70,3 +72,24 @@ def test_shared_storage_avoids_file_endpoints(tmp_path):
         backend = HttpBackend(tmp_path, TargetConfig(url="http://testserver", shared_storage=True, poll_interval=.001), client=client)
         assert backend.run("ingest.fake", "room", {}, ["raw"], ["keyframes"])["num_keyframes"] == 1
         assert not any("/files" in path for path in paths)
+
+
+def test_uploads_and_clearing_keep_inputs_only_on_the_target(tmp_path, monkeypatch):
+    import io
+
+    from scene_core.config import TargetConfig
+    from scene_worker.compute.http import HttpBackend
+
+    local, remote = tmp_path / "local", tmp_path / "remote"
+    with TestClient(create_app(remote, chunk_bytes=512)) as client:
+        backend = HttpBackend(local, TargetConfig(url="http://testserver", chunk_size=512, poll_interval=.001), client=client)
+        backend.put_file("room", "raw/a.jpg", io.BytesIO(b"x" * 1300))
+        backend.put_file("room", "raw/b.jpg", io.BytesIO(b"y"))
+        assert backend.list_files("room", "raw") == ["raw/a.jpg", "raw/b.jpg"]
+        assert not local.exists()
+        backend.run("ingest.fake", "room", {}, ["raw"], ["keyframes"])
+        backend.clear("room", ["keyframes", "raw/b.jpg"])
+        assert sorted(p.name for p in (remote / "scenes/room").rglob("*") if p.is_file()) == ["a.jpg"]
+    monkeypatch.setenv("CLEAN_ON_START", "1")
+    with TestClient(create_app(remote)):
+        assert not (remote / "scenes").exists()

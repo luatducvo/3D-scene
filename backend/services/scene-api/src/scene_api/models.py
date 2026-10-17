@@ -38,8 +38,6 @@ class SceneDetail(SceneSummary):
     assets:SceneAssets=Field(default_factory=SceneAssets)
     failure:Failure|None=None
     ingest_report:dict|None=None
-class ProcessRequest(BaseModel):
-    from_stage:Literal["ingest","recon","align","mesh","segment","lift","embed","attributes","graph"]|None=None
 class JobCreated(BaseModel):
     job_id:str
 class UploadResult(BaseModel):

@@ -1,24 +1,18 @@
-import logging,time
+import logging,shutil,time
+from pathlib import Path
 import numpy as np
 from psycopg.types.json import Jsonb
-from scene_core.contracts import SceneWorkspace,STAGES
+from scene_core.contracts import OUTPUTS,RESULTS,SceneWorkspace,STAGES
 from scene_core.domain import SceneGraph
 from scene_core.registry import Registry
-from .container import backend_for,configuration
+from .container import configuration,pipeline_backend
 from .repository import Repository
 class Worker:
     def __init__(self,database_url,data_dir,pipeline=None,compute=None):
         self.repo=Repository(database_url);self.data_dir=data_dir
         defaults=configuration() if pipeline is None or compute is None else (pipeline,compute)
         self.pipeline=pipeline or defaults[0];self.compute=compute or defaults[1]
-        used={s.target for s in self.pipeline.stages.values()}
-        unset=sorted(t[2:-1] for t in used if t.startswith("${"))
-        if unset:raise ValueError(f"Set {', '.join(unset)} in backend/.env to a compute Target name")
-        missing=used-set(self.compute.targets)
-        if missing:raise ValueError(f"Pipeline uses unknown compute Targets: {sorted(missing)}")
-        no_url=sorted(t for t in used if self.compute.targets[t].missing_url)
-        if no_url:raise ValueError(f"compute Targets {no_url} have no URL; set their URL variables in backend/.env")
-        self.backends={name:backend_for(data_dir,self.compute.targets[name]) for name in used}
+        self.backend=pipeline_backend(data_dir,self.pipeline,self.compute)
     def recover_interrupted(self):
         """Fail Jobs left running by a previous worker process, so their Scenes can be processed again.
 
@@ -42,20 +36,24 @@ class Worker:
             conn.execute("UPDATE jobs SET status='running',started_at=now() WHERE id=%s",(job["id"],))
         stage=None
         try:
-            workspace=SceneWorkspace(self.data_dir,str(job["scene_id"]))
-            force=False
+            scene_id=str(job["scene_id"]);workspace=SceneWorkspace(self.data_dir,scene_id)
+            # Every Job runs all Stages from the uploaded inputs, which stay on the Target (ADR-0005).
+            self.backend.clear(scene_id,[d for dirs in OUTPUTS.values() for d in dirs])
             for stage in STAGES:
                 config=self.pipeline.stages[stage];algorithm=Registry().resolve(config.algorithm)
-                with self.repo.connect() as conn:
-                    previous=conn.execute("SELECT * FROM stage_runs WHERE scene_id=%s AND stage=%s",(job["scene_id"],stage)).fetchone()
-                force=force or stage==job["from_stage"]
-                skip=not force and previous and previous["status"] in ("done","skipped") and previous["config_hash"]==config.config_hash() and all(workspace.path(d).is_dir() and any(workspace.path(d).iterdir()) for d in algorithm.writes)
-                if skip:
-                    self._stage(job,stage,config,"skipped",previous["manifest"]);continue
-                force=True;self._stage(job,stage,config,"running")
-                manifest=self.backends[config.target].run(config.algorithm,str(job["scene_id"]),config.params,algorithm.reads,algorithm.writes,on_progress=self._reporter(job,stage))
+                self._stage(job,stage,config,"running")
+                manifest=self.backend.run(config.algorithm,scene_id,config.params,algorithm.reads,algorithm.writes,on_progress=self._reporter(job,stage))
                 self._stage(job,stage,config,"done",manifest)
-            self.publish(job["scene_id"],workspace)
+            stage=None
+            # Results replace the local copy only after they are complete and published.
+            results=self.backend.fetch(scene_id,RESULTS,Path(self.data_dir)/"staging")
+            self.publish(job["scene_id"],results)
+            if results.root!=workspace.root:
+                workspace.root.mkdir(parents=True,exist_ok=True)
+                for top in sorted({d.split("/")[0] for d in RESULTS}):
+                    shutil.rmtree(workspace.path(top),ignore_errors=True)
+                    if results.path(top).exists():shutil.move(results.path(top),workspace.path(top))
+                shutil.rmtree(results.root,ignore_errors=True)
             with self.repo.connect() as conn:
                 conn.execute("UPDATE jobs SET status='done',finished_at=now() WHERE id=%s",(job["id"],))
                 conn.execute("UPDATE scenes SET status='ready',failure=NULL WHERE id=%s",(job["scene_id"],))

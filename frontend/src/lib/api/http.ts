@@ -30,8 +30,8 @@ export const httpSceneApi: SceneApi = {
   createScene: (name) => request("/scenes", json({ name })),
   deleteScene: (id) => request(`/scenes/${id}`, { method: "DELETE" }),
   getScene: (id) => request(`/scenes/${id}`),
-  startProcessing: async (id, stage) => {
-    await request(`/scenes/${id}/process`, json({ from_stage: stage }));
+  startProcessing: async (id) => {
+    await request(`/scenes/${id}/process`, json({}));
   },
   listObjects: (id) => request(`/scenes/${id}/objects`),
   searchObjects: (id, query) =>

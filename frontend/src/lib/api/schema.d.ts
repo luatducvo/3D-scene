@@ -314,11 +314,6 @@ export interface components {
              */
             yaw: number;
         };
-        /** ProcessRequest */
-        ProcessRequest: {
-            /** From Stage */
-            from_stage?: ("ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "attributes" | "graph") | null;
-        };
         /** QueryEvent */
         QueryEvent: {
             /**
@@ -749,11 +744,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProcessRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             202: {

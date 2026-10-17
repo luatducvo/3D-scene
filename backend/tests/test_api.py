@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from scene_api.main import create_app
 from scene_worker.runner import Worker
-from scene_core.config import PipelineConfig,ComputeConfig
+from scene_core.config import PipelineConfig,ComputeConfig,TargetConfig
 
 @pytest.fixture
 def client(tmp_path):
@@ -48,9 +48,7 @@ def test_pipeline_publish_and_rerun(client):
     assert client.get(prefix+"/files/raw/private.jpg").status_code==403
     assert client.post(prefix+"/uploads",files={"files":("two.jpg",b"fake","image/jpeg")}).json()["error"]["code"]=="SCENE_LOCKED"
     client.post(prefix+"/process",json={});runner.run_once()
-    assert [s["status"] for s in client.get(prefix).json()["stage_runs"]]==["skipped"]*9
-    client.post(prefix+"/process",json={"from_stage":"mesh"});runner.run_once()
-    assert [s["status"] for s in client.get(prefix).json()["stage_runs"]]==["skipped"]*3+["done"]*6
+    assert [s["status"] for s in client.get(prefix).json()["stage_runs"]]==["done"]*9
     assert len(client.get(prefix+"/objects").json())==2
 
 def test_progress_replay_and_search(client):
@@ -158,6 +156,52 @@ def test_worker_refuses_to_start_without_configured_gpu_targets(tmp_path, monkey
     monkeypatch.setenv("GPU_TARGET", "vast")
     with pytest.raises(ValueError, match="vast.*URL"):
         start()
+
+
+def test_worker_refuses_stages_split_across_targets(tmp_path):
+    pipeline = PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake.yaml")
+    pipeline.stages["recon"].target = "remote"
+    compute = ComputeConfig(targets={"cpu": TargetConfig(), "remote": TargetConfig(backend="http", url="http://remote")})
+    with pytest.raises(ValueError, match="one compute Target"):
+        Worker(os.environ["TEST_DATABASE_URL"], tmp_path, pipeline, compute)
+
+
+def test_whole_pipeline_runs_on_the_gpu_host_and_returns_only_results(client, tmp_path, monkeypatch):
+    from scene_compute.server import create_app as create_compute_app
+    from scene_worker.compute.http import HttpBackend
+    monkeypatch.setenv("GPU_TARGET", "remote")
+    pipeline = PipelineConfig.load(Path(__file__).parents[1]/"config/pipeline.fake-gpu.yaml")
+    target = TargetConfig(backend="http", url="http://testserver", chunk_size=512, poll_interval=.001)
+    local, remote = client.app.state.data_dir, tmp_path/"remote"
+    with TestClient(create_compute_app(remote, chunk_bytes=512)) as compute:
+        runner = Worker(os.environ["TEST_DATABASE_URL"], local, pipeline, ComputeConfig(targets={"remote": target}))
+        runner.backend = client.app.state.storage = HttpBackend(local, target, client=compute)
+        prefix = uploaded(client)
+        scene = prefix.rsplit("/", 1)[1]
+        assert not (local/"scenes"/scene).exists()
+        assert len(list((remote/"scenes"/scene/"raw").iterdir())) == 2
+        (remote/"scenes"/scene/"segment").mkdir(parents=True)
+        (remote/"scenes"/scene/"segment"/"stale.npz").write_bytes(b"old")
+        for _ in range(2):
+            client.post(prefix+"/process", json={});runner.run_once()
+            detail = client.get(prefix).json()
+            assert detail["status"] == "ready", detail
+            assert [s["status"] for s in detail["stage_runs"]] == ["done"]*9
+        assert not (remote/"scenes"/scene/"segment"/"stale.npz").exists()
+        assert len(list((remote/"scenes"/scene/"raw").iterdir())) == 2
+        workspace = local/"scenes"/scene
+        assert sorted(p.name for p in workspace.iterdir()) == ["embeddings", "graph", "mesh", "recon"]
+        assert [p.name for p in (workspace/"recon").iterdir()] == ["rgb"]
+        mesh = (workspace/"mesh"/"mesh.glb").read_bytes()
+        runner.pipeline.stages["graph"].params = {"fail": "deliberate failure"}
+        client.post(prefix+"/process", json={});runner.run_once()
+        assert client.get(prefix).json()["status"] == "failed"
+    # Results stay viewable without the GPU host, and a failed Job leaves them untouched.
+    assert (workspace/"mesh"/"mesh.glb").read_bytes() == mesh
+    assert client.get(detail["assets"]["mesh_url"]).content.startswith(b"glTF")
+    objects = client.get(prefix+"/objects").json()
+    assert len(objects) == 2
+    assert client.get(objects[0]["best_views"][0]["image_url"]).status_code == 200
 
 
 def test_search_reports_unavailable_compute_target(client, monkeypatch):

@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { Header } from "../../../../components/Header";
 import { UploadDropzone } from "../../../../components/UploadDropzone";
-import { StageStepper, stages } from "../../../../components/StageStepper";
+import { StageStepper } from "../../../../components/StageStepper";
 import { SceneExplorer } from "../../../../components/SceneExplorer";
 import { StatusBadge } from "../../../../components/StatusBadge";
 import { IngestReport } from "../../../../components/IngestReport";
@@ -30,7 +30,6 @@ export default function ScenePage({
     queryFn: () => sceneApi.getScene(sceneId),
   });
   const [events, setEvents] = useState<Record<string, ProgressEvent>>({}),
-    [stage, setStage] = useState(""),
     [settings, setSettings] = useState(false),
     [confirmDelete, setConfirmDelete] = useState(false),
     [uploading, setUploading] = useState(false);
@@ -38,7 +37,6 @@ export default function ScenePage({
     useViewer.getState().clear();
     setEvents({});
     setSettings(false);
-    setStage("");
     return () => {
       useViewer.getState().clear();
       useViewer.getState().setBounds(null);
@@ -78,7 +76,7 @@ export default function ScenePage({
     });
   }, [sceneId, scene.data?.status, client]);
   const process = useMutation({
-    mutationFn: () => sceneApi.startProcessing(sceneId, stage || undefined),
+    mutationFn: () => sceneApi.startProcessing(sceneId),
     onSuccess: async () => {
       setEvents({});
       setSettings(false);
@@ -117,27 +115,6 @@ export default function ScenePage({
     );
   const data = scene.data,
     active = data.status === "processing" || process.isPending;
-  const stageChoice = (
-    <>
-      <label className="field-label" htmlFor="from-stage">
-        {t("rerun")}
-      </label>
-      <select
-        id="from-stage"
-        value={stage}
-        onChange={(e) => setStage(e.target.value)}
-        disabled={active}
-      >
-        <option value="">{t("allStages")}</option>
-        {stages.map((s) => (
-          <option key={s} value={s}>
-            {t(`stages.${s}`)}
-          </option>
-        ))}
-      </select>
-      <p className="caption muted">{t("ui.rerunDescription")}</p>
-    </>
-  );
   return (
     <>
       <Header
@@ -264,7 +241,7 @@ export default function ScenePage({
           <StatusBadge status={data.status} />
           {(data.status === "ready" || data.status === "failed") && (
             <section className="settings-section">
-              {stageChoice}
+              <p className="caption muted">{t("ui.rerunDescription")}</p>
               <button disabled={active} onClick={() => process.mutate()}>
                 {t("ui.rerunAction")}
               </button>

@@ -2,6 +2,8 @@ from pathlib import Path
 from pydantic import BaseModel
 STAGES=("ingest","recon","align","mesh","segment","lift","embed","attributes","graph")
 OUTPUTS={"ingest":["keyframes"],"recon":["recon"],"align":["align"],"mesh":["mesh"],"segment":["segment"],"lift":["instances"],"embed":["embeddings"],"attributes":["attributes"],"graph":["graph"]}
+# The only Workspace files that return to the worker: publication inputs and the assets the API serves (ADR-0005).
+RESULTS=["graph","embeddings","mesh","recon/rgb"]
 class SceneWorkspace:
     def __init__(self,data_dir: Path,scene_id: str):
         if not scene_id or any(x in scene_id for x in ("/","\\","..",":")):

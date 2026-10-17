@@ -1,10 +1,11 @@
 # Requires real adapters and their optional dependencies; use pipeline.fake.yaml for the skeleton.
-# GPU_TARGET names the compute Target running the single GPU image; set it in backend/.env.
+# Every Stage runs on GPU_TARGET, the compute Target running the single GPU image (ADR-0005);
+# set it in backend/.env.
 # No provider is the default.
 stages:
   ingest:
     algorithm: ingest.opencv
-    target: cpu
+    target: "${GPU_TARGET}"
     params: {min_keyframes: 10, max_keyframes: 80, video_fps: 3, quality_filter: false, blur_threshold: 100.0, phash_distance: 6, long_side: 1600}
   recon:
     algorithm: recon.da3
@@ -16,7 +17,7 @@ stages:
     params: {ransac_threshold_m: 0.02, num_calibration_frames: 20}
   mesh:
     algorithm: mesh.tsdf
-    target: cpu
+    target: "${GPU_TARGET}"
     params: {voxel_size_m: 0.02, sdf_trunc_m: 0.05, bounds_percentile: 1, points_confidence_percentile: 40, points_edge_threshold: 0.05, points_voxel_m: 0.01, max_points: 3000000}
   segment:
     algorithm: segment.sam3
@@ -24,7 +25,7 @@ stages:
     params: {vocabulary_file: indoor-en.txt, score_threshold: 0.5, frame_stride: 2, half: true, prompt_batch_size: 32}
   lift:
     algorithm: lift.maskclustering
-    target: cpu
+    target: "${GPU_TARGET}"
     params: {min_views: 2, num_best_views: 3}
   embed:
     algorithm: embed.metaclip2
@@ -33,8 +34,8 @@ stages:
   attributes:
     # attributes.vlm_api is disabled; see docs/ADR-0004-skip-vlm-attributes.md.
     algorithm: attributes.none
-    target: cpu
+    target: "${GPU_TARGET}"
   graph:
     algorithm: graph.geometric
-    target: cpu
+    target: "${GPU_TARGET}"
     params: {relations: ["on", under, above, inside, next_to, near, against_wall]}

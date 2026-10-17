@@ -16,8 +16,10 @@ Depth Anything 3's [README](https://github.com/ByteDance-Seed/Depth-Anything-3) 
 `depth-anything/DA3NESTED-GIANT-LARGE-1.1` (CC BY-NC 4.0), whose depth and poses are already metric;
 it refuses a Prediction with `is_metric` unset. Extrinsics are OpenCV world-to-camera and are
 inverted to camera-to-world poses. The least confident 10 % of pixels and invalid depth are masked.
-DA3 pins `numpy<2` and depends on xformers, which fixes the Torch version (Torch 2.14.1, xformers
-0.0.35, NumPy 1.26.4 on 2026-10-15). See [ADR-0003](ADR-0003-depth-anything-3-point-cloud.md).
+DA3 pins `numpy<2` and depends on xformers, which fixes the Torch version. xformers 0.0.35, the
+newest release, ships kernels built for Torch 2.10 + CUDA 12.8; with Torch 2.14 they fail to load and
+DA3 falls back to slower, memory-hungry attention. The `gpu` extra therefore pins Torch 2.10,
+torchvision 0.25 and xformers 0.0.35 (NumPy 1.26.4; 2026-10-17). See [ADR-0003](ADR-0003-depth-anything-3-point-cloud.md).
 
 GeoCalib's [inference example](https://github.com/cvg/GeoCalib#setup-and-demo) defines the model call.
 Its [Gravity class](https://github.com/cvg/GeoCalib/blob/main/geocalib/gravity.py) exposes `vec3d`;
