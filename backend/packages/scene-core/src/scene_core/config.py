@@ -46,6 +46,9 @@ class TargetConfig(BaseModel):
     token: str = ""
     headers: dict[str, str] = Field(default_factory=dict)
     chunk_size: int = 25 * 1024 * 1024
+    # Files an upload or a Publication moves at once; each request waits out the Target's round trip.
+    transfer_concurrency: int = Field(8, ge=1)
+    timeout: float = 29.0
     startup_timeout: float = 900
     poll_interval: float = 1
 

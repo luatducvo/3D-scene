@@ -71,3 +71,9 @@ def test_a_clean_start_removes_earlier_workspaces(tmp_path, monkeypatch):
     monkeypatch.setenv("CLEAN_ON_START", "1")
     with TestClient(create_app(tmp_path)):
         assert not (tmp_path / "scenes").exists()
+
+
+def test_create_app_accepts_timeout_and_chunk_bytes(tmp_path):
+    app = create_app(tmp_path, chunk_bytes=100_000_000, timeout_s=300)
+    with TestClient(app) as client:
+        assert client.get("/ping").status_code == 200

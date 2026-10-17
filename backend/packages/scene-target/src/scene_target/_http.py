@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 from scene_core.contracts import SceneWorkspace
@@ -32,7 +33,7 @@ class HttpAdapter:
         if target_config.token:
             headers["X-Compute-Token"] = target_config.token
         self.client = client or httpx.Client(
-            base_url=target_config.url, headers=headers, timeout=29
+            base_url=target_config.url, headers=headers, timeout=target_config.timeout
         )
 
     def _call(self, method, path, **kwargs):
@@ -95,13 +96,33 @@ class HttpAdapter:
             if offset == size:
                 break
 
-    def put(self, scene_id, relative, stream):
-        self._wait_until_ready()
+    def _concurrently(self, transfer, items):
+        """Call transfer(*item) for every item, transfer_concurrency at a time.
+
+        The first failure cancels the items not yet started; the ones running finish before it is raised.
+        """
+        with ThreadPoolExecutor(self.target.transfer_concurrency) as pool:
+            futures = [pool.submit(transfer, *item) for item in items]
+            try:
+                for future in futures:
+                    future.result()
+            except BaseException:
+                pool.shutdown(cancel_futures=True)
+                raise
+
+    def _put_file(self, scene_id, relative, stream):
         stream.seek(0)
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
         size = stream.seek(0, 2)
         stream.seek(0)
         self._upload(scene_id, relative, stream, digest, size)
+
+    def put(self, scene_id, files):
+        """Upload {relative path: seekable stream}, each stream read by one thread only."""
+        self._wait_until_ready()
+        self._concurrently(
+            self._put_file, [(scene_id, relative, stream) for relative, stream in files.items()]
+        )
 
     def list(self, scene_id, directory):
         self._wait_until_ready()
@@ -141,38 +162,48 @@ class HttpAdapter:
         )
 
     def download(self, scene_id, directories, staging: SceneWorkspace):
-        """Download every file under the directories into the empty staging Workspace, verifying checksums."""
+        """Download every file under the directories into the empty staging Workspace, verifying checksums.
+
+        Up to transfer_concurrency files download at once.
+        """
         self._wait_until_ready()
         staging.root.mkdir(parents=True, exist_ok=True)
+        # Paths are checked and folders made before the threads start: resolving a path while
+        # another thread creates its folder can misresolve it on Windows.
+        files = []
         for item in self._files(scene_id, directories):
-            relative = item["path"]
-            if not any(relative.startswith(directory + "/") for directory in directories):
+            if not any(item["path"].startswith(directory + "/") for directory in directories):
                 raise SceneError(
                     "COMPUTE_FAILED",
                     "The compute Target returned a file outside the requested directories",
                     502,
                 )
-            path = staging.path(relative)
+            path = staging.path(item["path"])
             path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("wb") as stream:
-                for offset in range(0, item["size"], self.target.chunk_size):
-                    end = min(offset + self.target.chunk_size, item["size"]) - 1
-                    response = self._call(
-                        "GET",
-                        f"/workspaces/{scene_id}/files/{relative}",
-                        headers={"Range": f"bytes={offset}-{end}"},
-                    )
-                    if len(response.content) != end - offset + 1:
-                        raise SceneError(
-                            "COMPUTE_FAILED",
-                            "The compute Target returned an incorrect range length",
-                            502,
-                        )
-                    stream.write(response.content)
-            if sha256_file(path) != item["sha256"]:
-                raise SceneError(
-                    "COMPUTE_FAILED", f"Downloaded file {relative} has a different checksum", 502
+            files.append((item, path))
+        self._concurrently(self._download_file, [(scene_id, item, path) for item, path in files])
+
+    def _download_file(self, scene_id, item, path):
+        relative = item["path"]
+        with path.open("wb") as stream:
+            for offset in range(0, item["size"], self.target.chunk_size):
+                end = min(offset + self.target.chunk_size, item["size"]) - 1
+                response = self._call(
+                    "GET",
+                    f"/workspaces/{scene_id}/files/{relative}",
+                    headers={"Range": f"bytes={offset}-{end}"},
                 )
+                if len(response.content) != end - offset + 1:
+                    raise SceneError(
+                        "COMPUTE_FAILED",
+                        "The compute Target returned an incorrect range length",
+                        502,
+                    )
+                stream.write(response.content)
+        if sha256_file(path) != item["sha256"]:
+            raise SceneError(
+                "COMPUTE_FAILED", f"Downloaded file {relative} has a different checksum", 502
+            )
 
     def embed(self, algorithm, texts):
         self._wait_until_ready()

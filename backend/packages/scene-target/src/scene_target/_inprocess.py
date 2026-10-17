@@ -15,12 +15,13 @@ class InProcessAdapter:
     def _workspace(self, scene_id):
         return SceneWorkspace(self.root, scene_id)
 
-    def put(self, scene_id, relative, stream):
-        path = self._workspace(scene_id).path(relative)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        stream.seek(0)
-        with path.open("wb") as destination:
-            shutil.copyfileobj(stream, destination, length=1024 * 1024)
+    def put(self, scene_id, files):
+        for relative, stream in files.items():
+            path = self._workspace(scene_id).path(relative)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            stream.seek(0)
+            with path.open("wb") as destination:
+                shutil.copyfileobj(stream, destination, length=1024 * 1024)
 
     def list(self, scene_id, directory):
         workspace = self._workspace(scene_id)

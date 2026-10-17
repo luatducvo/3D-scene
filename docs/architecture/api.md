@@ -40,7 +40,7 @@ non-shared remote Target (an unreachable Target is only logged).
 | GET | `/scenes` | List Scenes with status |
 | GET | `/scenes/{id}` | Status, Stage Runs, ingest report, failure, asset URLs |
 | DELETE | `/scenes/{id}` | Delete the Scene everywhere |
-| POST | `/scenes/{id}/uploads` | Multipart photos or one video, streamed to the Target's `raw/` |
+| POST | `/scenes/{id}/uploads` | Multipart photos or one video, sent to the Target's `raw/` several files at once; on failure none of the request's files stay |
 | POST | `/scenes/{id}/process` | Queue a Job (no body options) |
 | GET | `/scenes/{id}/events` | SSE progress |
 | GET | `/scenes/{id}/objects` | Objects with boxes, labels, attributes, evidence URLs |

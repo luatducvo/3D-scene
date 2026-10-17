@@ -1,6 +1,7 @@
 """TargetWorkspace through its interface, on both adapters: in-process and HTTP to an in-memory scene-compute."""
 
 import io
+import threading
 from pathlib import Path
 
 import pytest
@@ -170,6 +171,69 @@ def test_delete_removes_the_target_workspace(target):
     processed(workspace)
     workspace.delete("room")
     assert not (root / "scenes/room").exists()
+
+
+class MeetingClient(TestClient):
+    """The first two file transfers by `method` each wait until the other has started, so a sequential
+    transfer fails. It records every request's method and path."""
+
+    def __init__(self, app, method="GET"):
+        super().__init__(app)
+        self.method = method
+        self.waiting = threading.Semaphore(2)
+        self.meeting = threading.Barrier(2, timeout=5)
+        self.corrupt = None
+        self.requests = []
+
+    def request(self, method, url, **kwargs):
+        self.requests.append((method, str(url)))
+        transferring = method == self.method and "/files/" in str(url)
+        if transferring and self.waiting.acquire(blocking=False):
+            self.meeting.wait()
+        response = super().request(method, url, **kwargs)
+        if transferring and self.corrupt and str(url).endswith(self.corrupt):
+            response._content = b"x" * len(response.content)
+        return response
+
+
+def remote_workspace(tmp_path, client, **overrides):
+    pipeline = PipelineConfig.load(CONFIG / "pipeline.fake.yaml")
+    compute = ComputeConfig(targets={"remote": remote_target(**overrides)})
+    return open_target_workspace(
+        tmp_path / "local", pipeline.model_copy(update={"target": "remote"}), compute, client=client
+    )
+
+
+def test_a_publication_downloads_files_concurrently(tmp_path):
+    with MeetingClient(create_compute_app(tmp_path / "remote", chunk_bytes=64_000)) as client:
+        workspace = remote_workspace(tmp_path, client, transfer_concurrency=2)
+        processed(workspace)
+        workspace.replace_results("room", "job-1", lambda results: None)
+    assert SceneResults(published(workspace, "job-1")).assets()["mesh"]
+
+
+def test_an_upload_waits_for_the_target_once_and_sends_files_concurrently(tmp_path):
+    app = create_compute_app(tmp_path / "remote", chunk_bytes=64_000)
+    with MeetingClient(app, method="PUT") as client:
+        workspace = remote_workspace(tmp_path, client, transfer_concurrency=2)
+        workspace.put_inputs(
+            "room", {name: io.BytesIO(name.encode() * 400) for name in ("a.jpg", "b.jpg", "c.jpg")}
+        )
+        assert workspace.list_inputs("room") == ["a.jpg", "b.jpg", "c.jpg"]
+    pings = [request for request in client.requests if request == ("GET", "/ping")]
+    assert len(pings) == 2  # one for the upload, one for the listing
+    assert (tmp_path / "remote/scenes/room/raw/b.jpg").read_bytes() == b"b.jpg" * 400
+
+
+def test_a_corrupted_download_fails_the_publication(tmp_path):
+    with MeetingClient(create_compute_app(tmp_path / "remote", chunk_bytes=64_000)) as client:
+        workspace = remote_workspace(tmp_path, client)
+        processed(workspace)
+        client.corrupt = "mesh/mesh.glb"
+        with pytest.raises(SceneError, match=r"mesh/mesh\.glb has a different checksum"):
+            workspace.replace_results("room", "job-1", lambda results: None)
+    assert not (workspace.data_dir / "scenes/room").exists()
+    assert not (workspace.data_dir / "staging/scenes/room").exists()
 
 
 def test_an_unreachable_target_is_compute_unavailable(tmp_path):

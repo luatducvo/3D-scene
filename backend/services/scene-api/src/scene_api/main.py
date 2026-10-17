@@ -173,21 +173,22 @@ def create_app(
                 raise SceneError(
                     "INVALID_UPLOAD", "Upload photos or one video, without mixing them", 400
                 )
-            saved = []
+            named = {}
+            for upload in files:
+                # The original stem keeps capture order for ingest; the suffix keeps names unique.
+                stem = re.sub(r"[^A-Za-z0-9_-]", "_", Path(upload.filename).stem)[:80]
+                name = f"{stem}-{uuid.uuid4().hex[:8]}{Path(upload.filename).suffix.lower()}"
+                named[name] = upload.file
             try:
-                for upload in files:
-                    # The original stem keeps capture order for ingest; the suffix keeps names unique.
-                    stem = re.sub(r"[^A-Za-z0-9_-]", "_", Path(upload.filename).stem)[:80]
-                    name = f"{stem}-{uuid.uuid4().hex[:8]}{Path(upload.filename).suffix.lower()}"
-                    target.put_input(str(scene_id), name, upload.file)
-                    saved.append(name)
+                target.put_inputs(str(scene_id), named)
             except Exception:
+                # Files upload concurrently, so any of them may already be stored.
                 try:
-                    target.remove_inputs(str(scene_id), saved)
+                    target.remove_inputs(str(scene_id), list(named))
                 except Exception:
                     logging.exception("Could not remove partial upload of Scene %s", scene_id)
                 raise
-            return {"filenames": saved}
+            return {"filenames": list(named)}
 
     @app.post("/api/v1/scenes/{scene_id}/process", response_model=JobCreated, status_code=202)
     def process_scene(scene_id: uuid.UUID):

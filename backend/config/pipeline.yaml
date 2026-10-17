@@ -6,7 +6,7 @@ target: "${GPU_TARGET}"
 stages:
   ingest:
     algorithm: ingest.opencv
-    params: {min_keyframes: 10, max_keyframes: 80, video_fps: 3, quality_filter: false, blur_threshold: 100.0, phash_distance: 6, long_side: 1600}
+    params: {min_keyframes: 10, max_keyframes: 200, video_fps: 3, quality_filter: false, blur_threshold: 100.0, phash_distance: 6, long_side: 1600}
   recon:
     algorithm: recon.da3
     params: {model_id: depth-anything/DA3NESTED-GIANT-LARGE-1.1, process_res: 504, use_ray_pose: true, ref_view_strategy: saddle_balanced, confidence_percentile: 10}

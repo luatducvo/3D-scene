@@ -262,6 +262,36 @@ def remote(tmp_path, compute_client, **overrides):
     )
 
 
+def test_a_failed_upload_keeps_none_of_its_files_on_the_target(tmp_path):
+    import httpx
+    from scene_compute.server import create_app as create_compute_app
+
+    class BrokenUpload(TestClient):
+        def request(self, method, url, **kwargs):
+            if method == "PUT" and "/raw/broken-" in str(url):
+                raise httpx.ConnectError("tunnel closed")
+            return super().request(method, url, **kwargs)
+
+    with BrokenUpload(create_compute_app(tmp_path / "remote", chunk_bytes=512)) as compute:
+        target = remote(tmp_path, compute, startup_timeout=0.2)
+        with TestClient(
+            create_app(
+                database_url=os.environ["TEST_DATABASE_URL"],
+                data_dir=tmp_path / "local",
+                target=target,
+            )
+        ) as client:
+            scene = client.post("/api/v1/scenes", json={"name": "Test room"}).json()["id"]
+            prefix = f"/api/v1/scenes/{scene}"
+            files = [
+                ("files", (f"{name}.jpg", name.encode() * 300, "image/jpeg"))
+                for name in ("first", "broken", "last")
+            ]
+            response = client.post(prefix + "/uploads", files=files)
+            assert response.json()["error"]["code"] == "COMPUTE_UNAVAILABLE"
+            assert target.list_inputs(scene) == []
+
+
 def test_delete_removes_the_target_workspace_and_tolerates_an_unreachable_target(tmp_path):
     from scene_compute.server import create_app as create_compute_app
 

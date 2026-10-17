@@ -9,12 +9,12 @@ command; this guide explains the steps and what to configure locally.
 ```
 your machine                                        Google Colab
 web · scene-api · postgres                          scene-compute (uvicorn, port 9000)
-scene-worker ── HTTPS (tunnel URL, 25 MB chunks) ─> cloudflared → https://<random>.trycloudflare.com
+scene-worker ── HTTPS (tunnel URL, 100 MB chunks) ─> cloudflared → https://<random>.trycloudflare.com
 ```
 
 Every Stage runs on Colab, and uploads are stored there too; only the results return to your
 machine after the last Stage ([ADR-0005](../../../docs/adr/0005-whole-pipeline-on-gpu-host.md)).
-Every request finishes in under 30 s and bodies stay under 25 MB, so the tunnel's limits never apply.
+Every request finishes in under 300 s and bodies stay under 100 MB, so the tunnel's limits never apply.
 
 ## Run the notebook
 

@@ -32,8 +32,9 @@ SAM 3 runs through [Ultralytics](https://docs.ultralytics.com/models/sam-3/) (AG
 `ultralytics==8.4.177`: `SAM3SemanticPredictor.inference_features` filters by `args.conf`, applies
 per-class NMS and returns masks already resized to the source image, with the class column indexing
 the text batch. `quantize: 16` selects fp16. The gated `sam3.pt` comes from `facebook/sam3` through
-`hf_hub_download`. Ultralytics' [CLIP fork](https://github.com/ultralytics/CLIP) is declared as a
-dependency so nothing is installed at runtime. Every GPU Algorithm resolves in one environment. The compute
+`hf_hub_download`. Ultralytics' [CLIP fork](https://github.com/ultralytics/CLIP) and `timm`, which
+SAM 3 imports but Ultralytics does not declare, are declared as dependencies so nothing is installed
+at runtime. Every GPU Algorithm resolves in one environment. The compute
 Dockerfile uses CUDA 12.8.1. NumPy 1.26.4 (required by Depth Anything 3) also satisfies Ultralytics. PyTorch/Torchvision pins still require a complete GPU image build and
 inference check; compatible declared versions do not prove every kernel works together.
 

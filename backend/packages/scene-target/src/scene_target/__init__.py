@@ -41,9 +41,16 @@ class TargetWorkspace:
         self.data_dir = Path(data_dir)
         self._adapter = adapter
 
+    def put_inputs(self, scene_id: str, files: dict):
+        """Store uploaded files {name: seekable stream} under raw/ on the Target, several at once.
+
+        On failure some files may already be stored; the caller removes them by name.
+        """
+        self._adapter.put(scene_id, {f"raw/{name}": stream for name, stream in files.items()})
+
     def put_input(self, scene_id: str, name: str, stream):
         """Store one uploaded file under raw/ on the Target; stream must be seekable."""
-        self._adapter.put(scene_id, f"raw/{name}", stream)
+        self.put_inputs(scene_id, {name: stream})
 
     def list_inputs(self, scene_id: str) -> list[str]:
         return [path.removeprefix("raw/") for path in self._adapter.list(scene_id, "raw")]

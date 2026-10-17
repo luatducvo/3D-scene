@@ -9,7 +9,8 @@ mesh-tsdf=["trimesh>=4", "scikit-image>=0.24"]
 # addict: imported by depth_anything_3.model but missing from its declared dependencies.
 recon-da3=["torch", "torchvision", "huggingface_hub", "addict", "depth-anything-3 @ git+https://github.com/ByteDance-Seed/Depth-Anything-3.git"]
 align-geocalib=["torch", "geocalib @ git+https://github.com/cvg/GeoCalib.git"]
-segment-sam3=["torch>=2.7", "huggingface_hub", "ultralytics>=8.4.19", "clip @ git+https://github.com/ultralytics/CLIP.git"]
+# timm and clip: required by Ultralytics' SAM 3 but not declared, so Ultralytics would install them at runtime.
+segment-sam3=["torch>=2.7", "huggingface_hub", "ultralytics>=8.4.19", "timm", "clip @ git+https://github.com/ultralytics/CLIP.git"]
 embed-metaclip2=["torch", "transformers>=4.56,<5", "huggingface_hub"]
 [build-system]
 requires=["hatchling"]

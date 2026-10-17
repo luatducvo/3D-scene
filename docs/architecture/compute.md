@@ -27,8 +27,15 @@ flowchart LR
 [compute.yaml](../../backend/config/compute.yaml) names the Targets. Each is either `inprocess`
 (`cpu`: the process runs Algorithms itself on `DATA_DIR/target`) or `http` (URL, `X-Compute-Token`,
 optional provider headers, `chunk_size` in bytes, `startup_timeout` and `poll_interval` in
-seconds). URLs and secrets come from `backend/.env` through `${VAR}` expansion. `pipeline.yaml`
-picks one with its `target:` key.
+seconds, `transfer_concurrency`). URLs and secrets come from `backend/.env` through `${VAR}`
+expansion. `pipeline.yaml` picks one with its `target:` key.
+
+`transfer_concurrency` (default 8) is how many files an upload sends, or a Publication downloads,
+at once. Each request waits out the Target's round trip, which a tunnel stretches to seconds, so
+moving one file at a time leaves the connection idle; `colab` uses 16. An upload request waits for
+the Target's readiness once, not once per file. Every file is still checked against its SHA-256,
+and the first failure cancels the transfers not yet started. The api or the worker can hold up to
+`transfer_concurrency` chunks of `chunk_size` bytes in memory at once.
 
 Backend values are `inprocess` and `http`; `cpu` is a Target name, not a backend alias.
 
@@ -43,7 +50,7 @@ api answers `COMPUTE_UNAVAILABLE`.
 
 | Call | Used by | Does |
 |---|---|---|
-| `put_input`, `list_inputs`, `remove_inputs` | api uploads | Uploaded files under `raw/`, on the Target only |
+| `put_inputs`, `list_inputs`, `remove_inputs` | api uploads | Uploaded files under `raw/`, on the Target only; a failed `put_inputs` may leave some stored, so the api removes the whole batch |
 | `clear_outputs` | runner | Delete Stage outputs, keep `raw/` |
 | `run_stage` | runner | One Compute Run with the Stage's configured Algorithm and parameters |
 | `replace_results` | runner | Download results, finish them as `DATA_DIR/scenes/{id}/{version}`, call `publish`, then remove older versions |
@@ -65,9 +72,11 @@ Rules every `scene-compute` deployment satisfies
 ([server.py](../../backend/services/scene-compute/src/scene_compute/server.py)):
 
 1. Listens on `0.0.0.0:${PORT}` (default 9000).
-2. Every request finishes in under 30 s; long work runs as an asynchronous Compute Run and is polled.
-3. Every request and response body is at most the chunk size (default 25,000,000 bytes), under
-   RunPod Serverless's 30 MB limit. Files move in chunks.
+2. Every request finishes within the configured request timeout (default 29 s, configurable
+   via `REQUEST_TIMEOUT_S` on the server and `timeout` on `TargetConfig`, e.g. 300 s on Colab); long
+   work runs as an asynchronous Compute Run and is polled.
+3. Every request and response body is at most the chunk size (default 25,000,000 bytes, up to
+   100,000,000 bytes on Colab, under RunPod Serverless's 30 MB limit). Files move in chunks.
 4. App auth is `X-Compute-Token`, checked against `COMPUTE_TOKEN` on every path except `/ping`;
    `Authorization` stays free for the provider's own key.
 5. Errors use the API's shape, `{"error": {"code", "message"}}`. A failed Compute Run's `error`

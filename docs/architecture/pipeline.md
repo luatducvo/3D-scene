@@ -49,7 +49,8 @@ rows and their `scene_events` in one transaction. Every Target operation is one 
    Compute Run), forward progress (stored and announced at most every 2 s, always including the
    final report), mark it `done` with its Manifest.
 4. **Publish.** `replace_results` downloads only `SceneResults.DIRECTORIES` (`graph`,
-   `embeddings`, `mesh`, `recon/rgb`) into `DATA_DIR/staging` and renames the complete folder to
+   `embeddings`, `mesh`, `recon/rgb`) into `DATA_DIR/staging`, `transfer_concurrency` files at a
+   time ([compute.md](compute.md#targets)), and renames the complete folder to
    `DATA_DIR/scenes/{id}/{job id}`, never modified afterwards. `SceneResults(...).load()` validates
    it (see [Scene Results](#scene-results)) before any transaction opens, then `SceneStore.publish`
    replaces the Scene's Objects, Relations and room info, sets `scenes.publication` to the Job id

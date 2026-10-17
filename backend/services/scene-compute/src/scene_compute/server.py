@@ -53,6 +53,7 @@ def create_app(
     *,
     token: str | None = None,
     chunk_bytes: int | None = None,
+    timeout_s: float | None = None,
     executor=None,
 ) -> FastAPI:
     # SOLID review (SRP): Compute Run scheduling/records and Workspace file transfer have separate
@@ -61,6 +62,9 @@ def create_app(
     root = Path(data_dir or os.environ.get("DATA_DIR", "data")).resolve()
     auth_token = token if token is not None else os.environ.get("COMPUTE_TOKEN", "")
     limit = chunk_bytes or int(float(os.environ.get("CHUNK_SIZE_MB", "25")) * 1_000_000)
+    request_timeout = (
+        timeout_s if timeout_s is not None else float(os.environ.get("REQUEST_TIMEOUT_S", "29"))
+    )
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="compute")
     runs: dict[str, dict] = {}
     lock = threading.RLock()
@@ -163,7 +167,7 @@ def create_app(
                 )
         request._body = bytes(body)
         try:
-            return await asyncio.wait_for(call_next(request), timeout=29)
+            return await asyncio.wait_for(call_next(request), timeout=request_timeout)
         except TimeoutError:
             return JSONResponse(
                 {
@@ -348,7 +352,9 @@ def create_app(
         # Share the same queue as Stage execution so GPU model caches are not accessed concurrently.
         future = pool.submit(get_executor().invoke, algorithm, method, payload)
         try:
-            result = await asyncio.wait_for(asyncio.wrap_future(future), timeout=28)
+            result = await asyncio.wait_for(
+                asyncio.wrap_future(future), timeout=max(1.0, request_timeout - 1)
+            )
         except TimeoutError:
             future.cancel()
             raise ContractError(
