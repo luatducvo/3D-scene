@@ -15,6 +15,32 @@ ENV_FILE = BACKEND / ".env"
 TEST_DB = "scene-test-db"
 TEST_DB_PORT = "15432"
 TEST_DATABASE_URL = f"postgresql://scene:scene@127.0.0.1:{TEST_DB_PORT}/scene"
+# Profiles of compose.yaml; `up` starts PARTS unless told which.
+PARTS = ("backend", "frontend")
+PROFILES = (*PARTS, "local-gpu")
+
+TASKS = {}
+
+
+def task(help_text, *arguments, name=None, passthrough=False):
+    """Registers a task under its function's name; `arguments` are (flags, options) for argparse."""
+
+    def register(handler):
+        TASKS[name or handler.__name__.replace("_", "-")] = (
+            handler,
+            help_text + ("; extra arguments go to the tool" if passthrough else ""),
+            arguments,
+            passthrough,
+        )
+        return handler
+
+    return register
+
+
+IMAGE_ARGUMENTS = ((["--image"], {}), (["--extras"], {"default": "", "choices": ["", "gpu"]}))
+
+
+# Processes
 
 
 def run(*command, env=None, check=True):
@@ -22,7 +48,16 @@ def run(*command, env=None, check=True):
     return subprocess.run(command, cwd=ROOT, env={**os.environ, **(env or {})}, check=check)
 
 
+def output(*command):
+    return subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=True).stdout
+
+
+def python(*arguments, env=None, check=True):
+    return run(sys.executable, "-m", *arguments, env=env, check=check)
+
+
 def env_values():
+    """backend/.env as a dict, created from .env.example on first use."""
     if not ENV_FILE.exists():
         shutil.copyfile(BACKEND / ".env.example", ENV_FILE)
         print(f"Created {ENV_FILE.relative_to(ROOT)} from .env.example; fill in the keys you need.")
@@ -35,42 +70,11 @@ def env_values():
     return values
 
 
-def compose(*arguments):
+def compose(*arguments, profiles=PROFILES):
     env_values()
-    compose_file = (
-        ROOT / "compose.yaml" if (ROOT / "compose.yaml").exists() else BACKEND / "compose.yaml"
-    )
-    return run(
-        "docker", "compose", "-f", str(compose_file), "--env-file", str(ENV_FILE), *arguments
-    )
-
-
-def models_dir():
-    return (BACKEND / env_values().get("HOST_MODELS_DIR", "./models")).resolve()
-
-
-def init_storage(_):
-    models_dir().mkdir(parents=True, exist_ok=True)
-    print(f"Model cache: {models_dir()}")
-
-
-def up(args):
-    init_storage(args)
-    compose("up", "-d", "--build")
-
-
-def up_local_gpu(args):
-    init_storage(args)
-    compose("--profile", "local-gpu", "up", "-d", "--build")
-
-
-def down(_):
-    compose("--profile", "local-gpu", "down")
-
-
-def reset(_):
-    """Delete every Scene and the database; keep the host model cache."""
-    compose("--profile", "local-gpu", "down", "-v")
+    flags = [flag for profile in profiles for flag in ("--profile", profile)]
+    files = ["-f", str(ROOT / "compose.yaml"), "--env-file", str(ENV_FILE)]
+    return run("docker", "compose", *files, *flags, *arguments)
 
 
 def require_docker():
@@ -85,36 +89,78 @@ def require_docker():
         )
 
 
+def models_dir():
+    return (BACKEND / env_values().get("HOST_MODELS_DIR", "./models")).resolve()
+
+
+# Stack
+
+
+@task("create the host model cache folder")
+def init_storage(_=None):
+    folder = models_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    print(f"Model cache: {folder}")
+
+
+@task(
+    "start the backend (Postgres, scene-api, scene-worker) and the frontend",
+    (["parts"], {"nargs": "*", "choices": PARTS, "help": "start only these profiles"}),
+)
+def up(args):
+    init_storage()
+    compose("up", "-d", "--build", profiles=args.parts or PARTS)
+
+
+@task("also start scene-compute on the local GPU")
+def up_local_gpu(_):
+    init_storage()
+    compose("up", "-d", "--build")
+
+
+@task("stop every service, keeping all data")
+def down(_):
+    compose("down")
+
+
+@task("delete all Scenes and the database, keep model weights")
+def reset(_):
+    compose("down", "-v")
+
+
+@task("fetch model weights into the host cache")
+def download_models(_):
+    init_storage()
+    module = ["python", "-m", "scene_compute.download_models"]
+    compose("run", "--rm", "scene-compute", *module, profiles=["local-gpu"])
+
+
+@task("show Docker volume and model cache sizes")
+def disk_usage(_):
+    run("docker", "system", "df", "-v", check=False)
+    folder = models_dir()
+    size = sum(p.stat().st_size for p in folder.rglob("*") if p.is_file()) if folder.exists() else 0
+    print(f"Model cache {folder}: {size / 2**30:.2f} GiB")
+
+
+# Checks
+
+
 def ensure_test_database():
     require_docker()
     state = subprocess.run(
         ["docker", "inspect", "-f", "{{.State.Running}}", TEST_DB], capture_output=True, text=True
     )
     if state.returncode != 0:
-        run(
-            "docker",
-            "run",
-            "-d",
-            "--name",
-            TEST_DB,
-            "-p",
-            f"127.0.0.1:{TEST_DB_PORT}:5432",
-            "-e",
-            "POSTGRES_USER=scene",
-            "-e",
-            "POSTGRES_PASSWORD=scene",
-            "-e",
-            "POSTGRES_DB=scene",
-            "pgvector/pgvector:pg16",
-        )
+        keys = ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB")
+        credentials = [flag for key in keys for flag in ("-e", f"{key}=scene")]
+        container = ["--name", TEST_DB, "-p", f"127.0.0.1:{TEST_DB_PORT}:5432", *credentials]
+        run("docker", "run", "-d", *container, "pgvector/pgvector:pg16")
     elif state.stdout.strip() != "true":
         run("docker", "start", TEST_DB)
+    ready = ["docker", "exec", TEST_DB, "pg_isready", "-U", "scene", "-h", "127.0.0.1"]
     for _ in range(60):
-        ready = subprocess.run(
-            ["docker", "exec", TEST_DB, "pg_isready", "-U", "scene", "-h", "127.0.0.1"],
-            capture_output=True,
-        )
-        if ready.returncode == 0:
+        if subprocess.run(ready, capture_output=True).returncode == 0:
             return
         time.sleep(1)
     sys.exit("Test database did not become ready")
@@ -123,124 +169,65 @@ def ensure_test_database():
 def pytest(*arguments, env=None):
     # Pytest's temporary Workspaces live outside the repository.
     basetemp = Path(tempfile.gettempdir()) / "scene-pytest"
-    run(
-        sys.executable,
-        "-m",
-        "pytest",
-        "-p",
-        "no:cacheprovider",
-        f"--basetemp={basetemp}",
-        *arguments,
-        env=env,
-    )
+    python("pytest", "-p", "no:cacheprovider", f"--basetemp={basetemp}", *arguments, env=env)
 
 
+def ruff(command, arguments):
+    # Findings are the output, not a crash: exit with Ruff's status and no traceback.
+    sys.exit(python("ruff", command, "backend", "tasks.py", *arguments, check=False).returncode)
+
+
+@task("run every test against a disposable test database (needs Docker)", passthrough=True)
 def test(args):
     ensure_test_database()
     pytest(*args.extra_args, env={"TEST_DATABASE_URL": TEST_DATABASE_URL})
 
 
+@task("run the tests that need no database or Docker", passthrough=True)
 def test_unit(args):
-    """Tests without the `db` marker: no Docker, no database, no GPU."""
     pytest("-m", "not db", *args.extra_args)
 
 
+@task("check the Python code with Ruff", passthrough=True)
 def lint(args):
-    # Findings are the output, not a crash: exit with Ruff's status and no traceback.
-    sys.exit(
-        run(
-            sys.executable,
-            "-m",
-            "ruff",
-            "check",
-            "backend",
-            "tasks.py",
-            *args.extra_args,
-            check=False,
-        ).returncode
-    )
+    ruff("check", args.extra_args)
 
 
+@task("format the Python code with Ruff", name="format", passthrough=True)
 def format_code(args):
-    sys.exit(
-        run(
-            sys.executable,
-            "-m",
-            "ruff",
-            "format",
-            "backend",
-            "tasks.py",
-            *args.extra_args,
-            check=False,
-        ).returncode
-    )
+    ruff("format", args.extra_args)
 
 
+@task("export the API contract to backend/openapi/openapi.json")
 def openapi(_):
-    run(
-        sys.executable,
-        "-m",
-        "scene_api.export_openapi",
-        env={"DATABASE_URL": "postgresql://unused@localhost/unused"},
-    )
+    python("scene_api.export_openapi", env={"DATABASE_URL": "postgresql://unused@localhost/unused"})
 
 
-def download_models(_):
-    init_storage(_)
-    compose(
-        "--profile",
-        "local-gpu",
-        "run",
-        "--rm",
-        "scene-compute",
-        "python",
-        "-m",
-        "scene_compute.download_models",
-    )
-
-
-def disk_usage(_):
-    run("docker", "system", "df", "-v", check=False)
-    folder = models_dir()
-    size = sum(p.stat().st_size for p in folder.rglob("*") if p.is_file()) if folder.exists() else 0
-    print(f"Model cache {folder}: {size / 2**30:.2f} GiB")
-
-
+@task("remove all caches (Python, uv, frontend .next)")
 def clean(_):
-    """Remove cache directories and files (Python, uv, and frontend)."""
-    skip_dirs = {".venv", "venv", "node_modules", ".git"}
-    cache_dir_names = {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".cache"}
+    skip = {".venv", "venv", "node_modules", ".git"}
+    caches = {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".cache"}
     removed = 0
-
-    for root_dir, dirs, files in os.walk(ROOT):
-        dirs[:] = [d for d in dirs if d not in skip_dirs]
-        for d in list(dirs):
-            if d in cache_dir_names:
-                target = Path(root_dir) / d
-                shutil.rmtree(target, ignore_errors=True)
-                dirs.remove(d)
-                removed += 1
+    for folder, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in skip]
+        for d in [d for d in dirs if d in caches]:
+            shutil.rmtree(Path(folder) / d, ignore_errors=True)
+            dirs.remove(d)
+            removed += 1
         for f in files:
             if f.endswith((".pyc", ".pyo")):
-                try:
-                    (Path(root_dir) / f).unlink()
-                    removed += 1
-                except OSError:
-                    pass
-
-    next_cache = ROOT / "frontend" / ".next"
-    if next_cache.exists():
-        shutil.rmtree(next_cache, ignore_errors=True)
-        removed += 1
-
-    fe_node_cache = ROOT / "frontend" / "node_modules" / ".cache"
-    if fe_node_cache.exists():
-        shutil.rmtree(fe_node_cache, ignore_errors=True)
-        removed += 1
-
+                (Path(folder) / f).unlink(missing_ok=True)
+                removed += 1
+    for cache in (ROOT / "frontend/.next", ROOT / "frontend/node_modules/.cache"):
+        if cache.exists():
+            shutil.rmtree(cache, ignore_errors=True)
+            removed += 1
     if shutil.which("uv"):
         run("uv", "cache", "clean", "--force", check=False)
     print(f"Cleaned {removed} cache locations and cleared uv cache.")
+
+
+# GPU image
 
 
 def image_name(args):
@@ -250,106 +237,51 @@ def image_name(args):
     repository = env_values().get("COMPUTE_IMAGE_REPO")
     if not repository or "<" in repository:
         sys.exit("Pass --image or set COMPUTE_IMAGE_REPO in backend/.env")
-    revision = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    revision = output("git", "rev-parse", "--short", "HEAD").strip()
     return f"{repository}:{args.extras or 'fake'}-{revision}"
 
 
+@task("build the GPU image", *IMAGE_ARGUMENTS)
 def compute_image(args):
-    run(
-        "docker",
-        "build",
-        "--platform",
-        "linux/amd64",
-        "-f",
-        str(BACKEND / "docker/compute.Dockerfile"),
-        "--build-arg",
-        f"EXTRAS={args.extras}",
-        "-t",
-        image_name(args),
-        str(ROOT),
-    )
+    dockerfile = str(BACKEND / "docker/compute.Dockerfile")
+    platform = ["--platform", "linux/amd64", "--build-arg", f"EXTRAS={args.extras}"]
+    run("docker", "build", *platform, "-f", dockerfile, "-t", image_name(args), str(ROOT))
 
 
+@task("build and push the GPU image", *IMAGE_ARGUMENTS)
 def push_compute_image(args):
     compute_image(args)
     image = image_name(args)
     run("docker", "push", image)
-    digests = subprocess.run(
-        [
-            "docker",
-            "image",
-            "inspect",
-            "--format",
-            "{{range .RepoDigests}}{{println .}}{{end}}",
-            image,
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
+    template = "{{range .RepoDigests}}{{println .}}{{end}}"
+    digests = output("docker", "image", "inspect", "--format", template, image).split()
     digest = next((d for d in digests if d.startswith(image.rsplit(":", 1)[0] + "@")), "unknown")
     print(f"Pushed {image}\nDigest {digest}")
 
 
+@task(
+    "deploy scene-compute to Modal (built remotely)",
+    (["--variant"], {"default": "fake", "choices": ["fake", "gpu"]}),
+)
 def deploy_modal(args):
-    extras = "" if args.variant == "fake" else args.variant
-    name = "scene-compute" if args.variant == "fake" else f"scene-compute-{args.variant}"
-    run(
-        "uvx",
-        "modal",
-        "deploy",
-        str(BACKEND / "deploy/modal/app.py"),
-        env={"COMPUTE_EXTRAS": extras, "MODAL_APP_NAME": name},
-    )
+    fake = args.variant == "fake"
+    env = {
+        "COMPUTE_EXTRAS": "" if fake else args.variant,
+        "MODAL_APP_NAME": "scene-compute" if fake else f"scene-compute-{args.variant}",
+    }
+    run("uvx", "modal", "deploy", str(BACKEND / "deploy/modal/app.py"), env=env)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name, handler, help_text in [
-        ("init-storage", init_storage, "create the host model cache folder"),
-        ("up", up, "start Postgres, scene-api, scene-worker and frontend"),
-        ("up-local-gpu", up_local_gpu, "also start scene-compute on the local GPU"),
-        ("down", down, "stop the backend, keeping all data"),
-        ("reset", reset, "delete all Scenes and the database, keep model weights"),
-        ("openapi", openapi, "export the API contract to backend/openapi/openapi.json"),
-        ("download-models", download_models, "fetch model weights into the host cache"),
-        ("disk-usage", disk_usage, "show Docker volume and model cache sizes"),
-        ("clean", clean, "remove all caches (Python, uv, frontend .next)"),
-    ]:
-        commands.add_parser(name, help=help_text).set_defaults(handler=handler)
-    # These pass extra arguments through to pytest or ruff.
-    passthrough = {
-        "test": (test, "run every test against a disposable test database (needs Docker)"),
-        "test-unit": (test_unit, "run the tests that need no database or Docker"),
-        "lint": (lint, "check the Python code with Ruff"),
-        "format": (format_code, "format the Python code with Ruff"),
-    }
-    for name, (handler, help_text) in passthrough.items():
-        commands.add_parser(name, help=help_text + "; extra arguments go to the tool").set_defaults(
-            handler=handler
-        )
-    for name, handler, help_text in [
-        ("compute-image", compute_image, "build the GPU image"),
-        ("push-compute-image", push_compute_image, "build and push the GPU image"),
-    ]:
+    for name, (handler, help_text, arguments, _) in TASKS.items():
         command = commands.add_parser(name, help=help_text)
-        command.add_argument("--image")
-        command.add_argument("--extras", default="", choices=["", "gpu"])
+        for flags, options in arguments:
+            command.add_argument(*flags, **options)
         command.set_defaults(handler=handler)
-    modal = commands.add_parser(
-        "deploy-modal", help="deploy scene-compute to Modal (built remotely)"
-    )
-    modal.add_argument("--variant", default="fake", choices=["fake", "gpu"])
-    modal.set_defaults(handler=deploy_modal)
     args, extra = parser.parse_known_args()
-    if extra and args.command not in passthrough:
+    if extra and not TASKS[args.command][3]:
         parser.error(f"unrecognized arguments: {' '.join(extra)}")
     args.extra_args = extra
     args.handler(args)

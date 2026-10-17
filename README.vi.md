@@ -14,7 +14,7 @@ Chạy cục bộ cho một người dùng (single user). Tất cả dịch vụ
 | `scene-api` | `127.0.0.1:8000` | REST + SSE API, tìm kiếm, hỏi đáp (question answering) |
 | `scene-worker` | không có | Thực thi Job trên GPU Target và xuất bản (publish) kết quả |
 | `scene-compute` *(profile `local-gpu`)* | nội bộ 9000 | GPU server trên NVIDIA GPU cục bộ |
-| `web` | `127.0.0.1:3000` | Giao diện Next.js: tải ảnh/video, xem tiến độ, 3D viewer, công cụ đo, hỏi đáp |
+| `frontend` | `127.0.0.1:3000` | Giao diện Next.js: tải ảnh/video, xem tiến độ, 3D viewer, công cụ đo, hỏi đáp |
 
 Lưu trữ: Các Docker volume `scene-data` và `postgres-data` giữ toàn bộ trạng thái hệ thống và sẽ bị xóa khi reset. Trọng số mô hình (model weights) được lưu tạm (cache) tại thư mục host `./models` và được giữ lại khi reset.
 
@@ -56,14 +56,14 @@ Từ thư mục gốc của repository:
 uv run tasks.py up
 ```
 
-Lệnh này sẽ khởi động Postgres, API, worker và giao diện web (`docker compose up -d --build`). Nếu sử dụng GPU cục bộ, hãy dùng `uv run tasks.py up-local-gpu`. Để dừng hệ thống: `uv run tasks.py down`; để xóa toàn bộ Scene và database nhưng vẫn giữ lại model weights: `uv run tasks.py reset`.
+Lệnh này sẽ khởi động Postgres, API, worker và giao diện web từ [compose.yaml](compose.yaml), file Compose duy nhất. Các profile là `backend`, `frontend` và `local-gpu`: `uv run tasks.py up backend` (hoặc `up frontend`) chỉ khởi động một phần. Nếu sử dụng GPU cục bộ, hãy dùng `uv run tasks.py up-local-gpu`. Để dừng hệ thống: `uv run tasks.py down`; để xóa toàn bộ Scene và database nhưng vẫn giữ lại model weights: `uv run tasks.py reset`.
 
 Sau đó mở:
 
 - Giao diện Web: <http://localhost:3000>. Tạo một Scene, tải ảnh hoặc video lên, nhấn Process, sau đó khám phá không gian 3D, đo đạc kích thước và đặt câu hỏi.
 - Tài liệu API (Swagger UI): <http://localhost:8000/docs>.
 
-Xem logs: `docker compose logs -f scene-worker` (hoặc `scene-api`, `web`).
+Xem logs: `docker compose logs -f scene-worker` (hoặc `scene-api`, `frontend`).
 
 Nếu chỉ muốn chạy riêng Frontend kết nối với mock backend (không cần Docker, không cần GPU):
 
@@ -107,7 +107,6 @@ Sau đó cấu hình nhà cung cấp tương ứng ([backend/deploy/](backend/de
 
 | Hiện tượng | Cách xử lý |
 |---|---|
-| `network scene-net declared as external, but could not be found` | Khởi động backend trước, hoặc chạy lệnh `docker network create scene-net` |
 | `could not select device driver "" with capabilities: [[gpu]]` | Cài đặt NVIDIA Container Toolkit, hoặc dùng lệnh `up` thay cho `up-local-gpu` |
 | `SCENE_BUSY` / `SCENE_LOCKED` | Có Job đang chạy, hoặc Scene đã được xử lý xong: hãy đợi hoặc tạo một Scene mới |
 | `COMPUTE_UNAVAILABLE` khi upload hoặc search | GPU Target chưa chạy hoặc URL trong `backend/.env` không còn hiệu lực; hãy sửa lại URL và chạy `uv run tasks.py up` |

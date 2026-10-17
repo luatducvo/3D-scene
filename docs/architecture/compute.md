@@ -96,7 +96,7 @@ provider only needs to mount a folder at `MODELS_DIR` for the weight cache.
 
 | Provider | How it runs the image | Notes |
 |---|---|---|
-| Local GPU | Compose profile `local-gpu` (`uv run tasks.py up-local-gpu`) | Needs the NVIDIA Container Toolkit. No token. |
+| Local GPU | Compose profile `local-gpu` of [compose.yaml](../../compose.yaml) (`uv run tasks.py up-local-gpu`, which also starts the `backend` and `frontend` profiles) | Needs the NVIDIA Container Toolkit. No token. |
 | Vast.ai | Rented machine, SSH launch mode, On-start script starts uvicorn | First provider exercised live. URL changes per rental; SSH tunnel for real captures. [Runbook](../../backend/deploy/vast/README.md) |
 | Google Colab | Notebook runs the server behind a Cloudflare Tunnel | Disposable: a runtime restart loses uploads. [Guide](../../backend/deploy/colab/README.md) |
 | Modal | `Image.from_dockerfile` built remotely, `@modal.web_server` | No registry push. [Guide](../../backend/deploy/modal/README.md) |

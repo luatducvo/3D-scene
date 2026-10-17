@@ -17,7 +17,7 @@ configure. New to the project? Read [docs/architecture/overview.md](docs/archite
 | `scene-api` | `127.0.0.1:8000` | REST + SSE API, search, question answering |
 | `scene-worker` | none | Runs Jobs on the GPU Target and publishes results |
 | `scene-compute` *(profile `local-gpu`)* | internal 9000 | GPU server on a local NVIDIA GPU |
-| `web` | `127.0.0.1:3000` | Next.js UI: upload, progress, 3D viewer, measuring, chat |
+| `frontend` | `127.0.0.1:3000` | Next.js UI: upload, progress, 3D viewer, measuring, chat |
 
 Storage: the `scene-data` and `postgres-data` Docker volumes hold all system state and are removed
 by a reset. Model weights are cached in the host folder `./models`, which a reset keeps.
@@ -63,8 +63,9 @@ From the repository root:
 uv run tasks.py up
 ```
 
-Starts Postgres, the API, the worker and the web UI (`docker compose up -d --build`). With a local
-GPU, use `uv run tasks.py up-local-gpu` instead. Stop with `uv run tasks.py down`; delete every Scene
+Starts Postgres, the API, the worker and the web UI from [compose.yaml](compose.yaml), the one Compose
+file. Its profiles are `backend`, `frontend` and `local-gpu`: `uv run tasks.py up backend` (or
+`up frontend`) starts one part, and with a local GPU use `uv run tasks.py up-local-gpu` instead. Stop with `uv run tasks.py down`; delete every Scene
 and the database while keeping model weights with `uv run tasks.py reset`.
 
 Then open:
@@ -73,7 +74,7 @@ Then open:
   explore, measure and ask questions.
 - API docs: <http://localhost:8000/docs>.
 
-Logs: `docker compose logs -f scene-worker` (or `scene-api`, `web`).
+Logs: `docker compose logs -f scene-worker` (or `scene-api`, `frontend`).
 
 Frontend only, against a mock backend (no Docker, no GPU):
 
@@ -123,7 +124,6 @@ Then configure the provider ([backend/deploy/](backend/deploy/)) and set `GPU_TA
 
 | Symptom | Fix |
 |---|---|
-| `network scene-net declared as external, but could not be found` | Start the backend first, or `docker network create scene-net` |
 | `could not select device driver "" with capabilities: [[gpu]]` | Install the NVIDIA Container Toolkit, or use `up` instead of `up-local-gpu` |
 | `SCENE_BUSY` / `SCENE_LOCKED` | A Job is running, or the Scene was already processed: wait, or create a new Scene |
 | `COMPUTE_UNAVAILABLE` on upload or search | The GPU Target is not running or its URL in `backend/.env` is stale; fix it and run `uv run tasks.py up` |

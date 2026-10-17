@@ -21,7 +21,7 @@ Domain terms (**Scene**, **Stage**, **Target**, ...) are defined in [CONTEXT.md]
 
 ```mermaid
 flowchart LR
-  WEB[web<br/>Next.js] -->|REST + SSE /api/v1| API[scene-api<br/>FastAPI]
+  WEB[frontend<br/>Next.js] -->|REST + SSE /api/v1| API[scene-api<br/>FastAPI]
   API --> PG[(postgres + pgvector<br/>scenes · jobs · stage_runs<br/>scene_events · objects)]
   WK[scene-worker<br/>Job runner] --> PG
   API -->|uploads, query embedding| CMP
@@ -32,7 +32,7 @@ flowchart LR
 
 | Service | Code | Role |
 |---|---|---|
-| `web` | [frontend/](../../frontend/) | Upload, live progress, 3D viewer, search, measuring, chat. Talks only to `scene-api`. |
+| `frontend` | [frontend/](../../frontend/) | Upload, live progress, 3D viewer, search, measuring, chat. Talks only to `scene-api`. |
 | `scene-api` | [scene_api/main.py](../../backend/services/scene-api/src/scene_api/main.py) | REST + SSE, Scene lifecycle rules, search, QA agent ([qa.py](../../backend/services/scene-api/src/scene_api/qa.py)). |
 | `scene-worker` | [scene_worker/runner.py](../../backend/services/scene-worker/src/scene_worker/runner.py) | Claims Jobs from Postgres, runs Stages on the Target, fetches results, publishes. |
 | `scene-compute` | [scene_compute/server.py](../../backend/services/scene-compute/src/scene_compute/server.py) | The portable GPU server: one Docker image, one HTTP contract, any provider. |
@@ -45,7 +45,7 @@ database directly; every file URL it uses comes from the API.
 
 ```mermaid
 sequenceDiagram
-  participant W as web
+  participant W as frontend
   participant A as scene-api
   participant P as postgres
   participant K as scene-worker
@@ -109,13 +109,14 @@ scene-api · scene-worker · scene-compute     runtimes and adapters
 
 ## Configuration
 
-Three files decide what runs where; changing provider or method is a configuration change.
+Four files decide what runs where; changing provider or method is a configuration change.
 
 | File | Decides |
 |---|---|
 | [backend/config/pipeline.yaml](../../backend/config/pipeline.yaml) | Algorithm, Target and parameters per Stage (real models). [pipeline.fake.yaml](../../backend/config/pipeline.fake.yaml) runs fakes in-process; [pipeline.fake-gpu.yaml](../../backend/config/pipeline.fake-gpu.yaml) runs fakes on a remote Target. |
 | [backend/config/compute.yaml](../../backend/config/compute.yaml) | The named Targets (`cpu`, `local_gpu`, `vast`, `colab`, `modal`, ...) and how to reach them. |
 | [backend/.env.example](../../backend/.env.example) | `PIPELINE_CONFIG`, `GPU_TARGET`, Target URLs, `COMPUTE_TOKEN`, LLM endpoint. Copied to `backend/.env`. |
+| [compose.yaml](../../compose.yaml) | The one Compose file: every service, grouped into the profiles `backend`, `frontend` and `local-gpu` that `tasks.py up` starts. |
 
 No GPU provider is the default: `GPU_TARGET` must name a Target, or the worker refuses to start.
 

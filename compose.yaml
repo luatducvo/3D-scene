@@ -1,15 +1,10 @@
-# Root Compose file to run the entire 3D Scene system (Backend + Frontend)
-# Usage:
-#   docker compose up -d --build
-#
-# With local GPU compute server:
-#   docker compose --profile local-gpu up -d --build
-#
-# To stop:
-#   docker compose down
+# The one Compose file for the whole system; run it through `uv run tasks.py up` (see --help).
+# Profiles: backend (postgres, scene-api, scene-worker), frontend, local-gpu (scene-compute).
+name: scene
 
 services:
   postgres:
+    profiles: [backend]
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-scene}
@@ -24,6 +19,7 @@ services:
       retries: 10
 
   scene-api:
+    profiles: [backend]
     build:
       context: .
       dockerfile: backend/docker/python.Dockerfile
@@ -42,6 +38,7 @@ services:
         condition: service_healthy
 
   scene-worker:
+    profiles: [backend]
     build:
       context: .
       dockerfile: backend/docker/python.Dockerfile
@@ -59,8 +56,7 @@ services:
         condition: service_healthy
 
   scene-compute:
-    profiles:
-      - local-gpu
+    profiles: [local-gpu]
     build:
       context: .
       dockerfile: backend/docker/compute.Dockerfile
@@ -86,7 +82,9 @@ services:
               count: all
               capabilities: [gpu]
 
+  # No depends_on, so the frontend profile runs alone; it reaches scene-api only per request.
   frontend:
+    profiles: [frontend]
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -99,12 +97,10 @@ services:
       API_INTERNAL_URL: ${API_INTERNAL_URL:-http://scene-api:8000}
     ports:
       - "127.0.0.1:3000:3000"
-    depends_on:
-      - scene-api
 
 volumes:
-  scene-data:
-  postgres-data:
+  scene-data:        # uploads, stage outputs, Compute Run records; removed by `reset`
+  postgres-data:     # database; removed by `reset`
 
 networks:
   default:
