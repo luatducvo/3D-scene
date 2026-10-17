@@ -14,17 +14,17 @@ the Hugging Face account to have accepted its gated access terms.
 
 ## Deploy and connect
 
-From the repository root, run `uv run tasks.py deploy-modal`. Modal prints the deployed URL. The deployment
+From the repository root, run `uv run main.py deploy-modal`. Modal prints the deployed URL. The deployment
 uploads source and builds `backend/docker/compute.Dockerfile` remotely using the repository root
 as build context; it does not require uploading a locally built CUDA image.
 
 Set `MODAL_COMPUTE_URL` to the printed URL and `COMPUTE_TOKEN` locally. Select
 `config/pipeline.fake-gpu.yaml` as `PIPELINE_CONFIG` and `config/compute.yaml` as `COMPUTE_CONFIG`,
-set `GPU_TARGET=modal`, then run `uv run tasks.py up`. Every GPU Stage of the fake pipeline
+set `GPU_TARGET=modal`, then run `uv run main.py up`. Every GPU Stage of the fake pipeline
 uses `GPU_TARGET`. The default image contains fakes only.
 
 The real pipeline uses the GPU image, which holds every GPU Algorithm:
-`uv run tasks.py deploy-modal --variant gpu` deploys it as the Modal app `scene-compute-gpu`.
+`uv run main.py deploy-modal --variant gpu` deploys it as the Modal app `scene-compute-gpu`.
 Set `MODAL_COMPUTE_URL` to the printed URL, select `config/pipeline.yaml` and keep
 `GPU_TARGET=modal`. Choose a GPU with at least 48 GB of VRAM, because every model stays loaded
 ([compute.md](../../../docs/architecture/compute.md#the-gpu-image)).

@@ -25,7 +25,7 @@ by a reset. Model weights are cached in the host folder `./models`, which a rese
 ## Prerequisites
 
 - Docker Engine 24+ with Compose v2.
-- [uv](https://github.com/astral-sh/uv) for the task runner and Python tooling.
+- [uv](https://github.com/astral-sh/uv) for the project commands and Python tooling.
 - A GPU Target: a remote host (Vast.ai, Colab, Modal, RunPod, any Docker host) or a local NVIDIA GPU
   with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
   The real pipeline needs at least 48 GB of VRAM. The fake pipeline needs no GPU.
@@ -60,13 +60,13 @@ over the `scene-net` network) and `NEXT_PUBLIC_API_MODE` (`http` or `mock`).
 From the repository root:
 
 ```bash
-uv run tasks.py up
+uv run main.py up
 ```
 
 Starts Postgres, the API, the worker and the web UI from [compose.yaml](compose.yaml), the one Compose
-file. Its profiles are `backend`, `frontend` and `local-gpu`: `uv run tasks.py up backend` (or
-`up frontend`) starts one part, and with a local GPU use `uv run tasks.py up-local-gpu` instead. Stop with `uv run tasks.py down`; delete every Scene
-and the database while keeping model weights with `uv run tasks.py reset`.
+file. Its profiles are `backend`, `frontend` and `local-gpu`: `uv run main.py up backend` (or
+`up frontend`) starts one part, and with a local GPU use `uv run main.py up-local-gpu` instead. Stop with `uv run main.py down`; delete every Scene
+and the database while keeping model weights with `uv run main.py reset`.
 
 Then open:
 
@@ -84,18 +84,18 @@ npm ci
 NEXT_PUBLIC_API_MODE=mock npm run dev
 ```
 
-## Tasks
+## Commands
 
-`uv run tasks.py --help` lists every task. The common ones:
+`uv run main.py --help` lists every command. The common ones:
 
-| Task | Command |
+| Purpose | Command |
 |---|---|
-| Run the backend tests (disposable test database) | `uv run tasks.py test` |
-| Export the API contract | `uv run tasks.py openapi`, then `cd frontend && npm run api:sync` |
-| Download model weights into `./models` | `uv run tasks.py download-models` |
-| Show volume and model cache sizes | `uv run tasks.py disk-usage` |
-| Build / push the GPU image | `uv run tasks.py compute-image` / `push-compute-image` |
-| Deploy to Modal (built remotely) | `uv run tasks.py deploy-modal` |
+| Run the backend tests (disposable test database) | `uv run main.py test` |
+| Export the API contract | `uv run main.py openapi`, then `cd frontend && npm run api:sync` |
+| Download model weights into `./models` | `uv run main.py download-models` |
+| Show volume and model cache sizes | `uv run main.py disk-usage` |
+| Build / push the GPU image | `uv run main.py compute-image` / `push-compute-image` |
+| Deploy to Modal (built remotely) | `uv run main.py deploy-modal` |
 
 ## Build and push the GPU image
 
@@ -111,7 +111,7 @@ it itself. Two variants:
    access token.
 2. Set `COMPUTE_IMAGE_REPO=<user>/scene-compute` in `backend/.env`.
 3. Commit first: the tag comes from `HEAD`, but the build context is the working tree.
-4. Run `uv run tasks.py push-compute-image --extras gpu` (or without `--extras` for the fake image).
+4. Run `uv run main.py push-compute-image --extras gpu` (or without `--extras` for the fake image).
    It builds for `linux/amd64` (no GPU needed on the build machine), pushes, and prints the tag and
    digest. Use the tag or digest, never `latest`, and record the digest with the live check in
    [GPU-INTEGRATION.md](docs/GPU-INTEGRATION.md).
@@ -126,10 +126,10 @@ Then configure the provider ([backend/deploy/](backend/deploy/)) and set `GPU_TA
 |---|---|
 | `could not select device driver "" with capabilities: [[gpu]]` | Install the NVIDIA Container Toolkit, or use `up` instead of `up-local-gpu` |
 | `SCENE_BUSY` / `SCENE_LOCKED` | A Job is running, or the Scene was already processed: wait, or create a new Scene |
-| `COMPUTE_UNAVAILABLE` on upload or search | The GPU Target is not running or its URL in `backend/.env` is stale; fix it and run `uv run tasks.py up` |
+| `COMPUTE_UNAVAILABLE` on upload or search | The GPU Target is not running or its URL in `backend/.env` is stale; fix it and run `uv run main.py up` |
 | `Pass --image or set COMPUTE_IMAGE_REPO` | Set `COMPUTE_IMAGE_REPO` in `backend/.env` or pass `--image` |
 | `denied: requested access to the resource is denied` on push | `docker login` again with a read/write token; the tag must start with your user name |
-| Edits to `pipeline.yaml`, `compute.yaml` or `.env` have no effect | The worker reads them at startup: `uv run tasks.py up` recreates the containers |
+| Edits to `pipeline.yaml`, `compute.yaml` or `.env` have no effect | The worker reads them at startup: `uv run main.py up` recreates the containers |
 
 ## Documentation
 

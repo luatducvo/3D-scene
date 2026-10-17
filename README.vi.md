@@ -21,7 +21,7 @@ Lưu trữ: Các Docker volume `scene-data` và `postgres-data` giữ toàn bộ
 ## Yêu cầu môi trường (Prerequisites)
 
 - Docker Engine 24+ đi kèm Compose v2.
-- [uv](https://github.com/astral-sh/uv) để chạy task runner và các công cụ Python.
+- [uv](https://github.com/astral-sh/uv) để chạy các lệnh của dự án và các công cụ Python.
 - Một GPU Target: host từ xa (Vast.ai, Colab, Modal, RunPod, hoặc bất kỳ máy Docker nào) hoặc NVIDIA GPU cục bộ có cài [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html). Pipeline thực tế cần tối thiểu 48 GB VRAM. Pipeline giả lập (fake pipeline) không cần GPU.
 - Node.js 20+ và npm, chỉ cần khi chạy riêng frontend bên ngoài Docker.
 
@@ -53,10 +53,10 @@ Các biến môi trường chính trong `backend/.env` (file example có chú th
 Từ thư mục gốc của repository:
 
 ```bash
-uv run tasks.py up
+uv run main.py up
 ```
 
-Lệnh này sẽ khởi động Postgres, API, worker và giao diện web từ [compose.yaml](compose.yaml), file Compose duy nhất. Các profile là `backend`, `frontend` và `local-gpu`: `uv run tasks.py up backend` (hoặc `up frontend`) chỉ khởi động một phần. Nếu sử dụng GPU cục bộ, hãy dùng `uv run tasks.py up-local-gpu`. Để dừng hệ thống: `uv run tasks.py down`; để xóa toàn bộ Scene và database nhưng vẫn giữ lại model weights: `uv run tasks.py reset`.
+Lệnh này sẽ khởi động Postgres, API, worker và giao diện web từ [compose.yaml](compose.yaml), file Compose duy nhất. Các profile là `backend`, `frontend` và `local-gpu`: `uv run main.py up backend` (hoặc `up frontend`) chỉ khởi động một phần. Nếu sử dụng GPU cục bộ, hãy dùng `uv run main.py up-local-gpu`. Để dừng hệ thống: `uv run main.py down`; để xóa toàn bộ Scene và database nhưng vẫn giữ lại model weights: `uv run main.py reset`.
 
 Sau đó mở:
 
@@ -73,18 +73,18 @@ npm ci
 NEXT_PUBLIC_API_MODE=mock npm run dev
 ```
 
-## Các lệnh công việc (Tasks)
+## Các lệnh (Commands)
 
-Chạy `uv run tasks.py --help` để xem danh sách đầy đủ. Các lệnh thường dùng:
+Chạy `uv run main.py --help` để xem danh sách đầy đủ. Các lệnh thường dùng:
 
-| Tác vụ | Lệnh |
+| Mục đích | Lệnh |
 |---|---|
-| Chạy kiểm thử backend (database kiểm thử dùng một lần) | `uv run tasks.py test` |
-| Xuất hợp đồng API (OpenAPI) | `uv run tasks.py openapi`, sau đó `cd frontend && npm run api:sync` |
-| Tải trọng số mô hình vào `./models` | `uv run tasks.py download-models` |
-| Xem dung lượng volume và bộ nhớ đệm mô hình | `uv run tasks.py disk-usage` |
-| Build / push GPU image | `uv run tasks.py compute-image` / `push-compute-image` |
-| Triển khai lên Modal (build từ xa) | `uv run tasks.py deploy-modal` |
+| Chạy kiểm thử backend (database kiểm thử dùng một lần) | `uv run main.py test` |
+| Xuất hợp đồng API (OpenAPI) | `uv run main.py openapi`, sau đó `cd frontend && npm run api:sync` |
+| Tải trọng số mô hình vào `./models` | `uv run main.py download-models` |
+| Xem dung lượng volume và bộ nhớ đệm mô hình | `uv run main.py disk-usage` |
+| Build / push GPU image | `uv run main.py compute-image` / `push-compute-image` |
+| Triển khai lên Modal (build từ xa) | `uv run main.py deploy-modal` |
 
 ## Build và push GPU image
 
@@ -98,7 +98,7 @@ Vast.ai, RunPod và các Docker host thông thường sẽ pull image `scene-com
 1. Tạo một repository trên Docker Hub (chọn public nếu dùng Vast.ai) và đăng nhập `docker login -u <user>` bằng personal access token.
 2. Thiết lập `COMPUTE_IMAGE_REPO=<user>/scene-compute` trong `backend/.env`.
 3. Commit mã nguồn trước: tag được lấy từ commit `HEAD`, nhưng build context là working tree hiện tại.
-4. Chạy `uv run tasks.py push-compute-image --extras gpu` (hoặc bỏ `--extras` nếu chỉ build bản fake). Quá trình sẽ build cho nền tảng `linux/amd64` (máy build không cần GPU), push lên hub và in ra tag cùng digest. Luôn sử dụng tag hoặc digest cụ thể, không dùng `latest`, và ghi lại digest vào nhật ký kiểm tra trực tiếp trong [docs/GPU-INTEGRATION.md](docs/GPU-INTEGRATION.md).
+4. Chạy `uv run main.py push-compute-image --extras gpu` (hoặc bỏ `--extras` nếu chỉ build bản fake). Quá trình sẽ build cho nền tảng `linux/amd64` (máy build không cần GPU), push lên hub và in ra tag cùng digest. Luôn sử dụng tag hoặc digest cụ thể, không dùng `latest`, và ghi lại digest vào nhật ký kiểm tra trực tiếp trong [docs/GPU-INTEGRATION.md](docs/GPU-INTEGRATION.md).
 5. Kiểm tra image trên máy có GPU: `docker run --rm --gpus all -p 127.0.0.1:9000:9000 <image>`, sau đó mở `http://localhost:9000/ping` và `/info`.
 
 Sau đó cấu hình nhà cung cấp tương ứng ([backend/deploy/](backend/deploy/)) và đặt biến `GPU_TARGET`.
@@ -109,10 +109,10 @@ Sau đó cấu hình nhà cung cấp tương ứng ([backend/deploy/](backend/de
 |---|---|
 | `could not select device driver "" with capabilities: [[gpu]]` | Cài đặt NVIDIA Container Toolkit, hoặc dùng lệnh `up` thay cho `up-local-gpu` |
 | `SCENE_BUSY` / `SCENE_LOCKED` | Có Job đang chạy, hoặc Scene đã được xử lý xong: hãy đợi hoặc tạo một Scene mới |
-| `COMPUTE_UNAVAILABLE` khi upload hoặc search | GPU Target chưa chạy hoặc URL trong `backend/.env` không còn hiệu lực; hãy sửa lại URL và chạy `uv run tasks.py up` |
+| `COMPUTE_UNAVAILABLE` khi upload hoặc search | GPU Target chưa chạy hoặc URL trong `backend/.env` không còn hiệu lực; hãy sửa lại URL và chạy `uv run main.py up` |
 | `Pass --image or set COMPUTE_IMAGE_REPO` | Điền `COMPUTE_IMAGE_REPO` vào `backend/.env` hoặc truyền cờ `--image` |
 | `denied: requested access to the resource is denied` khi push | Chạy lại `docker login` với token có quyền đọc/ghi (read/write); tag phải bắt đầu bằng username của bạn |
-| Thay đổi `pipeline.yaml`, `compute.yaml` hoặc `.env` nhưng không có tác dụng | Worker chỉ đọc cấu hình khi khởi động: chạy `uv run tasks.py up` để tạo lại các container |
+| Thay đổi `pipeline.yaml`, `compute.yaml` hoặc `.env` nhưng không có tác dụng | Worker chỉ đọc cấu hình khi khởi động: chạy `uv run main.py up` để tạo lại các container |
 
 ## Tài liệu tham khảo (Documentation)
 

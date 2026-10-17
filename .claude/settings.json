@@ -3,9 +3,9 @@
   "enabledMcpjsonServers": ["colab-mcp"],
   "permissions": {
     "allow": [
-      "Bash(uv run tasks.py --help)",
-      "Bash(uv run tasks.py test *)",
-      "Bash(uv run tasks.py openapi)",
+      "Bash(uv run main.py --help)",
+      "Bash(uv run main.py test *)",
+      "Bash(uv run main.py openapi)",
       "Bash(npm run typecheck)",
       "Bash(npm test)",
       "Bash(npm run build)",

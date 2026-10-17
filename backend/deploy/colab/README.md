@@ -46,7 +46,7 @@ PIPELINE_CONFIG=/app/backend/config/pipeline.fake-gpu.yaml   # first, to test th
 # PIPELINE_CONFIG=/app/backend/config/pipeline.yaml          # then, real models
 ```
 
-Then run `uv run tasks.py up` so the worker reads the new values.
+Then run `uv run main.py up` so the worker reads the new values.
 
 ## Smoke test
 
@@ -69,6 +69,6 @@ from <http://localhost:3000>.
   deletes uploads and intermediate outputs: create a new Scene and upload again. Already processed
   Scenes stay viewable locally; search needs the server running.
 - **New URL per tunnel.** Each run of step 6 prints a new URL: update `COLAB_URL` and run
-  `uv run tasks.py up` again.
+  `uv run main.py up` again.
 
 Record live results in [GPU-INTEGRATION.md](../../../docs/GPU-INTEGRATION.md#live-check-log).

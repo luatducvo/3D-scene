@@ -7,7 +7,7 @@ How a Job turns uploads into a published Scene Graph. Read [overview.md](overvie
 Every Stage method is a `StageAlgorithm` ([scene_core/ports.py](../../backend/packages/scene-core/src/scene_core/ports.py)):
 a class with a registry `name` (`recon.da3`), the `stage` it serves, the Workspace folders it
 `reads` and `writes`, and a `run(workspace, params)` that returns that Stage's Manifest. Optional
-hooks: `download_weights()` (used by `tasks.py download-models`), `setup()` (load models once per
+hooks: `download_weights()` (used by `main.py download-models`), `setup()` (load models once per
 process) and `progress(done, total, unit)` (reported to the UI; a no-op unless the Executor
 attached a sink).
 

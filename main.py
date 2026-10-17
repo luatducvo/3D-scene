@@ -1,4 +1,4 @@
-"""Cross-platform project tasks (stdlib only). Run `uv run tasks.py --help` from the repository root."""
+"""Cross-platform project commands (stdlib only), not an app entrypoint. Run `uv run main.py --help` from the repository root."""
 
 import argparse
 import os
@@ -19,14 +19,14 @@ TEST_DATABASE_URL = f"postgresql://scene:scene@127.0.0.1:{TEST_DB_PORT}/scene"
 PARTS = ("backend", "frontend")
 PROFILES = (*PARTS, "local-gpu")
 
-TASKS = {}
+COMMANDS = {}
 
 
-def task(help_text, *arguments, name=None, passthrough=False):
-    """Registers a task under its function's name; `arguments` are (flags, options) for argparse."""
+def command(help_text, *arguments, name=None, passthrough=False):
+    """Registers a command under its function's name; `arguments` are (flags, options) for argparse."""
 
     def register(handler):
-        TASKS[name or handler.__name__.replace("_", "-")] = (
+        COMMANDS[name or handler.__name__.replace("_", "-")] = (
             handler,
             help_text + ("; extra arguments go to the tool" if passthrough else ""),
             arguments,
@@ -43,13 +43,13 @@ IMAGE_ARGUMENTS = ((["--image"], {}), (["--extras"], {"default": "", "choices": 
 # Processes
 
 
-def run(*command, env=None, check=True):
-    print("+", " ".join(command), flush=True)
-    return subprocess.run(command, cwd=ROOT, env={**os.environ, **(env or {})}, check=check)
+def run(*argv, env=None, check=True):
+    print("+", " ".join(argv), flush=True)
+    return subprocess.run(argv, cwd=ROOT, env={**os.environ, **(env or {})}, check=check)
 
 
-def output(*command):
-    return subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=True).stdout
+def output(*argv):
+    return subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, check=True).stdout
 
 
 def python(*arguments, env=None, check=True):
@@ -85,7 +85,7 @@ def require_docker():
     if not running:
         sys.exit(
             "Docker is not running. Start Docker Desktop (or the Docker daemon) and try again; "
-            "`uv run tasks.py test-unit` runs the tests that need no database."
+            "`uv run main.py test-unit` runs the tests that need no database."
         )
 
 
@@ -96,14 +96,14 @@ def models_dir():
 # Stack
 
 
-@task("create the host model cache folder")
+@command("create the host model cache folder")
 def init_storage(_=None):
     folder = models_dir()
     folder.mkdir(parents=True, exist_ok=True)
     print(f"Model cache: {folder}")
 
 
-@task(
+@command(
     "start the backend (Postgres, scene-api, scene-worker) and the frontend",
     (["parts"], {"nargs": "*", "choices": PARTS, "help": "start only these profiles"}),
 )
@@ -112,30 +112,30 @@ def up(args):
     compose("up", "-d", "--build", profiles=args.parts or PARTS)
 
 
-@task("also start scene-compute on the local GPU")
+@command("also start scene-compute on the local GPU")
 def up_local_gpu(_):
     init_storage()
     compose("up", "-d", "--build")
 
 
-@task("stop every service, keeping all data")
+@command("stop every service, keeping all data")
 def down(_):
     compose("down")
 
 
-@task("delete all Scenes and the database, keep model weights")
+@command("delete all Scenes and the database, keep model weights")
 def reset(_):
     compose("down", "-v")
 
 
-@task("fetch model weights into the host cache")
+@command("fetch model weights into the host cache")
 def download_models(_):
     init_storage()
     module = ["python", "-m", "scene_compute.download_models"]
     compose("run", "--rm", "scene-compute", *module, profiles=["local-gpu"])
 
 
-@task("show Docker volume and model cache sizes")
+@command("show Docker volume and model cache sizes")
 def disk_usage(_):
     run("docker", "system", "df", "-v", check=False)
     folder = models_dir()
@@ -172,38 +172,38 @@ def pytest(*arguments, env=None):
     python("pytest", "-p", "no:cacheprovider", f"--basetemp={basetemp}", *arguments, env=env)
 
 
-def ruff(command, arguments):
+def ruff(subcommand, arguments):
     # Findings are the output, not a crash: exit with Ruff's status and no traceback.
-    sys.exit(python("ruff", command, "backend", "tasks.py", *arguments, check=False).returncode)
+    sys.exit(python("ruff", subcommand, "backend", "main.py", *arguments, check=False).returncode)
 
 
-@task("run every test against a disposable test database (needs Docker)", passthrough=True)
+@command("run every test against a disposable test database (needs Docker)", passthrough=True)
 def test(args):
     ensure_test_database()
     pytest(*args.extra_args, env={"TEST_DATABASE_URL": TEST_DATABASE_URL})
 
 
-@task("run the tests that need no database or Docker", passthrough=True)
+@command("run the tests that need no database or Docker", passthrough=True)
 def test_unit(args):
     pytest("-m", "not db", *args.extra_args)
 
 
-@task("check the Python code with Ruff", passthrough=True)
+@command("check the Python code with Ruff", passthrough=True)
 def lint(args):
     ruff("check", args.extra_args)
 
 
-@task("format the Python code with Ruff", name="format", passthrough=True)
+@command("format the Python code with Ruff", name="format", passthrough=True)
 def format_code(args):
     ruff("format", args.extra_args)
 
 
-@task("export the API contract to backend/openapi/openapi.json")
+@command("export the API contract to backend/openapi/openapi.json")
 def openapi(_):
     python("scene_api.export_openapi", env={"DATABASE_URL": "postgresql://unused@localhost/unused"})
 
 
-@task("remove all caches (Python, uv, frontend .next)")
+@command("remove all caches (Python, uv, frontend .next)")
 def clean(_):
     skip = {".venv", "venv", "node_modules", ".git"}
     caches = {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".cache"}
@@ -241,14 +241,14 @@ def image_name(args):
     return f"{repository}:{args.extras or 'fake'}-{revision}"
 
 
-@task("build the GPU image", *IMAGE_ARGUMENTS)
+@command("build the GPU image", *IMAGE_ARGUMENTS)
 def compute_image(args):
     dockerfile = str(BACKEND / "docker/compute.Dockerfile")
     platform = ["--platform", "linux/amd64", "--build-arg", f"EXTRAS={args.extras}"]
     run("docker", "build", *platform, "-f", dockerfile, "-t", image_name(args), str(ROOT))
 
 
-@task("build and push the GPU image", *IMAGE_ARGUMENTS)
+@command("build and push the GPU image", *IMAGE_ARGUMENTS)
 def push_compute_image(args):
     compute_image(args)
     image = image_name(args)
@@ -259,7 +259,7 @@ def push_compute_image(args):
     print(f"Pushed {image}\nDigest {digest}")
 
 
-@task(
+@command(
     "deploy scene-compute to Modal (built remotely)",
     (["--variant"], {"default": "fake", "choices": ["fake", "gpu"]}),
 )
@@ -274,14 +274,14 @@ def deploy_modal(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
-    for name, (handler, help_text, arguments, _) in TASKS.items():
-        command = commands.add_parser(name, help=help_text)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    for name, (handler, help_text, arguments, _) in COMMANDS.items():
+        subparser = subparsers.add_parser(name, help=help_text)
         for flags, options in arguments:
-            command.add_argument(*flags, **options)
-        command.set_defaults(handler=handler)
+            subparser.add_argument(*flags, **options)
+        subparser.set_defaults(handler=handler)
     args, extra = parser.parse_known_args()
-    if extra and not TASKS[args.command][3]:
+    if extra and not COMMANDS[args.command][3]:
         parser.error(f"unrecognized arguments: {' '.join(extra)}")
     args.extra_args = extra
     args.handler(args)

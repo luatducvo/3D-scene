@@ -1,7 +1,7 @@
 # Working in this repository
 
 Photos of a room become a metric 3D Scene with Objects, a Scene Graph and grounded question
-answering. The backend is one uv workspace: `pyproject.toml`, `uv.lock` and `tasks.py` sit at the
+answering. The backend is one uv workspace: `pyproject.toml`, `uv.lock` and `main.py` sit at the
 repository root, code under `backend/`. The frontend is a Next.js app in `frontend/`.
 
 ## Read before you work
@@ -22,7 +22,7 @@ repository root, code under `backend/`. The frontend is a Next.js app in `fronte
 
 ## Commands
 
-`uv run tasks.py --help` from the repository root lists every task. `uv run tasks.py test` runs
+`uv run main.py --help` from the repository root lists every command. `uv run main.py test` runs
 pytest against a disposable Postgres container, so Docker must be running; `test-unit` runs the
 tests without the `db` marker and needs no Docker. `lint` and `format` run Ruff with the rules in
 `pyproject.toml`. Extra arguments go to pytest or Ruff. The `backend-api` and `backend-worker`
@@ -34,7 +34,7 @@ entries in `.claude/launch.json` run the fake pipeline on the test database that
 - Test through the agreed seams in SPEC with fake Algorithms (`*.fake`) and `ScriptedLLM`; automated
   tests never need a GPU. Record live GPU checks in the GPU-INTEGRATION live check log, separately
   from local test results.
-- After changing API routes or models, run `uv run tasks.py openapi`, then `npm run api:sync` in
+- After changing API routes or models, run `uv run main.py openapi`, then `npm run api:sync` in
   `frontend/`. `frontend/src/lib/api/schema.d.ts` is generated.
 - Repository text is English (code, comments, logs, API messages, docs); only
   `frontend/messages/*.json` is localized.

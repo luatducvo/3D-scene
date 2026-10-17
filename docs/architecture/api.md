@@ -7,7 +7,7 @@ models are in [models.py](../../backend/services/scene-api/src/scene_api/models.
 ## Contract rules
 
 - Everything is under `/api/v1`. Swagger UI runs at `http://localhost:8000/docs`.
-- **OpenAPI is the source of truth.** `uv run tasks.py openapi` writes
+- **OpenAPI is the source of truth.** `uv run main.py openapi` writes
   [backend/openapi/openapi.json](../../backend/openapi/openapi.json) from the pydantic models; it is
   committed. The frontend copies it and generates its types with `npm run api:sync`.
 - Errors are `{"error": {"code", "message"}}` with a matching HTTP status and an UPPER_SNAKE_CASE

@@ -102,7 +102,7 @@ fails instead of silently selecting a different configuration.
 
 | Provider | How it runs the image | Notes |
 |---|---|---|
-| Local GPU | Compose profile `local-gpu` of [compose.yaml](../../compose.yaml) (`uv run tasks.py up-local-gpu`, which also starts the `backend` and `frontend` profiles) | Needs the NVIDIA Container Toolkit. No token. |
+| Local GPU | Compose profile `local-gpu` of [compose.yaml](../../compose.yaml) (`uv run main.py up-local-gpu`, which also starts the `backend` and `frontend` profiles) | Needs the NVIDIA Container Toolkit. No token. |
 | Vast.ai | Rented machine, SSH launch mode, On-start script starts uvicorn | First provider exercised live. URL changes per rental; SSH tunnel for real captures. [Runbook](../../backend/deploy/vast/README.md) |
 | Google Colab | Notebook runs the server behind a Cloudflare Tunnel | Disposable: a runtime restart loses uploads. [Guide](../../backend/deploy/colab/README.md) |
 | Modal | `Image.from_dockerfile` built remotely, `@modal.web_server` | No registry push. [Guide](../../backend/deploy/modal/README.md) |
@@ -118,7 +118,7 @@ go in [GPU-INTEGRATION.md](../GPU-INTEGRATION.md#live-check-log).
 `EXTRAS` gives the light **fake** image (contract fakes, for testing a provider connection);
 `EXTRAS=gpu` gives the **gpu** image with every real Algorithm (the `gpu` extra in
 [scene-compute/pyproject.toml](../../backend/services/scene-compute/pyproject.toml), which also pins
-Torch for xformers). Build and push with `uv run tasks.py push-compute-image [--extras gpu]`; tags are
+Torch for xformers). Build and push with `uv run main.py push-compute-image [--extras gpu]`; tags are
 `{fake|gpu}-<git short sha>` under `COMPUTE_IMAGE_REPO`.
 
 The Executor keeps every loaded model in VRAM, so a GPU Target needs at least 48 GB; more than

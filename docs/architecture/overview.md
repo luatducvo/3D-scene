@@ -116,13 +116,13 @@ Four files decide what runs where; changing provider or method is a configuratio
 | [backend/config/pipeline.yaml](../../backend/config/pipeline.yaml) | Algorithm, Target and parameters per Stage (real models). [pipeline.fake.yaml](../../backend/config/pipeline.fake.yaml) runs fakes in-process; [pipeline.fake-gpu.yaml](../../backend/config/pipeline.fake-gpu.yaml) runs fakes on a remote Target. |
 | [backend/config/compute.yaml](../../backend/config/compute.yaml) | The named Targets (`cpu`, `local_gpu`, `vast`, `colab`, `modal`, ...) and how to reach them. |
 | [backend/.env.example](../../backend/.env.example) | `PIPELINE_CONFIG`, `GPU_TARGET`, Target URLs, `COMPUTE_TOKEN`, LLM endpoint. Copied to `backend/.env`. |
-| [compose.yaml](../../compose.yaml) | The one Compose file: every service, grouped into the profiles `backend`, `frontend` and `local-gpu` that `tasks.py up` starts. |
+| [compose.yaml](../../compose.yaml) | The one Compose file: every service, grouped into the profiles `backend`, `frontend` and `local-gpu` that `main.py up` starts. |
 
 No GPU provider is the default: `GPU_TARGET` must name a Target, or the worker refuses to start.
 
 ## Where data lives
 
-| Data | Location | Survives `tasks.py reset`? |
+| Data | Location | Survives `main.py reset`? |
 |---|---|---|
 | Uploads and intermediate Stage outputs | The Target's disk (`DATA_DIR/scenes/{id}/`) | No (and lost when a rented GPU host is destroyed) |
 | Published results (`graph/`, `embeddings/`, `mesh/`, `recon/rgb/`) | `scene-data` volume, `/data/scenes/{id}/{job id}/` ([ADR-0006](../adr/0006-versioned-publication.md)) | No |
@@ -141,9 +141,6 @@ The frontend stores nothing.
 - Learning project: no fallbacks when a component fails, no benchmarks.
 
 ## Where to go next
-
-The [SOLID review and cleanup record](solid-review.md) describes current interface strengths,
-remaining inline findings and the obsolete paths removed on 2026-10-17.
 
 | You are working on | Read |
 |---|---|

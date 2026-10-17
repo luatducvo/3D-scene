@@ -15,8 +15,8 @@ Create a public Docker Hub repository, run `docker login`, and set
 `COMPUTE_IMAGE_REPO=<dockerhub-user>/scene-compute` in `backend/.env`. From the repository root:
 
 ```bash
-uv run tasks.py push-compute-image
-uv run tasks.py push-compute-image --extras gpu
+uv run main.py push-compute-image
+uv run main.py push-compute-image --extras gpu
 ```
 
 Tags are `fake-<sha>` and `gpu-<sha>` for the current commit; each push prints the digest to record
@@ -90,7 +90,7 @@ The worker reads Targets once at startup and refuses to start when a selected Ta
 has no URL. After every edit, recreate the containers so they see the new values:
 
 ```bash
-uv run tasks.py up
+uv run main.py up
 ```
 
 ## 6. Smoke check
@@ -111,7 +111,7 @@ round-trip by checksum, and deleting the Scene removes its remote Workspace.
 
 Destroy the instance in the console. Stopping keeps the disk billed and may not restart if the
 GPU is rented by someone else; destroying removes the Workspace and weights, which the next
-On-start downloads again. Clear `VAST_URL` (or `GPU_TARGET`) and run `uv run tasks.py up`
+On-start downloads again. Clear `VAST_URL` (or `GPU_TARGET`) and run `uv run main.py up`
 so the worker reports the missing Target instead of waiting 900 s on a dead URL.
 
 ## Known limits

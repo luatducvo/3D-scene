@@ -1,4 +1,4 @@
-# The one Compose file for the whole system; run it through `uv run tasks.py up` (see --help).
+# The one Compose file for the whole system; run it through `uv run main.py up` (see --help).
 # Profiles: backend (postgres, scene-api, scene-worker), frontend, local-gpu (scene-compute).
 name: scene
 

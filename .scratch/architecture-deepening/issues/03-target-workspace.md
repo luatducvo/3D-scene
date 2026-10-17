@@ -11,10 +11,6 @@ Target. This ticket also fixes two bugs:
 - On HTTP Targets, Algorithm error codes and details are replaced by `COMPUTE_FAILED`
   (http.py:142, server.py:90).
 
-See [spec](../spec.md#target-workspace-ticket-03-merges-review-candidates-01-02-and-03).
-
-**Blocked by:** 01, 02
-
 **Status:** needs-live-check — automated tests pass; a live GPU run should confirm the HTTP adapter and the local_gpu DATA_DIR change
 
 - [x] scene-target package. scene-api no longer depends on scene-worker or imports httpx.

@@ -1,7 +1,7 @@
 # RunPod targets
 
 Status: documented only; neither Pod nor Serverless was exercised during development.
-Both run the same registry image produced by `uv run tasks.py push-compute-image`.
+Both run the same registry image produced by `uv run main.py push-compute-image`.
 Use a pinned tag or digest built for Linux amd64. A nonempty `COMPUTE_TOKEN` is mandatory behind
 the public proxy, including when the provider also requires an API key.
 

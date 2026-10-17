@@ -15,7 +15,7 @@ points; each recipe touches only the files it names.
 | Spatial Relation | A `RelationRule` + an entry point in group `scene_relations` | `graph.params.relations` |
 | QA capability | A tool definition and handler in `SceneTools` ([qa.py](../../backend/services/scene-api/src/scene_api/qa.py)) | Nothing |
 | 3D rendering | A layer component | `sceneLayers` in [layers/index.tsx](../../frontend/src/components/viewer/layers/index.tsx) |
-| API contract | Routes and models in `scene_api`, then `uv run tasks.py openapi` | Frontend: `npm run api:sync` |
+| API contract | Routes and models in `scene_api`, then `uv run main.py openapi` | Frontend: `npm run api:sync` |
 
 ## Replace an Algorithm (example: another reconstruction method)
 
@@ -27,7 +27,7 @@ points; each recipe touches only the files it names.
 3. Add an extra `recon-mymethod`, include it in the `gpu` extra of
    [scene-compute](../../backend/services/scene-compute/pyproject.toml), and register the entry point.
 4. Set `algorithm: recon.mymethod` in [pipeline.yaml](../../backend/config/pipeline.yaml).
-5. Rebuild and redeploy the GPU image (`uv run tasks.py push-compute-image --extras gpu`, or
+5. Rebuild and redeploy the GPU image (`uv run main.py push-compute-image --extras gpu`, or
    `up-local-gpu`), restart the worker, and process the Scene again.
 6. Record the live check in [GPU-INTEGRATION.md](../GPU-INTEGRATION.md#live-check-log).
 
