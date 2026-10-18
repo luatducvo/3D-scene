@@ -43,7 +43,6 @@ entries in `.claude/launch.json` run the fake pipeline on the test database that
 - Before reporting a change as done, run `/done-check` and include its report.
 - Agents may commit when the user asks; agents never push.
 
-## Agent skills
 
 ### Issue tracker
 

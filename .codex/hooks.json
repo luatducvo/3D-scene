@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -NonInteractive -Command \"& (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/notify_done.ps1')\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
