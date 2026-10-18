@@ -9,18 +9,18 @@
       "Bash(npm run typecheck)",
       "Bash(npm test)",
       "Bash(npm run build)",
-      "Bash(npm run api:sync)"
+      "Bash(npm run api:sync)",
+      "Bash(git commit *)"
     ],
     "ask": [
-      "Bash(git commit *)",
-      "Bash(git push *)"
     ],
     "deny": [
       "Read(/backend/.env)",
       "Edit(/backend/.env)",
       "Edit(/backend/openapi/openapi.json)",
       "Edit(/frontend/openapi/openapi.json)",
-      "Edit(/frontend/src/lib/api/schema.d.ts)"
+      "Edit(/frontend/src/lib/api/schema.d.ts)",
+      "Bash(git push *)"
     ]
   }
 }
