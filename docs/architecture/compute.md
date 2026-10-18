@@ -76,7 +76,7 @@ unreachable Target is `COMPUTE_UNAVAILABLE` (HTTP 503). The api builds its `Targ
 Rules every `scene-compute` deployment satisfies
 ([server.py](../../backend/services/scene-compute/src/scene_compute/server.py)):
 
-1. Listens on `0.0.0.0:${PORT}` (default 9000).
+1. Listens on `0.0.0.0:${PORT}` (default 9001).
 2. Every request finishes within the configured request timeout (default 29 s, configurable
    via `REQUEST_TIMEOUT_S` on the server and `timeout` on `TargetConfig`, e.g. 300 s on Colab); long
    work runs as an asynchronous Compute Run and is polled.
@@ -134,6 +134,15 @@ go in [GPU-INTEGRATION.md](../GPU-INTEGRATION.md#live-check-log).
 [scene-compute/pyproject.toml](../../backend/services/scene-compute/pyproject.toml), which also pins
 Torch for xformers). Build and push with `uv run main.py push-compute-image [--extras gpu]`; tags are
 `{fake|gpu}-<git short sha>` under `COMPUTE_IMAGE_REPO`.
+
+Every GPU Algorithm resolves in one environment on CUDA 12.8.1. Depth Anything 3 pins `numpy<2`
+(NumPy 1.26.4, which Ultralytics also accepts) and depends on xformers. xformers 0.0.35 ships kernels
+built for Torch 2.10 + CUDA 12.8; with a newer Torch they fail to load and DA3 falls back to slower,
+memory-hungry attention, so the `gpu` extra pins Torch 2.10, torchvision 0.25 and xformers 0.0.35
+(2026-10-17). Ultralytics' [CLIP fork](https://github.com/ultralytics/CLIP) and `timm`, which SAM 3
+imports but Ultralytics does not declare, are declared so nothing is installed at runtime.
+Compatible declared versions do not prove every kernel works together; only a live GPU run does
+([GPU-INTEGRATION](../GPU-INTEGRATION.md)).
 
 The Executor keeps every loaded model in VRAM, so a GPU Target needs at least 48 GB; more than
 80 Keyframes in one DA3 pass need 80 GB ([ADR-0002](../adr/0002-single-gpu-image-ultralytics-sam3.md)).

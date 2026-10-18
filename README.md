@@ -28,7 +28,6 @@ by a reset. Model weights are cached in the host folder `./models`, which a rese
 - [uv](https://github.com/astral-sh/uv) for the project commands and Python tooling.
 - A GPU Target: a remote host (Vast.ai, Colab, Modal, RunPod, any Docker host) or a local NVIDIA GPU
   with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
-  The real pipeline needs at least 48 GB of VRAM. The fake pipeline needs no GPU.
 - Node.js 20+ and npm, only to run the frontend outside Docker.
 
 ## Configure

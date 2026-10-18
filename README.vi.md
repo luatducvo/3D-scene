@@ -22,7 +22,7 @@ Lưu trữ: Các Docker volume `scene-data` và `postgres-data` giữ toàn bộ
 
 - Docker Engine 24+ đi kèm Compose v2.
 - [uv](https://github.com/astral-sh/uv) để chạy các lệnh của dự án và các công cụ Python.
-- Một GPU Target: host từ xa (Vast.ai, Colab, Modal, RunPod, hoặc bất kỳ máy Docker nào) hoặc NVIDIA GPU cục bộ có cài [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html). Pipeline thực tế cần tối thiểu 48 GB VRAM. Pipeline giả lập (fake pipeline) không cần GPU.
+- Một GPU Target: host từ xa (Vast.ai, Colab, Modal, RunPod, hoặc bất kỳ máy Docker nào) hoặc NVIDIA GPU cục bộ có cài [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 - Node.js 20+ và npm, chỉ cần khi chạy riêng frontend bên ngoài Docker.
 
 ## Cấu hình (Configure)
