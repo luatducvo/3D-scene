@@ -11,6 +11,19 @@ export type { Layer, Point } from "../../components/viewer/view";
 export type Hover = { id: string; x: number; y: number };
 /** Viewer state only; camera moves go through components/viewer/camera.ts. */
 type ViewerState = {
+  appearance: "original" | "instances";
+  setAppearance: (appearance: "original" | "instances") => void;
+  resultSource: "search" | "qa" | null;
+  similarities: Record<string, number> | null;
+  resultVersion: number;
+  beginResult: () => number;
+  showResult: (
+    version: number,
+    source: "search" | "qa",
+    ids: string[],
+    similarities?: Record<string, number>,
+  ) => boolean;
+  clearResult: () => void;
   selectedId: string | null;
   highlightedIds: string[];
   hovered: Hover | null;
@@ -27,7 +40,6 @@ type ViewerState = {
   select: (id: string) => void;
   /** Drop the selection, and its highlight when nothing else is highlighted. */
   deselect: () => void;
-  highlight: (ids: string[]) => void;
   hover: (hovered: Hover | null) => void;
   setMeasuring: (active: boolean) => void;
   pick: (point: Point) => void;
@@ -43,6 +55,10 @@ type ViewerState = {
   setMembershipMismatch: (mode: ViewMode, mismatch: boolean) => void;
 };
 const initial = {
+  appearance: "original" as const,
+  resultSource: null,
+  similarities: null,
+  resultVersion: 0,
   selectedId: null,
   highlightedIds: [],
   hovered: null,
@@ -54,18 +70,34 @@ const initial = {
   membershipMismatch: {},
   pointSize: 0.012,
 };
-export const useViewer = create<ViewerState>((set) => ({
+export const useViewer = create<ViewerState>((set, get) => ({
   ...initial,
-  select: (id) => set({ selectedId: id, highlightedIds: [id] }),
-  deselect: () =>
-    set((s) => ({
+  setAppearance: (appearance) => set({ appearance }),
+  select: (id) => set({ selectedId: id }),
+  deselect: () => set({ selectedId: null }),
+  beginResult: () => {
+    const version = get().resultVersion + 1;
+    set({ resultVersion: version });
+    return version;
+  },
+  showResult: (version, source, ids, similarities) => {
+    if (version !== get().resultVersion) return false;
+    set({
+      resultSource: source,
+      highlightedIds: ids,
+      similarities: similarities ?? null,
       selectedId: null,
-      highlightedIds:
-        s.highlightedIds.length === 1 && s.highlightedIds[0] === s.selectedId
-          ? []
-          : s.highlightedIds,
+    });
+    return true;
+  },
+  clearResult: () =>
+    set((s) => ({
+      resultVersion: s.resultVersion + 1,
+      resultSource: null,
+      similarities: null,
+      highlightedIds: [],
+      selectedId: null,
     })),
-  highlight: (ids) => set({ highlightedIds: ids }),
   hover: (hovered) =>
     set((s) =>
       s.hovered?.id === hovered?.id &&
@@ -80,8 +112,16 @@ export const useViewer = create<ViewerState>((set) => ({
       points: s.points.length === 2 ? [point] : [...s.points, point],
     })),
   clear: () =>
-    set({ points: [], measuring: false, selectedId: null, highlightedIds: [] }),
-  reset: () => set(initial),
+    set((s) => ({
+      points: [],
+      measuring: false,
+      selectedId: null,
+      highlightedIds: [],
+      resultSource: null,
+      similarities: null,
+      resultVersion: s.resultVersion + 1,
+    })),
+  reset: () => set((s) => ({ ...initial, resultVersion: s.resultVersion + 1 })),
   setCamera: (position, target) => set({ camera: { position, target } }),
   toggleLayer: (layer) =>
     set((s) => ({ layers: { ...s.layers, [layer]: !s.layers[layer] } })),

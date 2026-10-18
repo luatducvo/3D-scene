@@ -4,6 +4,15 @@
 > describes *how*; where the two disagree, this spec wins until the architecture doc is updated
 > (first milestone). Accepted ADRs in [adr/](adr/) amend this spec where they say so.
 
+## Current explorer scope (2026-10-18)
+
+The [Focused English Scene explorer specification](../.scratch/scene-explorer-focus/spec.md)
+refines the post-processing experience: Original/Instances appearance, direct Object interaction,
+English open-vocabulary search with a query-normalized Object Heatmap, independent English QA,
+manual measurement, and a metadata-only Pipeline Inspector beside the viewer. It supersedes earlier
+multilingual UI and persistent-conversation requirements. Existing stored messages are preserved,
+but new exchanges are neither saved nor used as later context. No intermediate preview access is added.
+
 ## Problem Statement
 
 I want to understand a room I have photographed, without owning a depth camera, a LiDAR phone or a
@@ -25,11 +34,12 @@ the floor at height zero, builds a mesh, detects **Objects** with an open vocabu
 attributes, and builds a **Scene Graph** of spatial **Relations**. While it works I watch each
 **Stage** progress live.
 
-When it finishes I explore the room in a 3D viewer, search objects with free text in English or
-Vietnamese, inspect each Object's size, attributes and evidence photos, measure between two points,
-and ask questions in natural language. Answers come back in the language I asked in, cite the
-Objects involved, highlight them in 3D and fly the camera to them. Every number in an answer comes
-from a geometric computation, never from the language model's guess.
+When it finishes I explore the room in a 3D viewer using Original or Instances colors, inspect an
+Object's dimensions, search by English descriptions with a relative similarity heatmap, measure
+between two points, and ask independent questions in English. The latest answer highlights its
+Objects and frames them; no conversation is restored or newly persisted. Every number in an answer
+comes from tools. A Pipeline Inspector explains the Stages and available execution facts without
+fetching intermediate artifacts.
 
 Heavy Stages run on a remote GPU behind one small HTTP contract. No provider is the default: I configure
 the Targets before starting the system, and switching provider is a configuration change, not a code change.
@@ -86,16 +96,16 @@ the Targets before starting the system, and switching provider is a configuratio
 39. As a user, I want to ask distances between objects (surface-to-surface or center-to-center), so that I get real measurements.
 40. As a user, I want to ask left/right/in-front/behind questions relative to my current view or to an object's front, so that direction questions make sense.
 41. As a user, I want to ask about the room itself (floor size, ceiling height, objects per label), so that I get an overview.
-42. As a user, I want answers in the language of my question (Vietnamese or English), so that I can use my own language.
+42. As a user, I want independent answers in English, so that the application provides one consistent language and no hidden conversational context.
 43. As a user, I want the answer streamed as it is written, with a note of which tool is being used, so that I am not staring at a blank panel.
 44. As a user, I want every answer to list the Objects it refers to, highlight them and fly the camera there, so that I can check the answer visually.
 45. As a user, I want evidence photos attached to the answer, so that I can trust it.
 46. As a user, I want numbers in answers to come only from measurements, never invented by the model, so that answers are trustworthy.
-47. As a user, I want my questions and answers for a Scene kept, so that I can come back to a conversation.
+47. As a user, I want only the latest independent question and answer displayed without new persistence, so that the question panel stays focused.
 48. As a user, I want suggested questions when I select an Object, so that I discover what I can ask.
 
 ### Interface
-49. As a Vietnamese speaker, I want the whole UI available in Vietnamese and English, so that I can use my preferred language.
+49. As a user, I want the whole UI in English with no language switch, so that the experience is consistent.
 50. As a phone user, I want the side panel to become a bottom sheet on small screens, so that the viewer stays usable.
 51. As a UI developer, I want to run the frontend against a mock backend, so that I can build screens without GPUs or a database.
 
@@ -169,7 +179,7 @@ the Targets before starting the system, and switching provider is a configuratio
 - As in [backend/migrations/](../backend/migrations/), plus the partial unique index on active Jobs per Scene. The object embedding column dimension must equal the embedding model's output dimension; verify it when integrating the real embedding model.
 
 ### QA agent
-- The LLM plans and phrases; all numbers come from tools. Tools: find objects, count objects, measure distance, get relations, relative direction, get object, get room info. At most 6 tool-calling steps. Answers in the question's language. Conversation persisted per Scene.
+- The LLM plans and phrases; all numbers come from tools. Tools: find objects, count objects, measure distance, get relations, relative direction, get object, get room info. At most 6 tool-calling steps. Answers in English. Questions are independent; no prior message context and no new exchange persistence. Existing messages are preserved.
 
 ### Delivery milestones
 Each ends in something runnable in the browser.
@@ -180,16 +190,16 @@ Each ends in something runnable in the browser.
 - **M4** Real segmentation, lifting and embeddings; free-text search.
 - **M5** Real attributes and Scene Graph; publish; object list, boxes, object detail.
 - **M6** QA agent and chat.
-- **M7** UI completion: capture guide, quality badges, upload progress, measuring tool, full Vietnamese, mobile layout, suggested questions.
+- **M7** UI completion: capture guide, quality badges, upload progress, measuring tool, English-only UI, Original/Instances appearance, Object Heatmap and Pipeline Inspector; mobile layout and suggested questions are outside the approved UI scope.
 - **M8** Remaining targets: local GPU profile, Modal, RunPod and generic deploy docs, registry image publishing, remote Workspace cleanup on delete.
 
 ### Acceptance criteria (per milestone)
 - **M1:** with the fake pipeline, creating a Scene, uploading the synthetic fixture images and pressing Process shows all 9 Stages complete over SSE; the Scene becomes `ready`; a fake room mesh renders and its Objects highlight on hover ([ADR-0009](adr/0009-show-objects-by-membership.md)); reprocessing skips all Stages; reprocessing from a Stage reruns it and every later Stage; the 409 rules hold.
 - **M2:** the same flow with fake GPU Stages targeting a configured remote Target completes; files round-trip by checksum; a Target that is not yet ready is waited for, not failed (including cold starts on providers that scale to zero).
 - **M3:** the user's room capture produces a mesh where the floor is at z ≈ 0, walls are axis-aligned and a known dimension (e.g. a door's height ≈ 2 m) is plausible; rejected files are listed by reason.
-- **M4:** searching a visible object by an English or Vietnamese phrase ranks it in the top results and highlights it.
+- **M4:** searching a visible object by an English phrase ranks it in the top results and paints relative raw cosine similarity without using label-match bonuses as heatmap values.
 - **M5:** every Object has a box, labels in both languages and attributes; relations shown for an Object agree with what is visible. Amended by [ADR-0004](adr/0004-skip-vlm-attributes.md): the pipeline skips VLM attributes, so Objects have no `label_vi` or attributes, and user stories 30 (attributes) and 38 are not served.
-- **M6:** a question in Vietnamese is answered in Vietnamese, cites Object ids, highlights them and flies the camera; distances in the answer equal the tool's output.
+- **M6:** an independent question is answered in English, cites Object ids, highlights them and flies the camera; distances in the answer equal the tool's output, prior exchanges are not used, and new messages are not persisted.
 - **M7/M8:** features listed above are present; M8 targets are documented but not required to be exercised.
 - Judgement of reconstruction and perception quality is qualitative (no benchmarks).
 

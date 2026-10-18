@@ -15,7 +15,7 @@ import { useViewer } from "../../lib/store/viewerStore";
 const CLICK_SLOP_PX = 4;
 /**
  * Hover and click on Objects through GPU picking. Pointer moves only record the position; the next
- * frame picks once, so picking runs at most once per frame and never while dragging or measuring.
+ * focus picks once, so picking runs at most once per focus and never while dragging or measuring.
  */
 function Picker({
   objects,
@@ -149,7 +149,7 @@ function Controls({ objects }: Pick<SceneLayerProps, "objects">) {
     if (pending.length) focus(pending);
     return detach;
   }, []);
-  // The room's frame changed (a layer loaded or the view mode switched): show all of it.
+  // The room's focus changed (a layer loaded or the view mode switched): show all of it.
   useEffect(home, [bounds]);
   return <CameraControls ref={ref} onRest={remember} onEnd={remember} />;
 }

@@ -431,6 +431,11 @@ export interface components {
             object: components["schemas"]["SceneObject"];
             /** Score */
             score: number;
+            /**
+             * Raw Similarity
+             * @description Unbonused cosine similarity; distinct from the label-boosted ranking score.
+             */
+            raw_similarity: number;
         };
         /** StageProgress */
         StageProgress: {

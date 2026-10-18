@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import { sceneApi } from "../lib/api";
-import type { Scene } from "../lib/api/types";
+import type { Scene, Schemas } from "../lib/api/types";
 import { useViewer } from "../lib/store/viewerStore";
 import { focus, goHome } from "./viewer/camera";
 import {
@@ -17,12 +17,16 @@ import { DesignIcon } from "./DesignIcon";
 import { SearchStatus } from "./SearchStatus";
 import { ObjectDetails } from "./ObjectDetails";
 import { ChatPanel } from "./ChatPanel";
+import { normalizeSimilarities } from "./viewer/highlight";
+import { PipelineInspector } from "./PipelineInspector";
+import { HeatmapLegend } from "./HeatmapLegend";
 import { StatusBadge } from "./StatusBadge";
 
 const SceneCanvas = dynamic(() => import("./viewer/SceneCanvas"), {
   ssr: false,
 });
-type Panel = "object" | "chat" | "measure" | "layers" | "info" | null;
+type Panel =
+  "object" | "chat" | "measure" | "layers" | "info" | "inspector" | null;
 
 class ViewerBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
@@ -44,6 +48,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     [search, setSearch] = useState(""),
     [query, setQuery] = useState(""),
     [attempt, setAttempt] = useState(0);
+  const appearance = useViewer((s) => s.appearance);
   const selectedId = useViewer((s) => s.selectedId),
     measuring = useViewer((s) => s.measuring),
     points = useViewer((s) => s.points),
@@ -55,13 +60,13 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     queryKey: ["objects", scene.id],
     queryFn: () => sceneApi.listObjects(scene.id),
   });
-  const results = useQuery({
-    queryKey: ["search", scene.id, query],
-    queryFn: () => sceneApi.searchObjects(scene.id, query),
-    enabled: !!query,
-    // An unavailable Target answers 503 after its own wait; retrying only delays the message.
-    retry: false,
-  });
+  const [results, setResults] = useState<{
+    data: Schemas["SearchHit"][];
+    error: unknown;
+    isFetching: boolean;
+  }>({ data: [], error: null, isFetching: false });
+  const resultSource = useViewer((s) => s.resultSource);
+  const similarities = useViewer((s) => s.similarities);
   const membershipUrl = scene.assets?.membership_url;
   const membership = useQuery({
     queryKey: ["membership", membershipUrl],
@@ -80,13 +85,48 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     viewMode(layers),
   );
   useEffect(() => {
-    const timer = setTimeout(() => setQuery(search.trim()), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-  useEffect(() => {
-    if (!query || results.error) useViewer.getState().highlight([]);
-    else if (results.data) focus(results.data.map((hit) => hit.object.id));
-  }, [query, results.data, results.error]);
+    const q = search.trim();
+    setQuery(q);
+    if (!q) {
+      setResults({ data: [], error: null, isFetching: false });
+      if (useViewer.getState().resultSource === "search")
+        useViewer.getState().clearResult();
+      return;
+    }
+    const version = useViewer.getState().beginResult();
+    let disposed = false;
+    setResults({ data: [], error: null, isFetching: true });
+    const timer = setTimeout(async () => {
+      try {
+        const hits = await sceneApi.searchObjects(scene.id, q);
+        if (disposed) return;
+        const values = normalizeSimilarities(
+          Object.fromEntries(
+            hits.map((hit) => [hit.object.id, hit.raw_similarity]),
+          ),
+        );
+        setResults({ data: hits, error: null, isFetching: false });
+        if (
+          useViewer.getState().showResult(
+            version,
+            "search",
+            hits.map((hit) => hit.object.id),
+            values,
+          )
+        )
+          focus(hits.map((hit) => hit.object.id));
+      } catch (error) {
+        if (!disposed) {
+          setResults({ data: [], error, isFetching: false });
+          useViewer.getState().showResult(version, "search", []);
+        }
+      }
+    }, 300);
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+    };
+  }, [search, scene.id]);
   useEffect(() => {
     if (selectedId) {
       useViewer.getState().setMeasuring(false);
@@ -133,15 +173,17 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
       ? Math.hypot(...points[0].map((n, i) => n - points[1][i]))
       : null;
   const title =
-    panel === "chat"
-      ? t("ui.askScene")
-      : panel === "layers"
-        ? t("ui.displayLayers")
-        : panel === "measure"
-          ? t("measure")
-          : panel === "info"
-            ? t("ui.sceneInfo")
-            : t("ui.objectDetails");
+    panel === "inspector"
+      ? t("inspector.title")
+      : panel === "chat"
+        ? t("ui.askScene")
+        : panel === "layers"
+          ? t("ui.displayLayers")
+          : panel === "measure"
+            ? t("measure")
+            : panel === "info"
+              ? t("ui.sceneInfo")
+              : t("ui.objectDetails");
   const errorFallback = (
     <div className="viewer-state">
       <p>{t("ui.viewerError")}</p>
@@ -177,6 +219,26 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
         )}
         <div className="viewer-topbar">
           <div className="view-modes" aria-label={t("ui.viewMode")}>
+            {(["original", "instances"] as const).map((mode) => (
+              <button
+                key={mode}
+                className={appearance === mode ? "" : "secondary"}
+                aria-pressed={appearance === mode}
+                onClick={() => useViewer.getState().setAppearance(mode)}
+              >
+                {t(`appearance.${mode}`)}
+              </button>
+            ))}
+            <button
+              className="secondary"
+              onClick={() => {
+                setSearch("");
+                setQuery("");
+                useViewer.getState().clearResult();
+              }}
+            >
+              {t("appearance.clear")}
+            </button>
             <button
               className={viewMode(layers) === "points" ? "" : "secondary"}
               aria-pressed={viewMode(layers) === "points"}
@@ -209,6 +271,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
             <input
               type="search"
               aria-label={t("search")}
+              title={t("englishInput")}
               placeholder={t("search")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -221,12 +284,25 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
                 onClear={() => {
                   setSearch("");
                   setQuery("");
+                  useViewer.getState().clearResult();
                 }}
               />
             )}
           </div>
         </div>
+        {resultSource === "search" &&
+          similarities &&
+          Object.keys(similarities).length > 0 && (
+            <HeatmapLegend values={Object.values(similarities)} />
+          )}
         <div className="spatial-tools" aria-label={t("ui.spatialTools")}>
+          <button
+            className="secondary"
+            aria-expanded={panel === "inspector"}
+            onClick={() => openPanel("inspector")}
+          >
+            {t("inspector.title")}
+          </button>
           <button
             className="secondary icon-button"
             aria-label={t("ui.resetView")}
@@ -284,132 +360,132 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
           </p>
         )}
       </div>
-      {panel && (
-        <aside className="side-panel" aria-label={title}>
-          <div className="panel-heading">
-            {panel !== "object" && <h2>{title}</h2>}
+      <aside
+        className="side-panel"
+        aria-label={title}
+        hidden={!panel}
+        style={{ display: panel ? undefined : "none" }}
+      >
+        <div className="panel-heading">
+          {panel !== "object" && <h2>{title}</h2>}
+          <button
+            ref={closeRef}
+            className="quiet close-panel"
+            onClick={closePanel}
+          >
+            {t("ui.close")}
+          </button>
+        </div>
+        {panel === "object" && selected && <ObjectDetails object={selected} />}
+        <div hidden={panel !== "chat"}>
+          <p className="caption muted">{t("ui.chatSubtitle")}</p>
+          <ChatPanel sceneId={scene.id} />
+        </div>
+        {panel === "inspector" && <PipelineInspector scene={scene} />}
+        {panel === "info" && (
+          <div className="panel-body">
+            <h3>{scene.name}</h3>
+            <StatusBadge status={scene.status} />
+            <dl className="scene-facts">
+              <dt>{t("ui.createdOn")}</dt>
+              <dd>
+                {format.dateTime(new Date(scene.created_at), {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </dd>
+              <dt>{t("ui.sceneUnits")}</dt>
+              <dd>{t("ui.meters")}</dd>
+              <dt>{t("ui.upAxis")}</dt>
+              <dd>Z ↑</dd>
+            </dl>
+          </div>
+        )}
+        {panel === "measure" && (
+          <div className="panel-body">
+            <p className="muted">
+              {t(
+                points.length === 0
+                  ? "ui.pickA"
+                  : points.length === 1
+                    ? "ui.pickB"
+                    : "ui.measured",
+              )}
+            </p>
+            <div className="dimensions">
+              {distance !== null ? (
+                <>
+                  <strong className="distance-value">
+                    {format.number(distance, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 3,
+                    })}{" "}
+                    m
+                  </strong>
+                  <span>{t("ui.straightDistance")}</span>
+                </>
+              ) : (
+                <strong>{points.length ? "A ✓  →  B" : "A  →  B"}</strong>
+              )}
+            </div>
             <button
-              ref={closeRef}
-              className="quiet close-panel"
-              onClick={closePanel}
+              className="full-width"
+              onClick={() => useViewer.getState().setMeasuring(true)}
             >
-              {t("ui.close")}
+              {t("ui.measureAgain")}
+            </button>
+            <button className="secondary full-width" onClick={closePanel}>
+              {t("ui.exitMeasure")}
             </button>
           </div>
-          {panel === "object" && selected && (
-            <ObjectDetails object={selected} />
-          )}
-          {panel === "chat" && (
-            <>
-              <p className="caption muted">{t("ui.chatSubtitle")}</p>
-              <ChatPanel sceneId={scene.id} />
-            </>
-          )}
-          {panel === "info" && (
-            <div className="panel-body">
-              <h3>{scene.name}</h3>
-              <StatusBadge status={scene.status} />
-              <dl className="scene-facts">
-                <dt>{t("ui.createdOn")}</dt>
-                <dd>
-                  {format.dateTime(new Date(scene.created_at), {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </dd>
-                <dt>{t("ui.sceneUnits")}</dt>
-                <dd>{t("ui.meters")}</dd>
-                <dt>{t("ui.upAxis")}</dt>
-                <dd>Z ↑</dd>
-              </dl>
-            </div>
-          )}
-          {panel === "measure" && (
-            <div className="panel-body">
-              <p className="muted">
-                {t(
-                  points.length === 0
-                    ? "ui.pickA"
-                    : points.length === 1
-                      ? "ui.pickB"
-                      : "ui.measured",
-                )}
-              </p>
-              <div className="dimensions">
-                {distance !== null ? (
-                  <>
-                    <strong className="distance-value">
-                      {format.number(distance, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 3,
-                      })}{" "}
-                      m
-                    </strong>
-                    <span>{t("ui.straightDistance")}</span>
-                  </>
-                ) : (
-                  <strong>{points.length ? "A ✓  →  B" : "A  →  B"}</strong>
-                )}
-              </div>
-              <button
-                className="full-width"
-                onClick={() => useViewer.getState().setMeasuring(true)}
-              >
-                {t("ui.measureAgain")}
-              </button>
-              <button className="secondary full-width" onClick={closePanel}>
-                {t("ui.exitMeasure")}
-              </button>
-            </div>
-          )}
-          {panel === "layers" && (
-            <div className="panel-body">
-              <p className="muted">{t("ui.layersSubtitle")}</p>
-              {(["points", "mesh"] as const).map((layer) => (
-                <label className="layer-toggle" key={layer}>
-                  <span>{t(`layers.${layer}`)}</span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    checked={layers[layer]}
-                    disabled={
-                      (layer === "points" && !hasPoints) ||
-                      (layer === "mesh" && !hasMesh)
-                    }
-                    onChange={() => useViewer.getState().toggleLayer(layer)}
-                  />
-                </label>
-              ))}
-              <label className="field-label" htmlFor="point-size">
-                {t("ui.pointSize")}
+        )}
+        {panel === "layers" && (
+          <div className="panel-body">
+            <p className="muted">{t("ui.layersSubtitle")}</p>
+            {(["points", "mesh"] as const).map((layer) => (
+              <label className="layer-toggle" key={layer}>
+                <span>{t(`layers.${layer}`)}</span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={layers[layer]}
+                  disabled={
+                    (layer === "points" && !hasPoints) ||
+                    (layer === "mesh" && !hasMesh)
+                  }
+                  onChange={() => useViewer.getState().toggleLayer(layer)}
+                />
               </label>
-              <input
-                id="point-size"
-                type="range"
-                min="0.004"
-                max="0.04"
-                step="0.002"
-                value={pointSize}
-                onChange={(e) =>
-                  useViewer.getState().setPointSize(Number(e.target.value))
-                }
-              />
-              <button
-                className="secondary full-width"
-                onClick={() => {
-                  useViewer
-                    .getState()
-                    .setLayers(defaultLayers(scene.assets ?? {}));
-                  useViewer.getState().setPointSize(0.012);
-                }}
-              >
-                {t("ui.restoreDefaults")}
-              </button>
-            </div>
-          )}
-        </aside>
-      )}
+            ))}
+            <label className="field-label" htmlFor="point-size">
+              {t("ui.pointSize")}
+            </label>
+            <input
+              id="point-size"
+              type="range"
+              min="0.004"
+              max="0.04"
+              step="0.002"
+              value={pointSize}
+              onChange={(e) =>
+                useViewer.getState().setPointSize(Number(e.target.value))
+              }
+            />
+            <button
+              className="secondary full-width"
+              onClick={() => {
+                useViewer
+                  .getState()
+                  .setLayers(defaultLayers(scene.assets ?? {}));
+                useViewer.getState().setPointSize(0.012);
+              }}
+            >
+              {t("ui.restoreDefaults")}
+            </button>
+          </div>
+        )}
+      </aside>
     </main>
   );
 }

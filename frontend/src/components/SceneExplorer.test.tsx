@@ -4,19 +4,19 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Color } from "three";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 import { sceneApi } from "../lib/api";
 import { apiOrigin } from "../lib/api/http";
 import { handlers } from "../lib/api/mock/handlers";
 import { useViewer } from "../lib/store/viewerStore";
-import { focus } from "./viewer/camera";
 import {
   DIM,
-  HIGHLIGHT_COLOR,
+  normalizeSimilarities,
   objectIndices,
   Painter,
 } from "./viewer/highlight";
+import { PipelineInspector } from "./PipelineInspector";
+import { Header } from "./Header";
 import { SceneExplorer } from "./SceneExplorer";
 import { SearchStatus } from "./SearchStatus";
 import en from "../../messages/en.json";
@@ -40,7 +40,7 @@ const render = (node: React.ReactNode, locale = "en", messages: object = en) =>
     </NextIntlClientProvider>,
   );
 
-test("search highlights its hits on their own points and dims the rest of the room", async () => {
+test("search paints raw semantic similarity on matched geometry and dims the rest of the room", async () => {
   const scene = await sceneApi.getScene("demo");
   const membership = await sceneApi.getMembership(
     scene.assets!.membership_url!,
@@ -50,20 +50,29 @@ test("search highlights its hits on their own points and dims the rest of the ro
   expect(membership.pointCount).toBe(geometry.getAttribute("position").count);
 
   const hits = await sceneApi.searchObjects("demo", "sofa");
-  // The explorer focuses search hits, which highlights them.
-  focus(hits.map((hit) => hit.object.id));
+  // Exercise the real transport, normalization and painter used by the explorer.
+  const similarities = normalizeSimilarities(
+    Object.fromEntries(hits.map((hit) => [hit.object.id, hit.raw_similarity])),
+  );
+  useViewer.getState().showResult(
+    useViewer.getState().beginResult(),
+    "search",
+    hits.map((hit) => hit.object.id),
+    similarities,
+  );
   expect(useViewer.getState().highlightedIds).toEqual(["sofa-1"]);
 
   const base = geometry.getAttribute("color").array as Float32Array;
   const colors = new Float32Array(base);
   new Painter(colors, base, membership.points, membership.ids.length).highlight(
     objectIndices(membership, useViewer.getState().highlightedIds),
+    [similarities["sofa-1"]],
   );
-  const green = new Color(HIGHLIGHT_COLOR).toArray().map(Math.fround);
+  const hot = [0.9325, 0.1675, 0.1675].map(Math.fround);
   const sofa = membership.points(membership.ids.indexOf("sofa-1"));
   expect(sofa.length).toBeGreaterThan(100);
   for (const i of sofa)
-    expect([...colors.subarray(3 * i, 3 * i + 3)]).toEqual(green);
+    expect([...colors.subarray(3 * i, 3 * i + 3)]).toEqual(hot);
   // Point 0 is on the floor, which belongs to no Object.
   for (let c = 0; c < 3; c++) expect(colors[c]).toBeCloseTo(base[c] * DIM);
 });
@@ -113,4 +122,21 @@ test("a Scene published before membership shows its points and asks for a reproc
   expect(render(<SceneExplorer scene={current} />)).not.toContain(
     en.ui.reprocessForHighlight,
   );
+});
+
+test("navigation is English-only and offers no language switch", () => {
+  const markup = render(<Header />);
+  expect(markup).not.toContain("language-switch");
+  expect(markup).not.toContain('href="/vi"');
+});
+
+test("Inspector explains Stage inputs and missing execution facts without a Target", async () => {
+  const scene = await sceneApi.getScene("demo");
+  const markup = render(
+    <PipelineInspector scene={{ ...scene, stage_runs: [] }} />,
+  );
+  expect(markup).toContain("Input Frames");
+  expect(markup).toContain("Reconstruction");
+  expect(markup).toContain("Not available");
+  expect(markup).not.toContain("<pre");
 });

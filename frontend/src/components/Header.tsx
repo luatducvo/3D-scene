@@ -2,7 +2,6 @@
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { DesignIcon } from "./DesignIcon";
 
@@ -14,8 +13,7 @@ export function Header({
   actions?: ReactNode;
 }) {
   const t = useTranslations(),
-    locale = useLocale(),
-    path = usePathname();
+    locale = useLocale();
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
@@ -36,18 +34,7 @@ export function Header({
           <span>{t("ui.yourSpaces")}</span>
         )}
       </nav>
-      <div className="header-actions">
-        {actions}
-        <Link
-          className="button secondary language-switch"
-          href={path.replace(`/${locale}`, locale === "en" ? "/vi" : "/en")}
-          aria-label={t("ui.switchLanguage")}
-        >
-          <span className={locale === "vi" ? "active-language" : ""}>VI</span>
-          <span aria-hidden="true">/</span>
-          <span className={locale === "en" ? "active-language" : ""}>EN</span>
-        </Link>
-      </div>
+      <div className="header-actions">{actions}</div>
     </header>
   );
 }

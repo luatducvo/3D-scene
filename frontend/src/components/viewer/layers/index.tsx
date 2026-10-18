@@ -204,6 +204,8 @@ function useMembershipFit(
 /** Highlighted and selected Objects in the highlight colour, the rest dimmed, the hovered one tinted. */
 function usePainting(layer: LayerMembership | null) {
   const highlighted = useViewer((s) => s.highlightedIds),
+    appearance = useViewer((s) => s.appearance),
+    similarities = useViewer((s) => s.similarities),
     selected = useViewer((s) => s.selectedId),
     hovered = useViewer((s) => s.hovered?.id ?? null);
   const painter = useMemo(
@@ -224,14 +226,21 @@ function usePainting(layer: LayerMembership | null) {
     });
   useEffect(() => {
     if (!painter || !layer) return;
+    painter.appearance(appearance, layer.membership.ids);
+    const indices = objectIndices(layer.membership, highlighted);
     painter.highlight(
-      objectIndices(
-        layer.membership,
-        selected ? [...highlighted, selected] : highlighted,
-      ),
+      indices,
+      similarities
+        ? indices.map((i) => similarities[layer.membership.ids[i]])
+        : undefined,
+    );
+    painter.selection(
+      selected
+        ? (objectIndices(layer.membership, [selected])[0] ?? null)
+        : null,
     );
     upload();
-  }, [painter, layer, highlighted, selected]);
+  }, [painter, layer, highlighted, selected, appearance, similarities]);
   useEffect(() => {
     if (!painter || !layer) return;
     const [index] = hovered ? objectIndices(layer.membership, [hovered]) : [];

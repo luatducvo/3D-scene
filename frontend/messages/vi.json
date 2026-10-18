@@ -175,5 +175,126 @@
     "sceneUnits": "Đơn vị đo",
     "meters": "Mét (m)",
     "upAxis": "Trục thẳng đứng"
+  },
+  "appearance": {
+    "original": "Original",
+    "instances": "Instances",
+    "clear": "Clear"
+  },
+  "heatmap": {
+    "title": "Relative similarity",
+    "cool": "Lower",
+    "hot": "Higher",
+    "single": "One similarity level. Colors are relative to this query, not confidence.",
+    "relative": "Normalized within this query. Colors are not confidence and cannot be compared across queries.",
+    "empty": "No results",
+    "same": "One similarity level"
+  },
+  "englishInput": "Search and questions are supported in English. Each question is independent.",
+  "inspector": {
+    "title": "Pipeline Inspector",
+    "stageList": "Pipeline Stages",
+    "purpose": "Purpose",
+    "algorithm": "Algorithm",
+    "inputs": "Inputs",
+    "outputs": "Outputs",
+    "status": "Execution status",
+    "timing": "Elapsed from recorded timestamps (s)",
+    "unavailable": "Not available",
+    "statistics": "Recorded statistics",
+    "disabled": "Attribute enrichment is disabled. No VLM descriptions were generated.",
+    "stages": {
+      "ingest": {
+        "title": "Input Frames",
+        "purpose": "Select usable Frames from the capture.",
+        "inputs": "Uploaded photos or video",
+        "outputs": "Keyframes and rejection report"
+      },
+      "recon": {
+        "title": "Reconstruction",
+        "purpose": "Estimate geometry and camera poses from the Keyframes.",
+        "inputs": "Keyframes",
+        "outputs": "Depth, camera poses and reconstructed geometry"
+      },
+      "align": {
+        "title": "Metric alignment",
+        "purpose": "Align the room with a level floor and a vertical Z axis.",
+        "inputs": "Reconstruction and calibration",
+        "outputs": "Metric aligned geometry and room planes"
+      },
+      "mesh": {
+        "title": "Geometry",
+        "purpose": "Build the colored point cloud and room surface.",
+        "inputs": "Aligned reconstruction",
+        "outputs": "Point Cloud and Mesh"
+      },
+      "segment": {
+        "title": "Segmentation",
+        "purpose": "Distinguish candidate things in each view using the Vocabulary.",
+        "inputs": "Frames and Vocabulary",
+        "outputs": "Per-view masks"
+      },
+      "lift": {
+        "title": "3D Instances",
+        "purpose": "Associate masks across views to identify distinct 3D Instances.",
+        "inputs": "Masks, depth and camera poses",
+        "outputs": "Instances with stable identities"
+      },
+      "embed": {
+        "title": "Object embeddings",
+        "purpose": "Represent each Instance for open-vocabulary search.",
+        "inputs": "Instance views",
+        "outputs": "Semantic embedding vectors"
+      },
+      "attributes": {
+        "title": "Optional attributes",
+        "purpose": "Describe Instances when attribute enrichment is enabled.",
+        "inputs": "Instances and views",
+        "outputs": "Object descriptions, or empty attributes when disabled"
+      },
+      "graph": {
+        "title": "Scene Graph",
+        "purpose": "Publish Objects, spatial Relations and Object Membership.",
+        "inputs": "Instances, geometry, embeddings and attributes",
+        "outputs": "Scene Graph and Object Membership"
+      }
+    },
+    "metrics": {
+      "ingest": {
+        "num_inputs": "Input count",
+        "num_keyframes": "Keyframe count"
+      },
+      "recon": {
+        "num_frames": "Frame count",
+        "metric_scale": "Metric scale"
+      },
+      "align": {
+        "floor_z": "Floor Z (m)",
+        "ceiling_height": "Ceiling height (m)"
+      },
+      "mesh": {
+        "num_faces": "Mesh faces",
+        "num_points": "Points"
+      },
+      "segment": {
+        "num_masks": "Masks",
+        "vocabulary_size": "Vocabulary concepts"
+      },
+      "lift": {
+        "num_instances": "Instances"
+      },
+      "embed": {
+        "model_id": "Embedding model",
+        "dim": "Embedding dimensions"
+      },
+      "attributes": {
+        "num_objects": "Objects",
+        "invalid_outputs": "Invalid descriptions"
+      },
+      "graph": {
+        "num_objects": "Objects",
+        "num_relations": "Relations"
+      }
+    }
   }
 }

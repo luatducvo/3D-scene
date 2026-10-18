@@ -62,9 +62,9 @@ def rank_search_hits(objects, similarities, query, margin, limit=SEARCH_MAX_HITS
     for obj in objects:
         similarity = similarities.get(obj["id"], 0.0)
         if label_matches(obj, query):
-            labelled.append({"object": obj, "score": similarity + 1})
+            labelled.append({"object": obj, "score": similarity + 1, "raw_similarity": similarity})
         elif similarity > 0 and similarity >= best - margin:
-            similar.append({"object": obj, "score": similarity})
+            similar.append({"object": obj, "score": similarity, "raw_similarity": similarity})
     return _best_first(labelled) + _best_first(similar)[: max(0, limit - len(labelled))]
 
 
@@ -361,10 +361,6 @@ def create_app(
                 "SELECT subject_id,predicate,object_id,value FROM relations WHERE scene_id=%s",
                 (scene_id,),
             ).fetchall()
-            history = conn.execute(
-                "SELECT role,content FROM messages WHERE scene_id=%s ORDER BY id DESC LIMIT 10",
-                (scene_id,),
-            ).fetchall()[::-1]
         llm = app.state.llm or OpenAICompatibleLLM.from_env()
         if llm is None:
             raise SceneError(
@@ -378,17 +374,10 @@ def create_app(
             lambda q: tool_search(scene_id, q, objects),
             body.camera.model_dump() if body.camera else None,
         )
-        past = [
-            {
-                "role": m["role"],
-                "content": m["content"].get("question") or m["content"].get("answer") or "",
-            }
-            for m in history
-        ]
 
         def stream():
             try:
-                for event in QAAgent(llm).answer(body.question, tools, past):
+                for event in QAAgent(llm).answer(body.question, tools):
                     if event["type"] == "final":
                         by_id = {o["id"]: o for o in objects}
                         # Evidence names each Object's best Frame; Frame images stay on the Target (ADR-0008).
@@ -397,11 +386,6 @@ def create_app(
                             for i in event["object_ids"]
                             for v in by_id[i]["best_views"][:1]
                         ]
-                        store.save_exchange(
-                            scene_id,
-                            {"question": body.question},
-                            {k: event[k] for k in ("answer", "object_ids", "evidence")},
-                        )
                     yield (
                         f"event: {event['type']}\ndata: "
                         + json.dumps(

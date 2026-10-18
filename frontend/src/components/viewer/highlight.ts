@@ -13,6 +13,7 @@ export const HIGHLIGHT_COLOR = "#9ee8c4";
 export const DIM = 0.15;
 /** How far a hovered Object's colour moves towards white. */
 export const HOVER_MIX = 0.5;
+export type Appearance = "original" | "instances";
 const EMPTY = new Uint32Array(0);
 
 /**
@@ -75,8 +76,14 @@ export function objectIndices(membership: Membership, ids: string[]): number[] {
 export class Painter {
   private readonly count: number;
   private readonly marked: Uint8Array;
+  private readonly owner: Uint32Array;
   private readonly highlightRgb: number[];
   private dimmed = false;
+  private appearanceBase: Float32Array;
+  private resultColors: Float32Array;
+  private appearanceMode: Appearance | null = null;
+  private appearanceIds: string[] | null = null;
+  private selectedMembers = new Set<number>();
   private hovered: number | null = null;
   constructor(
     readonly colors: Float32Array,
@@ -86,19 +93,73 @@ export class Painter {
   ) {
     this.count = Math.floor(base.length / 3);
     this.marked = new Uint8Array(this.count);
+    this.owner = owners(this.count, this.objectCount, this.members);
     this.highlightRgb = new Color(HIGHLIGHT_COLOR).toArray();
+    this.appearanceBase = new Float32Array(base);
+    this.resultColors = new Float32Array(base.length);
   }
-  /** Highlight these Objects and dim the rest; an empty list returns real colours. */
-  highlight(objects: number[]) {
-    this.marked.fill(0);
-    for (const object of objects)
-      for (const index of this.list(object))
-        if (index < this.count) this.marked[index] = 1;
-    this.dimmed = objects.length > 0;
+  /** Stable Object colors; shared elements use the same ownership as picking. */
+  appearance(mode: Appearance, ids: string[]) {
+    if (this.appearanceMode === mode && this.appearanceIds === ids) return;
+    this.appearanceMode = mode;
+    this.appearanceIds = ids;
+    this.appearanceBase.set(this.base);
+    if (mode === "instances") {
+      const palette = new Map<string, number[]>();
+      const used = new Set<string>();
+      // Sorting identities and golden-angle spacing avoids near-identical colors for similar IDs.
+      [...ids].sort().forEach((id, rank) => {
+        let step = rank;
+        let color: Color;
+        do {
+          color = new Color().setHSL(
+            (step * 0.618033988749895) % 1,
+            0.65,
+            0.55,
+          );
+          step += 1;
+        } while (used.has(color.getHexString()));
+        used.add(color.getHexString());
+        palette.set(id, color.toArray());
+      });
+      const owner = this.owner;
+      owner.forEach((value, index) => {
+        const rgb = value ? palette.get(ids[value - 1]) : undefined;
+        if (rgb) this.appearanceBase.set(rgb, index * 3);
+      });
+    }
+    this.repaint();
+  }
+  /** Selection is feedback on top of the current result, not a replacement result. */
+  selection(object: number | null) {
+    this.selectedMembers = new Set(
+      object === null
+        ? []
+        : this.list(object).filter((index) => this.owner[index] === object + 1),
+    );
+    this.repaint();
+  }
+  private repaint() {
     for (let i = 0; i < this.count; i++) this.plain(i);
     const hovered = this.hovered;
     this.hovered = null;
     this.hover(hovered);
+  }
+  /** Highlight these Objects and dim the rest; an empty list returns real colours. */
+  highlight(objects: number[], strengths?: number[]) {
+    this.marked.fill(0);
+    objects.forEach((object, position) => {
+      const rgb = strengths
+        ? heatmapColor(strengths[position]).toArray()
+        : this.highlightRgb;
+      for (const index of this.list(object))
+        if (index < this.count && this.owner[index] === object + 1) {
+          this.marked[index] = 1;
+          this.resultColors.set(rgb, index * 3);
+        }
+    });
+    this.dimmed = objects.length > 0;
+    this.repaint();
   }
   hover(object: number | null) {
     if (object === this.hovered) return;
@@ -108,7 +169,7 @@ export class Painter {
     this.hovered = object;
     if (object === null) return;
     for (const index of this.list(object))
-      if (index < this.count)
+      if (index < this.count && this.owner[index] === object + 1)
         // Lighten towards white, which stands out from real colours and from the highlight colour.
         for (let c = 0; c < 3; c++) {
           const k = 3 * index + c;
@@ -123,11 +184,38 @@ export class Painter {
   private plain(index: number) {
     for (let c = 0; c < 3; c++) {
       const k = 3 * index + c;
-      this.colors[k] = this.marked[index]
-        ? this.highlightRgb[c]
-        : this.dimmed
-          ? this.base[k] * DIM
-          : this.base[k];
+      this.colors[k] = this.selectedMembers.has(index)
+        ? [1, 0.55, 0.12][c]
+        : this.marked[index]
+          ? this.resultColors[k]
+          : this.dimmed
+            ? this.appearanceBase[k] * DIM
+            : this.appearanceBase[k];
     }
   }
+}
+
+/** Relative semantic similarity among this query's returned Objects, never confidence. */
+export function normalizeSimilarities(
+  values: Record<string, number>,
+): Record<string, number> {
+  const scores = Object.values(values);
+  if (!scores.length) return {};
+  const min = Math.min(...scores),
+    max = Math.max(...scores);
+  return Object.fromEntries(
+    Object.entries(values).map(([id, score]) => [
+      id,
+      max === min ? 1 : (score - min) / (max - min),
+    ]),
+  );
+}
+
+/** One color scale shared by the linear-RGB painter and the displayed sRGB legend. */
+export function heatmapColor(strength: number): Color {
+  return new Color().setHSL(
+    (1 - Math.max(0, Math.min(1, strength))) * 0.65,
+    0.85,
+    0.55,
+  );
 }

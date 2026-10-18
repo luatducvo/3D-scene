@@ -1150,12 +1150,18 @@
           "score": {
             "type": "number",
             "title": "Score"
+          },
+          "raw_similarity": {
+            "type": "number",
+            "title": "Raw Similarity",
+            "description": "Unbonused cosine similarity; distinct from the label-boosted ranking score."
           }
         },
         "type": "object",
         "required": [
           "object",
-          "score"
+          "score",
+          "raw_similarity"
         ],
         "title": "SearchHit"
       },

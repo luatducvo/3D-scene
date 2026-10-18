@@ -21,8 +21,7 @@ export function goHome() {
   useViewer.getState().clear();
   driver?.goHome();
 }
-/** Highlight Objects and fit them in view, even when they are already highlighted. */
+/** Fit Objects in view without changing result colors or selection. */
 export function focus(ids: string[]) {
-  useViewer.getState().highlight(ids);
   if (ids.length) driver?.focus(ids);
 }

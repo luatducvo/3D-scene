@@ -12,7 +12,7 @@ from scene_core.geometry import box_surface_distance, center_distance, relative_
 
 MAX_STEPS = 6
 SYSTEM_PROMPT = (
-    "You answer questions about one scanned room. Answer in the language of the question. "
+    "You answer questions about one scanned room. Always answer in English. Each question is independent. "
     "Use only facts returned by tools; never estimate a number yourself. Distances are meters. "
     "When done, call final_answer with the answer text and the ids of the objects it refers to."
 )
@@ -278,11 +278,10 @@ class QAAgent:
         # SOLID (DIP): real and scripted LLMs share complete(); the agent owns no HTTP transport.
         self.llm, self.max_steps = llm, max_steps
 
-    def answer(self, question, tools, history=()):
+    def answer(self, question, tools):
         """Yield QueryEvent dicts: tool events, one delta, then the final answer."""
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            *history,
             {"role": "user", "content": question},
         ]
         # Numbers the user wrote may be repeated; every other number must come from a tool result.

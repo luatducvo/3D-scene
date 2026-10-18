@@ -146,8 +146,116 @@ export function roomMembership(): ArrayBuffer {
   return encodeMembership(
     demoObjects.map((o) => o.id),
     points.length,
-    0,
+    roomMeshData().positions.length / 3,
     members,
-    demoObjects.map(() => []),
+    roomMeshData().members,
   );
+}
+
+/** A small closed-box room fixture, in the same aligned frame as the mock point cloud. */
+function roomMeshData() {
+  const positions: number[] = [],
+    colors: number[] = [];
+  const members = demoObjects.map(() => [] as number[]);
+  const addBox = (
+    center: number[],
+    size: number[],
+    rgb: number[],
+    objectIndex?: number,
+  ) => {
+    const corners = [
+      [-1, -1, -1],
+      [1, -1, -1],
+      [1, 1, -1],
+      [-1, 1, -1],
+      [-1, -1, 1],
+      [1, -1, 1],
+      [1, 1, 1],
+      [-1, 1, 1],
+    ];
+    const faces = [
+      0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2, 0,
+      4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5,
+    ];
+    for (const corner of faces) {
+      const index = positions.length / 3;
+      positions.push(
+        ...corners[corner].map(
+          (v, axis) => center[axis] + (v * size[axis]) / 2,
+        ),
+      );
+      colors.push(...rgb.map((v) => Math.pow(v / 255, 2.2)));
+      if (objectIndex !== undefined) members[objectIndex].push(index);
+    }
+  };
+  addBox([2.5, 2, -0.03], [5, 4, 0.06], [110, 133, 120]);
+  addBox([-0.03, 2, 1.4], [0.06, 4, 2.8], [159, 178, 154]);
+  addBox([2.5, 4.03, 1.4], [5, 0.06, 2.8], [137, 154, 139]);
+  demoObjects.forEach((object, i) =>
+    addBox(
+      object.box.center,
+      object.box.size,
+      [
+        [78, 171, 141],
+        [214, 199, 166],
+        [168, 187, 115],
+        [189, 152, 122],
+      ][i],
+      i,
+    ),
+  );
+  return { positions, colors, members };
+}
+
+/** Self-contained glTF binary for browser checks, with membership in accessor vertex order. */
+export function roomMesh(): ArrayBuffer {
+  const { positions, colors } = roomMeshData();
+  const vertexCount = positions.length / 3,
+    sectionBytes = positions.length * 4;
+  const binary = new Float32Array([...positions, ...colors]);
+  const gltf = {
+    asset: { version: "2.0" },
+    scene: 0,
+    scenes: [{ nodes: [0] }],
+    nodes: [{ mesh: 0 }],
+    extensionsUsed: ["KHR_materials_unlit"],
+    materials: [{ doubleSided: true, extensions: { KHR_materials_unlit: {} } }],
+    meshes: [
+      {
+        primitives: [{ attributes: { POSITION: 0, COLOR_0: 1 }, material: 0 }],
+      },
+    ],
+    buffers: [{ byteLength: binary.byteLength }],
+    bufferViews: [
+      { buffer: 0, byteOffset: 0, byteLength: sectionBytes },
+      { buffer: 0, byteOffset: sectionBytes, byteLength: sectionBytes },
+    ],
+    accessors: [
+      {
+        bufferView: 0,
+        componentType: 5126,
+        count: vertexCount,
+        type: "VEC3",
+        min: [-0.06, 0, -0.06],
+        max: [5, 4.06, 2.8],
+      },
+      { bufferView: 1, componentType: 5126, count: vertexCount, type: "VEC3" },
+    ],
+  };
+  const json = new TextEncoder().encode(JSON.stringify(gltf));
+  const jsonLength = Math.ceil(json.length / 4) * 4;
+  const result = new ArrayBuffer(12 + 8 + jsonLength + 8 + binary.byteLength);
+  const view = new DataView(result),
+    bytes = new Uint8Array(result);
+  view.setUint32(0, 0x46546c67, true);
+  view.setUint32(4, 2, true);
+  view.setUint32(8, result.byteLength, true);
+  view.setUint32(12, jsonLength, true);
+  view.setUint32(16, 0x4e4f534a, true);
+  bytes.fill(0x20, 20, 20 + jsonLength);
+  bytes.set(json, 20);
+  view.setUint32(20 + jsonLength, binary.byteLength, true);
+  view.setUint32(24 + jsonLength, 0x004e4942, true);
+  bytes.set(new Uint8Array(binary.buffer), 28 + jsonLength);
+  return result;
 }

@@ -78,6 +78,10 @@ class UploadResult(BaseModel):
 class SearchHit(BaseModel):
     object: SceneObject
     score: float
+    raw_similarity: float = Field(
+        allow_inf_nan=False,
+        description="Unbonused cosine similarity; distinct from the label-boosted ranking score.",
+    )
 
 
 class Camera(BaseModel):

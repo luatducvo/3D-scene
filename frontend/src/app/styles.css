@@ -1004,3 +1004,37 @@ summary {
     scroll-behavior: auto !important;
   }
 }
+
+.heatmap-legend {
+  position: absolute;
+  bottom: 4rem;
+  left: 5rem;
+  width: 250px;
+  padding: 12px;
+  font-size: 12px;
+  z-index: 2;
+}
+.heatmap-ramp {
+  height: 10px;
+  margin-top: 8px;
+  border-radius: 4px;
+}
+.heatmap-labels {
+  display: flex;
+  justify-content: space-between;
+}
+
+.inspector-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+.inspector-stages button {
+  font-size: 12px;
+  padding: 6px 9px;
+}
+.inspector dd {
+  overflow-wrap: anywhere;
+  margin-bottom: 12px;
+}

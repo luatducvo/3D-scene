@@ -45,8 +45,8 @@ non-shared remote Target (an unreachable Target is only logged).
 | GET | `/scenes/{id}/events` | SSE progress |
 | GET | `/scenes/{id}/objects` | Objects with boxes, labels, attributes and best views (Frame id, box, score; no image, [ADR-0008](../adr/0008-frame-images-stay-on-target.md)) |
 | GET | `/scenes/{id}/objects/{object_id}` | One Object |
-| GET | `/scenes/{id}/search?q=` | Free-text Object search (English or Vietnamese), ranked as in [Search](#search) |
-| GET | `/scenes/{id}/messages` | Stored chat history |
+| GET | `/scenes/{id}/search?q=` | Free-text Object search (English supported), ranked as in [Search](#search) |
+| GET | `/scenes/{id}/messages` | Previously stored messages; independent QA writes no new messages |
 | POST | `/scenes/{id}/queries` | `{question, camera?}` → SSE answer stream |
 | GET | `/scenes/{id}/publications/{version}/files/{path}` | Serve a public file of one publication ([ADR-0006](../adr/0006-versioned-publication.md)): only `mesh/` and `graph/membership.bin` ([Scene Results](pipeline.md#scene-results)); any other path, invalid Job UUID or removed publication is 404 `FILE_NOT_FOUND`. API responses carry these URLs for the current version. Unversioned results are not served ([ADR-0007](../adr/0007-retire-unversioned-results.md)); a Scene without a publication has no asset URLs. |
 
@@ -67,6 +67,11 @@ of the room; the margin keeps only the Objects close to the best match, and labe
 cut. This cut is for `GET /search` only. `find_objects` and `count_objects` in the QA agent rank
 with `rank_tool_hits` instead, uncut so a count stays whole: every Object whose similarity, plus 1
 for a label match, exceeds 0.15 (`TOOL_MIN_SCORE`), best first.
+
+Search hits carry both `score` (ranking, including a label-match bonus) and `raw_similarity`
+(unbonused finite cosine similarity). The frontend normalizes only `raw_similarity` across returned
+Objects for a per-query Object Heatmap. This does not change result inclusion, ranking, or the QA
+tools' uncut counting policy. Heatmap colors are not confidence or comparable across queries.
 
 ## Scene assets
 
@@ -194,9 +199,9 @@ constant. Search rejects a query vector of another length with `EMBEDDING_DIMENS
 [qa.py](../../backend/services/scene-api/src/scene_api/qa.py). The LLM plans and phrases; every
 number comes from a tool. `QAAgent` runs a function-calling loop of at most 6 steps against any
 OpenAI-compatible endpoint (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`; without them, asking
-returns 503 `LLM_NOT_CONFIGURED`). It answers in the question's language, ends with a
+returns 503 `LLM_NOT_CONFIGURED`). It is instructed to answer in English, ends with a
 `final_answer` call listing the Object ids, and the API attaches each Object's best Frame id as evidence (no image, [ADR-0008](../adr/0008-frame-images-stay-on-target.md)) and
-stores the exchange in `messages`. Tests use `ScriptedLLM`.
+does not load prior messages or save new exchanges. Existing `messages` rows remain readable and are not deleted; the explorer does not fetch them. Tests use `ScriptedLLM`.
 
 Grounding is enforced, not only requested. Both LLM adapters return the same reply: tool calls
 (with `final_answer` among them) or plain content, which counts as a final answer. `QAAgent` runs

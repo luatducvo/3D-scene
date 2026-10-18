@@ -27,7 +27,7 @@ export function SearchStatus({
       ) : error ? (
         <p role="alert">{t(key)}</p>
       ) : (
-        <p>{t("ui.searchCount", { count })}</p>
+        <p>{count ? t("ui.searchCount", { count }) : t("heatmap.empty")}</p>
       )}
       <button className="secondary full-width" onClick={onClear}>
         {t("ui.clearSearch")}

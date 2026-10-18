@@ -8,10 +8,11 @@ import {
   type Schemas,
 } from "../types";
 import { apiOrigin } from "../http";
-import { demoObjects, roomMembership, roomPointCloud } from "./room";
+import { demoObjects, roomMembership, roomPointCloud, roomMesh } from "./room";
 const base = `${apiOrigin}/api/v1/scenes`;
 const objects = demoObjects;
 const demoAssets = {
+  mesh_url: `${apiOrigin}/api/v1/mock/room.glb`,
   points_url: `${apiOrigin}/api/v1/mock/room.ply`,
   membership_url: `${apiOrigin}/api/v1/mock/room-membership.bin`,
 };
@@ -20,11 +21,24 @@ const scenes = new Map<string, Scene>([
     "demo",
     {
       id: "demo",
-      name: "Phòng khách · Demo",
+      name: "Living room - Demo",
       status: "ready",
       created_at: new Date().toISOString(),
       assets: demoAssets,
-      stage_runs: [],
+      stage_runs: STAGES.map((stage) => ({
+        stage,
+        algorithm: stage === "attributes" ? "attributes.none" : `${stage}.fake`,
+        status: "done",
+        started_at: "2026-10-18T00:00:00Z",
+        updated_at: "2026-10-18T00:00:02Z",
+        manifest: {
+          num_inputs: 24,
+          num_keyframes: 20,
+          num_objects: 4,
+          num_relations: 3,
+          num_points: 12000,
+        },
+      })),
     },
   ],
   // Published before Object membership existed: it shows points, and hover and highlight are off.
@@ -32,7 +46,7 @@ const scenes = new Map<string, Scene>([
     "legacy",
     {
       id: "legacy",
-      name: "Phòng khách · Bản cũ",
+      name: "Living room - Older publication",
       status: "ready",
       created_at: new Date(Date.now() - 86_400_000).toISOString(),
       assets: { ...demoAssets, membership_url: null },
@@ -65,6 +79,13 @@ const stream = (events: (ProgressEvent | QueryEvent)[]) =>
     { headers: { "Content-Type": "text/event-stream" } },
   );
 export const handlers = [
+  http.get(
+    `${apiOrigin}/api/v1/mock/room.glb`,
+    () =>
+      new HttpResponse(roomMesh(), {
+        headers: { "Content-Type": "model/gltf-binary" },
+      }),
+  ),
   http.get(
     `${apiOrigin}/api/v1/mock/room.ply`,
     () =>
@@ -199,35 +220,22 @@ export const handlers = [
                 ...Object.values(o.attributes || {}).flat(),
               ].some((value) => value.toLowerCase().includes(q)),
             )
-            .map((object) => ({ object, score: 1 }))
+            .map((object, index) => ({
+              object,
+              score: 1,
+              raw_similarity: 0.8 - index * 0.1,
+            }))
         : [],
     );
   }),
   http.get(`${base}/:id/messages`, ({ params }) =>
     HttpResponse.json(messages.get(String(params.id)) || []),
   ),
-  http.post(`${base}/:id/queries`, async ({ params, request }) => {
+  http.post(`${base}/:id/queries`, async ({ request }) => {
     const body = (await request.json()) as Schemas["QueryRequest"];
-    const vietnamese = /[à-ỹ]|bao|phòng|sofa.*bàn/i.test(body.question);
-    const answer = vietnamese
-      ? "Đây là scene mẫu với một sofa, một bàn cà phê và một chậu cây. Vùng liên quan đã được tô sáng trong không gian 3D."
-      : "This sample scene contains a sofa, a coffee table and a plant. The relevant region is highlighted in 3D.";
-    const history = messages.get(String(params.id)) || [];
-    history.push(
-      {
-        id: history.length + 1,
-        role: "user",
-        content: { question: body.question },
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: history.length + 2,
-        role: "assistant",
-        content: { answer, object_ids: ["sofa-1"], evidence: [] },
-        created_at: new Date().toISOString(),
-      },
-    );
-    messages.set(String(params.id), history);
+    void body.question;
+    const answer =
+      "This sample scene contains a sofa, a coffee table and a plant. The relevant region is highlighted in 3D.";
     return stream([
       {
         type: "tool",

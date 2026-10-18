@@ -88,6 +88,14 @@ _Avoid_: edge, link
 The Objects and Relations describing a Scene.
 _Avoid_: graph (bare), layout
 
+**Object Heatmap**:
+An Object-level view of similarity to one search query, expressed relative to the returned Objects for that query. Its colors do not represent recognition confidence and cannot be compared across queries.
+_Avoid_: confidence map, probability map
+
+**Pipeline Inspector**:
+An explanation of the Stages used to derive a Scene, including their purpose, inputs, outputs, and available execution facts.
+_Avoid_: debugger (for this explanatory view)
+
 ## Relationships
 
 - A **Scene** has at most one active **Job**; a **Job** runs every **Stage** in order, one **Compute Run** each, all on one **Target**.

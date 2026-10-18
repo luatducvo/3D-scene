@@ -172,6 +172,10 @@ def test_search_keeps_hits_near_the_best_score_and_every_label_match(client):
 
     # chair-1 matches by label and scores best; armchair-1 matches by label despite no similarity.
     assert search() == ["chair-1", "armchair-1", "near-0", "near-1", "near-2"]
+    hits = client.get(prefix + "/search", params={"q": "chair"}).json()
+    assert hits[1]["score"] == pytest.approx(1.0)
+    assert hits[1]["raw_similarity"] == pytest.approx(0.0)
+    assert hits[2]["raw_similarity"] == pytest.approx(0.98)
     client.app.state.search_margin = 1.0
     assert search() == ["chair-1", "armchair-1", *near, *list(far)[:5]]
 
@@ -231,36 +235,38 @@ def test_qa_counts_are_not_cut_like_get_search(client):
     ] == ["chair-1"]
 
 
-def test_grounded_qa_stream_and_history(client):
+def test_grounded_qa_is_independent_and_preserves_only_old_messages(client):
     from scene_api.qa import ScriptedLLM
 
     prefix = uploaded(client)
     client.post(prefix + "/process", json={})
     worker(client).run_once()
-    client.app.state.llm = ScriptedLLM(
-        [
-            {
-                "tool_calls": [
-                    {
-                        "id": "1",
-                        "function": {"name": "count_objects", "arguments": '{"label":"chair"}'},
-                    }
-                ]
-            },
-            {"content": "Có 1 ghế trong phòng.", "object_ids": ["chair-1"]},
-        ]
+    scene_id = prefix.rsplit("/", 1)[1]
+    client.app.state.store.save_exchange(
+        scene_id, {"question": "previous-secret-question"}, {"answer": "previous-secret-answer"}
     )
-    response = client.post(prefix + "/queries", json={"question": "Có bao nhiêu ghế?"})
-    assert response.status_code == 200
-    assert "event: tool" in response.text and "event: delta" in response.text
-    assert "event: final" in response.text and "chair-1" in response.text
-    assert "Có 1 ghế" in response.text
-    messages = client.get(prefix + "/messages").json()
-    assert [m["role"] for m in messages] == ["user", "assistant"]
+    previous = client.get(prefix + "/messages").json()
+
+    class IndependentLLM(ScriptedLLM):
+        def complete(self, messages, tools):
+            assert "previous-secret" not in str(messages)
+            assert "English" in messages[0]["content"]
+            return super().complete(messages, tools)
+
+    for question in ("How many chairs?", "What is here?"):
+        client.app.state.llm = IndependentLLM(
+            [call("count_objects", {"label": "chair"}), {"content": "There is 1 chair."}]
+        )
+        response = client.post(prefix + "/queries", json={"question": question})
+        assert response.status_code == 200
+        assert "event: tool" in response.text and "event: delta" in response.text
+        assert "event: final" in response.text and "chair-1" in response.text
+        assert "There is 1 chair." in response.text
+        assert client.get(prefix + "/messages").json() == previous
+
     client.app.state.llm = ScriptedLLM([])
     assert "event: error" in client.post(prefix + "/queries", json={"question": "fails"}).text
-    assert len(client.get(prefix + "/messages").json()) == 2
-    assert messages[1]["content"]["object_ids"] == ["chair-1"]
+    assert client.get(prefix + "/messages").json() == previous
 
 
 def call(name, arguments, id="1"):

@@ -10,13 +10,15 @@ network) and the committed OpenAPI file. Commands and validation steps are in
 
 The UI follows the approved Figma design, and the user's later UI decisions override SPEC's
 interface stories: desktop web only, no Object list, no evidence photos, no suggested questions.
+English is the only rendered language. The language switch is removed; old Vietnamese locale URLs redirect to English while preserving the Scene path and query. Existing translation data is not selected by the application. Search and questions are supported in English without language detection or rejection.
+
 Input photo previews and quality badges remain part of capture review. API responses still carry
 Object identities and evidence fields; the UI does not render evidence.
 
 ## Stack
 
 Next.js App Router with TypeScript and React 19, Tailwind CSS 4, TanStack Query for server state,
-Zustand for viewer state, React Three Fiber + drei for the viewer, next-intl for `en` / `vi`
+Zustand for viewer state, React Three Fiber + drei for the viewer, next-intl for English
 strings, `openapi-typescript` + `openapi-fetch` for the typed client, MSW for the mock backend,
 Vitest for tests.
 
@@ -24,7 +26,7 @@ Vitest for tests.
 
 | Path | Role |
 |---|---|
-| `src/app/[locale]/page.tsx` | Scene list and "New scene" (the root URL opens `/vi`) |
+| `src/app/[locale]/page.tsx` | Scene list and "New scene" (the root URL opens `/en`) |
 | `src/app/[locale]/scenes/new/page.tsx` | Capture tips and upload |
 | `src/app/[locale]/scenes/[sceneId]/page.tsx` | Progress, then the explorer |
 | `src/components/SceneExplorer.tsx` | Full-viewport explorer: canvas, search, 360 px task panel |
@@ -32,14 +34,15 @@ Vitest for tests.
 | `src/lib/sceneProgress.ts` | `useSceneProgress`: Stage Runs plus replayed and live SSE events, folded per Stage |
 | `src/components/UploadDropzone.tsx`, `src/lib/quality/` | Drop files; sharpness/exposure scoring in a Web Worker |
 | `src/lib/upload/shrink.ts` | Shrinks photos to ingest's `long_side` as metadata-free JPEG before upload |
-| `src/components/ObjectDetails.tsx`, `ChatPanel.tsx`, `IngestReport.tsx` | Selected Object properties, streamed answers, rejected files |
+| `src/components/ObjectDetails.tsx`, `ChatPanel.tsx`, `IngestReport.tsx` | Selected Object properties, latest independent answer, rejected files |
 | `src/components/viewer/SceneCanvas.tsx`, `viewer/layers/index.tsx` | Three.js canvas, pointer picking, hover label and replaceable layers |
 | `src/components/viewer/view.ts`, `viewer/camera.ts` | Viewer rules without WebGL (default layers, framing bounds, home pose, focus box, highlight availability) and camera commands |
 | `src/components/viewer/highlight.ts`, `viewer/picking.ts` | Object highlight and hover painting, pick ownership; the GPU pick pass |
+| `src/components/HeatmapLegend.tsx`, `PipelineInspector.tsx` | Relative search similarity legend and metadata-only Stage explanations |
 | `src/components/SearchStatus.tsx` | Search result count or localized search error |
 | `src/lib/api/http.ts`, `sse.ts`, `errors.ts`, `membership.ts` | `sceneApi`, the only way to the backend; one SSE reader, one error decoder, the membership decoder |
 | `src/lib/api/types.ts` | Schema aliases, `STAGES` (type-checked against the backend's Stage enum), event builders |
-| `src/lib/api/mock/` | MSW handlers, a small deterministic colored PLY room with its Object membership, and a `legacy` Scene without membership |
+| `src/lib/api/mock/` | MSW handlers, a deterministic colored PLY and GLB room with matching Object membership, and a `legacy` Scene without membership |
 | `src/lib/api/schema.d.ts` | Generated from OpenAPI, never edited by hand |
 | `src/lib/store/viewerStore.ts` | Viewer state: selection, highlights, hovered Object, measuring, layer visibility, loaded layer bounds, membership fit |
 | `messages/en.json`, `messages/vi.json` | The only localized text |
@@ -87,8 +90,8 @@ the two; the room is framed by the visible layer's bounds once loaded (`visibleB
 layer loaded first. The store holds state only.
 
 Camera moves go through [camera.ts](../../frontend/src/components/viewer/camera.ts): `goHome()`
-clears the selection and shows the whole room, `focus(ids)` highlights Objects and fits their boxes in
-view. Search, chat, Object details and a click on an Object call these; the canvas's controls attach
+clears selection/results and shows the whole room; `focus(ids)` fits Object bounds without changing
+their colors. Result visualization and selection are separate viewer state. Search, chat, Object details and a click on an Object call these; the canvas's controls attach
 on mount and apply a focus given earlier. The room layers listen for raycast clicks only while
 measuring.
 
@@ -148,18 +151,57 @@ canvas's commit makes React 19 log "synchronously unmount a root" and a `removeC
 2. **Upload:** progress bar; "Process" starts the Job.
 3. **Processing:** `StageStepper` shows plain-language Stage names, an overall bar (each Stage is 1/9
    plus the running one's reported share), elapsed time, and a time estimate for long Stages.
-4. **Explorer:** full-viewport 3D canvas; pointing at an Object tints it and shows its label; search
-   highlights matching geometry; clicking an Object opens its properties; chat, measuring and display controls open in the task panel.
+4. **Explorer:** full-viewport 3D canvas; Original or Instances appearance; hover labels and selection with dimensions/focus; English search paints a relative Object Heatmap. Independent QA, measurement, display controls and Pipeline Inspector use the task panel.
 
 ## Development and validation
 
 In `frontend/`, run `npm ci`, then `npm run dev` against the backend configured in
-`NEXT_PUBLIC_API_URL`. Set `NEXT_PUBLIC_API_MODE=mock` to work without a backend or GPU. Open `/vi`
-or `/en`; the root URL opens `/vi`.
+`NEXT_PUBLIC_API_URL`. Set `NEXT_PUBLIC_API_MODE=mock` to work without a backend or GPU. Open `/en`; old `/vi` deep links redirect to the matching English URL.
 
 A change is validated by `npm run typecheck`, `npm test` and `npm run build`. Visible changes also
 get a browser check at desktop width (1440 × 960); mock mode covers creation, quality scoring,
-upload, progress, selection, search, measuring, streamed chat, language switching and deletion.
+upload, progress, selection, search, measuring, independent QA, English navigation, Inspector and deletion.
 
 Design SVGs and the Inter font are served locally from `public/design`, with the Inter license
 alongside; the app loads no Figma asset URLs at runtime.
+
+
+## Appearances and active results
+
+Original is the default. Instances assigns stable, distinct Object ID colors on either Point Cloud
+or Mesh; shared geometry uses the same smaller-membership ownership as picking. Unassigned geometry
+keeps its original color. Hover and selection are temporary feedback, separate from the base
+appearance and active result. Restoring feedback never accumulates tints.
+
+Search consumes both ranking `score` and unbonused `raw_similarity`. Only raw similarity is normalized
+within the returned Objects for the query: minimum is cool and maximum hot. One result or tied
+similarities are all hot with a single-level explanation. The legend states that this is relative
+similarity, not confidence; colors cannot be compared across queries. No results restores the base
+appearance and shows a distinct empty message; failures keep their error states.
+
+Only one search or QA visualization is active. Search colors override instance colors; QA highlights
+referenced Object IDs without inventing relevance scores. Clear restores the chosen base appearance.
+A monotonically increasing result version rejects delayed results after a newer request, Clear,
+Home, or a Scene change. Debounced search does not automatically repaint cached results after QA;
+a superseded response can settle its search status without taking control of the viewer.
+
+## Independent QA
+
+The question panel holds only the latest question and answer in transient state and retains a
+completed answer directly. It never fetches message history. Each request carries the current
+question and camera; the API supplies no earlier exchanges and saves no new messages. Existing
+stored messages are preserved. Closing or switching panels preserves the latest exchange for this Scene; reopening a Scene starts with an empty panel. Answers are instructed
+to be English; tool progress, cancellation, numerical grounding and error reporting remain.
+
+## Pipeline Inspector
+
+The Inspector is a side panel beside the viewer, listing all nine Stages. Selecting a Stage shows
+its purpose and input/output roles from an English explanatory catalog, and its Algorithm, status,
+available elapsed timing and meaningful statistics from Scene detail Stage Runs and Manifests.
+Elapsed time is derived only from valid recorded timestamps of a terminal Stage Run and is labeled
+accordingly. Missing values are Not available, never zero. The disabled attributes Algorithm is
+explicitly explained as producing no VLM enrichment.
+
+The Inspector reads published metadata, so it works with the Target off. It does not fetch or expose
+intermediate Frame/depth/mask previews, execution parameters, or new file endpoints. Fake fixtures
+include both geometry representations and completed Stage metadata for desktop browser checks.
