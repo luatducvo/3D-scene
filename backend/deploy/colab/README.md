@@ -29,7 +29,9 @@ Open the notebook in Colab and run its cells in order:
 5. **Model cache.** Mounts Google Drive and sets `MODELS_DIR` there, so weights
    (over 10 GB) download once and survive runtime resets. Set `HF_TOKEN` for gated SAM 3 weights.
    Before downloading, the cell prints `cached` for each model already complete on Drive and
-   `download` with the missing files for each model it will fetch.
+   `download` with the missing files for each model it will fetch. It then waits for Drive to
+   finish uploading new weights (`drive.flush_and_unmount()`) and mounts Drive again, so a later
+   runtime reset cannot lose a half-uploaded file.
 6. **Tunnel.** Starts `cloudflared` for port 9000 and prints the public URL.
 7. **Server.** Read `COMPUTE_TOKEN` from Colab secrets, then start uvicorn on port 9000, reusing
    the cache configuration from step 5 without printing the token. The cell sets
