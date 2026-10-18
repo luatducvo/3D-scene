@@ -3,9 +3,14 @@
 The point cloud and the TSDF run on NumPy or, with `device: cuda`, on CuPy; marching cubes runs on the CPU.
 """
 
+import json
+import struct
+from pathlib import Path
+
 import numpy as np
 from PIL import Image
 from scene_core.contracts import MeshManifest
+from scene_core.errors import SceneError
 from scene_core.ports import StageAlgorithm
 
 from .arrays import array_module, to_numpy
@@ -37,6 +42,143 @@ def write_ply(path, points, colors):
     with open(path, "wb") as output:
         output.write(header.encode("ascii"))
         output.write(vertex.tobytes())
+
+
+_PLY_TYPES = {
+    "char": "i1",
+    "int8": "i1",
+    "uchar": "u1",
+    "uint8": "u1",
+    "short": "<i2",
+    "int16": "<i2",
+    "ushort": "<u2",
+    "uint16": "<u2",
+    "int": "<i4",
+    "int32": "<i4",
+    "uint": "<u4",
+    "uint32": "<u4",
+    "float": "<f4",
+    "float32": "<f4",
+    "double": "<f8",
+    "float64": "<f8",
+}
+
+
+def read_ply_points(path):
+    """Positions (N, 3) of the vertex element of a binary little-endian PLY, in file order.
+    An unreadable file is ASSET_UNREADABLE."""
+    try:
+        with open(path, "rb") as source:
+            return _parse_ply_points(source)
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        raise SceneError("ASSET_UNREADABLE", f"{Path(path).name} is unreadable: {exc}") from exc
+
+
+def _parse_ply_points(source):
+    if source.readline().strip() != b"ply":
+        raise ValueError("Not a PLY file")
+    fields, count, element = [], None, None
+    while True:
+        line = source.readline()
+        if not line:
+            raise ValueError("PLY header has no end_header")
+        words = line.decode("ascii").split()
+        if not words or words[0] in ("comment", "obj_info"):
+            continue
+        if words[0] == "end_header":
+            break
+        if words[0] == "format" and words[1] != "binary_little_endian":
+            raise ValueError("Only binary little-endian PLY is supported")
+        if words[0] == "element":
+            element = words[1]
+            if element == "vertex":
+                count = int(words[2])
+            elif count is None:
+                raise ValueError("The PLY vertex element must come first")
+        if words[0] == "property" and element == "vertex":
+            if words[1] == "list" or words[1] not in _PLY_TYPES:
+                raise ValueError(f"Unsupported PLY vertex property: {line.decode().strip()}")
+            fields.append((words[2], _PLY_TYPES[words[1]]))
+    if count is None:
+        raise ValueError("PLY has no vertex element")
+    vertex = np.fromfile(source, dtype=np.dtype(fields), count=count)
+    if len(vertex) != count:
+        raise ValueError("PLY vertex data is truncated")
+    return np.stack([vertex[axis] for axis in "xyz"], axis=1).astype(np.float64)
+
+
+# Binary glTF 2.0 layout: a 12-byte header (magic, version, total length), then chunks, each an
+# 8-byte header (length, type) and its data.
+GLB_MAGIC = 0x46546C67  # "glTF"
+GLB_VERSION = 2
+GLB_HEADER_SIZE = 12
+GLB_CHUNK_HEADER_SIZE = 8
+GLB_CHUNK_JSON = 0x4E4F534A  # "JSON"
+GLB_CHUNK_BIN = 0x004E4942  # "BIN\0"
+GLTF_FLOAT = 5126  # accessor componentType of float32
+GLTF_UNSIGNED_SHORT = 5123  # accessor componentType of uint16
+GLTF_VEC3_SIZE = 12  # bytes of one float32 VEC3
+
+
+def pack_glb(doc, binary):
+    """A binary glTF of a JSON document and one BIN chunk, both padded to 4 bytes."""
+    js = json.dumps(doc, separators=(",", ":")).encode()
+    js += b" " * (-len(js) % 4)
+    binary += b"\0" * (-len(binary) % 4)
+    length = GLB_HEADER_SIZE + 2 * GLB_CHUNK_HEADER_SIZE + len(js) + len(binary)
+    return (
+        struct.pack("<III", GLB_MAGIC, GLB_VERSION, length)
+        + struct.pack("<II", len(js), GLB_CHUNK_JSON)
+        + js
+        + struct.pack("<II", len(binary), GLB_CHUNK_BIN)
+        + binary
+    )
+
+
+def read_glb_positions(path):
+    """POSITION values (N, 3) of every primitive of every mesh of a binary glTF, concatenated in
+    `meshes` then `primitives` order. Node transforms are not applied: mesh Algorithms write
+    positions in the aligned frame. An unreadable file is ASSET_UNREADABLE."""
+    try:
+        with open(path, "rb") as source:
+            return _parse_glb_positions(source.read())
+    except (OSError, KeyError, IndexError, TypeError, struct.error, ValueError) as exc:
+        raise SceneError("ASSET_UNREADABLE", f"{Path(path).name} is unreadable: {exc}") from exc
+
+
+def _parse_glb_positions(data):
+    if (
+        len(data) < GLB_HEADER_SIZE + GLB_CHUNK_HEADER_SIZE
+        or struct.unpack_from("<I", data)[0] != GLB_MAGIC
+    ):
+        raise ValueError("Not a binary glTF file")
+    chunks, position = {}, GLB_HEADER_SIZE
+    while position + GLB_CHUNK_HEADER_SIZE <= len(data):
+        length, kind = struct.unpack_from("<II", data, position)
+        start = position + GLB_CHUNK_HEADER_SIZE
+        chunks.setdefault(kind, data[start : start + length])
+        position = start + length
+    if GLB_CHUNK_JSON not in chunks:
+        raise ValueError("Binary glTF has no JSON chunk")
+    doc = json.loads(chunks[GLB_CHUNK_JSON])
+    binary = chunks.get(GLB_CHUNK_BIN, b"")
+    positions = []
+    for mesh in doc.get("meshes", []):
+        for primitive in mesh["primitives"]:
+            accessor = doc["accessors"][primitive["attributes"]["POSITION"]]
+            if accessor["componentType"] != GLTF_FLOAT or accessor["type"] != "VEC3":
+                raise ValueError("glTF POSITION must be float VEC3")
+            view = doc["bufferViews"][accessor["bufferView"]]
+            if view.get("buffer", 0) != 0 or "sparse" in accessor:
+                raise ValueError("glTF POSITION must live in the GLB binary chunk")
+            start = view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
+            stride = view.get("byteStride", GLTF_VEC3_SIZE)
+            count = accessor["count"]
+            if count and start + stride * (count - 1) + GLTF_VEC3_SIZE > len(binary):
+                raise ValueError("glTF POSITION data is truncated")
+            rows = np.ndarray((count, 3), "<f4", binary, start, (stride, 4))
+            positions.append(rows.astype(np.float64))
+    return np.concatenate(positions) if positions else np.zeros((0, 3))
 
 
 def voxel_downsample(points, colors, voxel, xp=np):

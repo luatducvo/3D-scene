@@ -1,7 +1,6 @@
 """Deterministic synthetic algorithms, explicitly selected through entry points."""
 
 import json
-import struct
 import time
 
 import numpy as np
@@ -21,7 +20,8 @@ from scene_core.errors import SceneError
 from scene_core.ports import StageAlgorithm
 from scene_core.results import EMBEDDING_DIM
 
-from .mesh import write_ply
+from .graph import write_membership
+from .mesh import GLTF_FLOAT, GLTF_UNSIGNED_SHORT, pack_glb, write_ply
 
 OBJECTS = [
     {
@@ -160,25 +160,21 @@ class MeshFake(Fake):
             "accessors": [
                 {
                     "bufferView": 0,
-                    "componentType": 5126,
+                    "componentType": GLTF_FLOAT,
                     "count": 8,
                     "type": "VEC3",
                     "min": [0, 0, 0],
                     "max": [4, 3, 2.5],
                 },
-                {"bufferView": 1, "componentType": 5123, "count": len(indices), "type": "SCALAR"},
+                {
+                    "bufferView": 1,
+                    "componentType": GLTF_UNSIGNED_SHORT,
+                    "count": len(indices),
+                    "type": "SCALAR",
+                },
             ],
         }
-        js = json.dumps(doc, separators=(",", ":")).encode()
-        js += b" " * ((-len(js)) % 4)
-        glb = (
-            struct.pack("<III", 0x46546C67, 2, 12 + 8 + len(js) + 8 + len(binary))
-            + struct.pack("<II", len(js), 0x4E4F534A)
-            + js
-            + struct.pack("<II", len(binary), 0x004E4942)
-            + binary
-        )
-        w.dir("mesh").joinpath("mesh.glb").write_bytes(glb)
+        w.dir("mesh").joinpath("mesh.glb").write_bytes(pack_glb(doc, binary))
         # The same five faces as a colored point cloud on a 5 cm grid.
         u, v = (g.ravel() for g in np.meshgrid(np.linspace(0, 1, 81), np.linspace(0, 1, 81)))
         zero = np.zeros_like(u)
@@ -294,11 +290,17 @@ class AttributesFake(Fake):
         return AttributesManifest(num_objects=2)
 
 
+def inside_box(positions, box):
+    """Indices of positions inside an axis-aligned box (the fake Objects have no yaw)."""
+    half = np.asarray(box["size"]) / 2
+    return np.flatnonzero(np.all(np.abs(positions - box["center"]) <= half, axis=1))
+
+
 class GraphFake(Fake):
     name = "graph.fake"
     stage = "graph"
     manifest_type = GraphManifest
-    reads = ["instances", "attributes", "align"]
+    reads = ["instances", "attributes", "align", "mesh"]
     writes = ["graph"]
 
     def transform(self, w, p):
@@ -316,5 +318,12 @@ class GraphFake(Fake):
                     "relations": relations,
                 }
             )
+        )
+        # Members are the room's points and vertices inside each Object's box: floor points under
+        # the chair and the table. The fake mesh has only the room's corners, so no vertex is inside.
+        write_membership(
+            w,
+            [o["id"] for o in OBJECTS],
+            lambda positions: [inside_box(positions, o["box"]) for o in OBJECTS],
         )
         return GraphManifest(num_objects=2, num_relations=1)

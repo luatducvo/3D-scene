@@ -33,13 +33,15 @@ Vitest for tests.
 | `src/components/UploadDropzone.tsx`, `src/lib/quality/` | Drop files; sharpness/exposure scoring in a Web Worker |
 | `src/lib/upload/shrink.ts` | Shrinks photos to ingest's `long_side` as metadata-free JPEG before upload |
 | `src/components/ObjectDetails.tsx`, `ChatPanel.tsx`, `IngestReport.tsx` | Selected Object properties, streamed answers, rejected files |
-| `src/components/viewer/SceneCanvas.tsx`, `viewer/layers/index.tsx` | Three.js canvas and replaceable layers |
-| `src/components/viewer/view.ts`, `viewer/camera.ts` | Viewer rules without WebGL (default layers, framing bounds, home pose, focus box) and camera commands |
-| `src/lib/api/http.ts`, `sse.ts`, `errors.ts` | `sceneApi`, the only way to the backend; one SSE reader and one error decoder |
+| `src/components/viewer/SceneCanvas.tsx`, `viewer/layers/index.tsx` | Three.js canvas, pointer picking, hover label and replaceable layers |
+| `src/components/viewer/view.ts`, `viewer/camera.ts` | Viewer rules without WebGL (default layers, framing bounds, home pose, focus box, highlight availability) and camera commands |
+| `src/components/viewer/highlight.ts`, `viewer/picking.ts` | Object highlight and hover painting, pick ownership; the GPU pick pass |
+| `src/components/SearchStatus.tsx` | Search result count or localized search error |
+| `src/lib/api/http.ts`, `sse.ts`, `errors.ts`, `membership.ts` | `sceneApi`, the only way to the backend; one SSE reader, one error decoder, the membership decoder |
 | `src/lib/api/types.ts` | Schema aliases, `STAGES` (type-checked against the backend's Stage enum), event builders |
-| `src/lib/api/mock/` | MSW handlers and a small deterministic colored PLY room |
+| `src/lib/api/mock/` | MSW handlers, a small deterministic colored PLY room with its Object membership, and a `legacy` Scene without membership |
 | `src/lib/api/schema.d.ts` | Generated from OpenAPI, never edited by hand |
-| `src/lib/store/viewerStore.ts` | Viewer state: selection, highlights, measuring, layer visibility, loaded layer bounds |
+| `src/lib/store/viewerStore.ts` | Viewer state: selection, highlights, hovered Object, measuring, layer visibility, loaded layer bounds, membership fit |
 | `messages/en.json`, `messages/vi.json` | The only localized text |
 
 ## `sceneApi`
@@ -76,17 +78,64 @@ hook, with MSW streaming replayed, live and reconnecting streams.
 ## Viewer layers
 
 `sceneLayers` in [layers/index.tsx](../../frontend/src/components/viewer/layers/index.tsx) maps a
-name to a component receiving `{sceneId, assets, objects}`: `points` (dense point cloud from
-`points.ply`), `mesh` (TSDF mesh) and `boxes` (Object boxes). The rules live in
+name to a component receiving `{sceneId, assets, objects, membership}`: `points` (dense point cloud
+from `points.ply`) and `mesh` (TSDF mesh). Objects are not drawn as boxes; they are shown on the
+room's own geometry ([below](#object-highlighting)). The rules live in
 [view.ts](../../frontend/src/components/viewer/view.ts) and are tested without WebGL: a Scene shows
-its point cloud when it has one, else its mesh, and boxes always (`defaultLayers`); the view mode
-shows exactly one of the two; the room is framed by the visible layer's bounds once loaded
-(`visibleBounds`), whichever layer loaded first. The store holds state only.
+its point cloud when it has one, else its mesh (`defaultLayers`); the view mode shows exactly one of
+the two; the room is framed by the visible layer's bounds once loaded (`visibleBounds`), whichever
+layer loaded first. The store holds state only.
 
 Camera moves go through [camera.ts](../../frontend/src/components/viewer/camera.ts): `goHome()`
-clears the selection and shows the whole room, `focus(ids)` highlights Objects and fits them in view.
-Search, chat, Object details and box clicks call these; the canvas's controls attach on mount and
-apply a focus given earlier. The room layers listen for clicks only while measuring.
+clears the selection and shows the whole room, `focus(ids)` highlights Objects and fits their boxes in
+view. Search, chat, Object details and a click on an Object call these; the canvas's controls attach
+on mount and apply a focus given earlier. The room layers listen for raycast clicks only while
+measuring.
+
+### Object highlighting
+
+`SceneExplorer` loads Object membership with `sceneApi.getMembership(assets.membership_url)`, which
+decodes `graph/membership.bin` ([api.md](api.md#object-membership)) in
+[membership.ts](../../frontend/src/lib/api/membership.ts), and passes it to the layers. A layer uses
+it only when its counts match the loaded geometry: `pointCount` against the PLY's vertices (PLYLoader
+keeps file order), `vertexCount` against the glTF's POSITION entries, taken per primitive in glTF
+mesh and primitive order through `parser.associations` (GLTFLoader neither merges nor reorders
+vertices). A mismatch sets `membershipMismatch` in the store and logs a warning.
+
+- **Painting** ([highlight.ts](../../frontend/src/components/viewer/highlight.ts), tested without
+  WebGL): `Painter` rewrites the layer's per-element colour array from the real colours it keeps
+  aside. Highlighted and selected Objects draw in the highlight green (`#9ee8c4`) and every other
+  element dims to `DIM` of its colour; with no highlight, real colours return. The hovered Object
+  moves `HOVER_MIX` towards white, and a hover change repaints only the two Objects involved. The
+  mesh's vertex colours are painted the same way, multiplied by its lighting.
+- **Picking** ([picking.ts](../../frontend/src/components/viewer/picking.ts)): each layer adds a pick
+  twin that shares its position (and index) buffers and carries one colour per element, the 24-bit
+  index of its owning Object (`owners`, `pickColors`). Where Objects overlap, the Object with the
+  fewest members owns the element, so a door handle wins over the wardrobe. Ids are never blended:
+  the point twin draws each point as one vertex, and the mesh twin uses a GLSL3 pick shader whose id
+  varying is `flat`, so a triangle whose vertices have different owners takes its last vertex's id
+  rather than an interpolated colour that would decode to another Object. Both layers set this up
+  through `useObjectHighlighting` in [layers/index.tsx](../../frontend/src/components/viewer/layers/index.tsx),
+  which also checks the counts and runs the painting. `pickAt` draws the twins
+  into a render target the size of the drawing buffer with a 1 × 1 scissor under the cursor and reads
+  that pixel back: the same projection keeps points their on-screen size (a narrowed view would clip
+  points whose centres fall outside it), while only one pixel is filled and read. No CPU raycast
+  runs over the points.
+- **Pointer** (`Picker` in [SceneCanvas.tsx](../../frontend/src/components/viewer/SceneCanvas.tsx)):
+  a pointer move only records the position; the next frame picks once and sets `hovered`, which tints
+  the Object and shows its label next to the cursor (`HoverLabel`). Nothing picks while a button is
+  held (orbit or pan) or while measuring. A press that moves less than 4 px is a click: on an Object it
+  selects it and calls `focus`; on empty space it deselects, which also drops the highlight when it was
+  only the selection.
+- **Without membership** (`highlightState` in view.ts): a Scene whose `membership_url` is `null`
+  (published before membership existed), or whose membership does not fit the shown layer, still
+  shows its geometry; hover and highlight are off and the viewer asks for the Scene to be processed
+  again. A membership file that fails to load shows its own notice.
+
+Search errors are shown by error code from `searchErrors` in `messages/*.json`
+([SearchStatus.tsx](../../frontend/src/components/SearchStatus.tsx)); `COMPUTE_UNAVAILABLE` says
+semantic search needs the GPU machine running. Search does not retry, because the API answers 503
+only after its own wait for the Target.
 
 While a layer loads, the canvas's Suspense fallback only reports it, and
 [SceneCanvas.tsx](../../frontend/src/components/viewer/SceneCanvas.tsx) shows the loading label as
@@ -99,8 +148,8 @@ canvas's commit makes React 19 log "synchronously unmount a root" and a `removeC
 2. **Upload:** progress bar; "Process" starts the Job.
 3. **Processing:** `StageStepper` shows plain-language Stage names, an overall bar (each Stage is 1/9
    plus the running one's reported share), elapsed time, and a time estimate for long Stages.
-4. **Explorer:** full-viewport 3D canvas; search highlights matching geometry; selecting an Object
-   opens its properties; chat, measuring and display controls open in the task panel.
+4. **Explorer:** full-viewport 3D canvas; pointing at an Object tints it and shows its label; search
+   highlights matching geometry; clicking an Object opens its properties; chat, measuring and display controls open in the task panel.
 
 ## Development and validation
 

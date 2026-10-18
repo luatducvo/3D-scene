@@ -33,6 +33,50 @@ from .models import (
 )
 
 QUERY_READY_TIMEOUT_S = 10
+# GET /search keeps Objects whose similarity is within SEARCH_MARGIN of the best one, SEARCH_MAX_HITS in all.
+SEARCH_MARGIN = 0.05
+SEARCH_MAX_HITS = 10
+# The QA tools keep every Object whose similarity, plus 1 for a label match, exceeds this.
+TOOL_MIN_SCORE = 0.15
+
+
+def label_matches(obj, query):
+    """The query contains the Object's label or Vietnamese label, or the reverse."""
+    query = query.lower()
+    return any(
+        label and (query in label.lower() or label.lower() in query)
+        for label in (obj["label"], obj["label_vi"])
+    )
+
+
+def _best_first(hits):
+    return sorted(hits, key=lambda hit: hit["score"], reverse=True)
+
+
+def rank_search_hits(objects, similarities, query, margin, limit=SEARCH_MAX_HITS):
+    """The GET /search cut: every label match, then the other Objects within `margin` of the best
+    similarity, best first, while fewer than `limit` hits are kept. A label match scores its
+    similarity plus 1."""
+    best = max(similarities.values(), default=0.0)
+    labelled, similar = [], []
+    for obj in objects:
+        similarity = similarities.get(obj["id"], 0.0)
+        if label_matches(obj, query):
+            labelled.append({"object": obj, "score": similarity + 1})
+        elif similarity > 0 and similarity >= best - margin:
+            similar.append({"object": obj, "score": similarity})
+    return _best_first(labelled) + _best_first(similar)[: max(0, limit - len(labelled))]
+
+
+def rank_tool_hits(objects, similarities, query):
+    """The QA tools' ranking, uncut so counts stay whole: every Object scoring above TOOL_MIN_SCORE,
+    best first, where the score is its similarity plus 1 for a label match."""
+    hits = []
+    for obj in objects:
+        score = similarities.get(obj["id"], 0.0) + (1 if label_matches(obj, query) else 0)
+        if score > TOOL_MIN_SCORE:
+            hits.append({"object": obj, "score": score})
+    return _best_first(hits)
 
 
 def create_app(
@@ -57,6 +101,7 @@ def create_app(
     app.state.data_dir = data_dir
     app.state.target = target
     app.state.llm = llm
+    app.state.search_margin = float(os.getenv("SEARCH_MARGIN", SEARCH_MARGIN))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000").split(","),
@@ -259,11 +304,19 @@ def create_app(
 
     @app.get("/api/v1/scenes/{scene_id}/search", response_model=list[SearchHit])
     def search_objects(scene_id: uuid.UUID, q: str):
-        return search(scene_id, q, public_objects(scene_id))
-
-    def search(scene_id, q, objects):
         if not q.strip():
             return []
+        return rank_search_hits(
+            public_objects(scene_id), similarities(scene_id, q), q, app.state.search_margin
+        )
+
+    def tool_search(scene_id, q, objects):
+        if not q.strip():
+            return []
+        return rank_tool_hits(objects, similarities(scene_id, q), q)
+
+    def similarities(scene_id, q):
+        """Cosine similarity of the query embedding, made on the Target, to each Object's."""
         import numpy as np
 
         vector = target_workspace().embed_text([q])[0]
@@ -279,16 +332,7 @@ def create_app(
                     (str(vector), scene_id),
                 ).fetchall():
                     scores[row["id"]] = float(row["score"] or 0)
-        hits = []
-        for obj in objects:
-            label_match = any(
-                label and (q.lower() in label.lower() or label.lower() in q.lower())
-                for label in (obj["label"], obj["label_vi"])
-            )
-            score = scores.get(obj["id"], 0) + (1 if label_match else 0)
-            if score > 0.15:
-                hits.append({"object": obj, "score": score})
-        return sorted(hits, key=lambda hit: hit["score"], reverse=True)
+        return scores
 
     @app.get("/api/v1/scenes/{scene_id}/messages", response_model=list[Message])
     def list_messages(scene_id: uuid.UUID):
@@ -331,7 +375,7 @@ def create_app(
             objects,
             relations,
             scene["room"],
-            lambda q: search(scene_id, q, objects),
+            lambda q: tool_search(scene_id, q, objects),
             body.camera.model_dump() if body.camera else None,
         )
         past = [

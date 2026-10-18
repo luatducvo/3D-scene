@@ -7,8 +7,14 @@ import { sceneApi } from "../lib/api";
 import type { Scene } from "../lib/api/types";
 import { useViewer } from "../lib/store/viewerStore";
 import { focus, goHome } from "./viewer/camera";
-import { defaultLayers, showMode, viewMode } from "./viewer/view";
+import {
+  defaultLayers,
+  highlightState,
+  showMode,
+  viewMode,
+} from "./viewer/view";
 import { DesignIcon } from "./DesignIcon";
+import { SearchStatus } from "./SearchStatus";
 import { ObjectDetails } from "./ObjectDetails";
 import { ChatPanel } from "./ChatPanel";
 import { StatusBadge } from "./StatusBadge";
@@ -53,18 +59,34 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     queryKey: ["search", scene.id, query],
     queryFn: () => sceneApi.searchObjects(scene.id, query),
     enabled: !!query,
+    // An unavailable Target answers 503 after its own wait; retrying only delays the message.
+    retry: false,
   });
+  const membershipUrl = scene.assets?.membership_url;
+  const membership = useQuery({
+    queryKey: ["membership", membershipUrl],
+    queryFn: () => sceneApi.getMembership(membershipUrl!),
+    enabled: !!membershipUrl,
+    staleTime: Infinity,
+  });
+  const membershipMismatch = useViewer((s) => s.membershipMismatch);
   const selected = objects.data?.find((o) => o.id === selectedId);
   const hasPoints = !!scene.assets?.points_url,
     hasMesh = !!scene.assets?.mesh_url;
+  const highlighting = highlightState(
+    scene.assets ?? {},
+    membership.status,
+    membershipMismatch,
+    viewMode(layers),
+  );
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search.trim()), 300);
     return () => clearTimeout(timer);
   }, [search]);
   useEffect(() => {
-    if (!query) useViewer.getState().highlight([]);
+    if (!query || results.error) useViewer.getState().highlight([]);
     else if (results.data) focus(results.data.map((hit) => hit.object.id));
-  }, [query, results.data]);
+  }, [query, results.data, results.error]);
   useEffect(() => {
     if (selectedId) {
       useViewer.getState().setMeasuring(false);
@@ -136,11 +158,21 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
             sceneId={scene.id}
             assets={scene.assets || {}}
             objects={objects.data || []}
+            membership={membership.data ?? null}
           />
         </ViewerBoundary>
         {!hasPoints && !hasMesh && (
           <div className="asset-notice" role="status">
             {t("ui.noGeometry")}
+          </div>
+        )}
+        {highlighting !== "available" && (
+          <div className="asset-notice" role="status">
+            {t(
+              highlighting === "reprocess"
+                ? "ui.reprocessForHighlight"
+                : "ui.highlightFailed",
+            )}
           </div>
         )}
         <div className="viewer-topbar">
@@ -182,26 +214,15 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
               onChange={(e) => setSearch(e.target.value)}
             />
             {query && (
-              <div className="search-status card" role="status">
-                {results.isFetching ? (
-                  <p>{t("ui.searching")}</p>
-                ) : results.error ? (
-                  <p role="alert">{String(results.error)}</p>
-                ) : (
-                  <p>
-                    {t("ui.searchCount", { count: results.data?.length || 0 })}
-                  </p>
-                )}
-                <button
-                  className="secondary full-width"
-                  onClick={() => {
-                    setSearch("");
-                    setQuery("");
-                  }}
-                >
-                  {t("ui.clearSearch")}
-                </button>
-              </div>
+              <SearchStatus
+                fetching={results.isFetching}
+                error={results.error}
+                count={results.data?.length || 0}
+                onClear={() => {
+                  setSearch("");
+                  setQuery("");
+                }}
+              />
             )}
           </div>
         </div>
@@ -345,7 +366,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
           {panel === "layers" && (
             <div className="panel-body">
               <p className="muted">{t("ui.layersSubtitle")}</p>
-              {(["points", "mesh", "boxes"] as const).map((layer) => (
+              {(["points", "mesh"] as const).map((layer) => (
                 <label className="layer-toggle" key={layer}>
                   <span>{t(`layers.${layer}`)}</span>
                   <input

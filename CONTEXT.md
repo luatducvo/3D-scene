@@ -76,6 +76,10 @@ _Avoid_: detection, mask, cluster
 An Instance enriched with its spatial extent, labels and attributes; its identity is unchanged.
 _Avoid_: item, entity
 
+**Object Membership**:
+The parts of a Scene's displayed geometry (points and mesh vertices) that belong to each Object.
+_Avoid_: labels, segmentation (for this)
+
 **Relation**:
 A spatial connection between Objects, or between an Object and the room.
 _Avoid_: edge, link
@@ -90,6 +94,7 @@ _Avoid_: graph (bare), layout
 - Each **Stage** is performed by exactly one configured **Algorithm** and leaves one **Manifest** and one **Stage Run**.
 - Each **Instance** becomes exactly one **Object** with the same id; nothing merges or splits after lifting.
 - A **Scene** has one **Target Workspace**, on the **Target** its **Jobs** run on; a failed **Job** leaves the Scene's earlier results untouched.
+- A point or vertex can belong to several **Objects** (a handle and the wardrobe it is part of) or to none.
 - **Publication** is the only path from a **Workspace** into the database.
 
 ## Flagged ambiguities

@@ -2,6 +2,11 @@ import type { components } from "./schema";
 export type Schemas = components["schemas"];
 export type Scene = Schemas["SceneDetail"];
 export type SceneObject = Schemas["SceneObject"];
+/** An Object's name in the UI locale: its Vietnamese label in Vietnamese when it has one. */
+export const objectLabel = (
+  object: Pick<SceneObject, "label" | "label_vi">,
+  locale: string,
+) => (locale === "vi" && object.label_vi ? object.label_vi : object.label);
 export type ProgressEvent = Schemas["ProgressEvent"];
 export type StageProgress = Schemas["StageProgress"];
 export type QueryEvent = Schemas["QueryEvent"];

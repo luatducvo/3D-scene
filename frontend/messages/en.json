@@ -67,8 +67,11 @@
   },
   "layers": {
     "points": "Point cloud",
-    "mesh": "Mesh",
-    "boxes": "Object boxes"
+    "mesh": "Mesh"
+  },
+  "searchErrors": {
+    "COMPUTE_UNAVAILABLE": "Semantic search needs the GPU machine running. Start it and try again.",
+    "other": "Search is unavailable right now. Try again."
   },
   "ui": {
     "navigation": "Navigation",
@@ -128,6 +131,8 @@
     "viewerError": "The 3D scene could not be loaded.",
     "viewerLabel": "Interactive 3D scene",
     "noGeometry": "No reconstruction geometry is available for this scene.",
+    "reprocessForHighlight": "Process this scene again to highlight and hover objects in 3D.",
+    "highlightFailed": "Object highlighting could not be loaded.",
     "viewMode": "3D view mode",
     "displayLayers": "Display layers",
     "searching": "Searching…",

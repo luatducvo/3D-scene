@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 from scene_core.contracts import SceneWorkspace
-from scene_stages.lift import MaskClustering, unproject, view_support
+from scene_stages.lift import MaskClustering, merge_same_label, unproject, view_support
 
 
 def test_two_views_of_one_mask_become_one_stable_instance(tmp_path):
@@ -121,7 +121,7 @@ def test_separate_objects_seen_in_three_views_stay_separate_instances(tmp_path):
     manifest = MaskClustering().run(workspace, {"min_views": 2})
     instances = json.loads(workspace.path("instances/instances.json").read_text())
     assert manifest.num_instances == 2
-    assert sorted((item["label"], item["num_views"]) for item in instances) == [
+    assert sorted((instance["label"], instance["num_views"]) for instance in instances) == [
         ("chair", 3),
         ("table", 3),
     ]
@@ -140,3 +140,126 @@ def test_device_cuda_without_cupy_or_a_gpu_fails_instead_of_falling_back():
         assert error.value.code == "GPU_REQUIRED"
     with pytest.raises(ValueError):
         array_module({"device": "tpu"})
+
+
+def write_frames(workspace, frame_masks, size=32):
+    """Write Frames seen from one camera at 1 m; frame_masks[frame] = [(label, score, mask)]."""
+    for frame, masks in frame_masks.items():
+        Image.new("RGB", (size, size), (150, 80, 20)).save(
+            workspace.dir("recon/rgb") / f"{frame}.png"
+        )
+        np.savez(
+            workspace.dir("align/frames") / f"{frame}.npz",
+            depth=np.ones((size, size)),
+            conf=np.ones((size, size)),
+            pose=np.eye(4),
+            K=np.array([[size, 0, size / 2], [0, size, size / 2], [0, 0, 1]]),
+        )
+        np.savez(
+            workspace.dir("segment/masks") / f"{frame}.npz",
+            masks=np.stack([mask for _, _, mask in masks]),
+            labels=np.array([label for label, _, _ in masks]),
+            scores=np.array([score for _, score, _ in masks]),
+        )
+
+
+def region(top, left, bottom, right, size=32):
+    mask = np.zeros((size, size), bool)
+    mask[top:bottom, left:right] = True
+    return mask
+
+
+def seat_and_chair(seat_label):
+    # Frame 0 sees the whole chair, frame 1 only its seat: a quarter of the chair falls inside the
+    # seat, too little for view consensus to join them, but every seat point lies on the chair.
+    chair, seat = region(4, 8, 28, 24), region(20, 8, 26, 24)
+    return {"0000": [("office chair", 0.9, chair)], "0001": [(seat_label, 0.8, seat)]}
+
+
+def test_same_label_groups_from_different_frames_merge_into_one(tmp_path):
+    workspace = SceneWorkspace(tmp_path, "nested")
+    write_frames(workspace, seat_and_chair("office chair"))
+    unmerged = MaskClustering().run(workspace, {"min_views": 1, "merge_overlap": 1.0})
+    assert unmerged.num_instances == 2
+
+    manifest = MaskClustering().run(workspace, {"min_views": 1, "merge_overlap": 0.5})
+    instances = json.loads(workspace.path("instances/instances.json").read_text())
+    assert manifest.num_instances == 1
+    assert instances[0]["label"] == "office chair"
+    assert instances[0]["num_views"] == 2
+    assert instances[0]["score"] == pytest.approx(0.9)
+    # Best views recompute over the merged members: the larger, higher-scoring chair view first.
+    assert [view["frame_id"] for view in instances[0]["best_views"]] == ["0000", "0001"]
+    # min_views applies before the merge: two single-view parts never add up to an Instance.
+    assert MaskClustering().run(workspace, {"min_views": 2}).num_instances == 0
+
+
+def test_a_contained_group_with_another_label_stays_its_own(tmp_path):
+    workspace = SceneWorkspace(tmp_path, "part")
+    write_frames(workspace, seat_and_chair("cushion"))
+    MaskClustering().run(workspace, {"min_views": 1, "merge_overlap": 0.5})
+    instances = json.loads(workspace.path("instances/instances.json").read_text())
+    assert sorted(instance["label"] for instance in instances) == ["cushion", "office chair"]
+
+
+def test_adjacent_same_label_chairs_stay_separate(tmp_path):
+    workspace = SceneWorkspace(tmp_path, "adjacent")
+    left, right = region(8, 2, 24, 17), region(8, 17, 24, 30)
+    write_frames(
+        workspace,
+        {frame: [("chair", 0.9, left), ("chair", 0.8, right)] for frame in ("0000", "0001")},
+    )
+    # 4 cm voxels are wider than a pixel at 1 m, so the touching chairs share a column of voxels.
+    manifest = MaskClustering().run(
+        workspace, {"min_views": 2, "merge_overlap": 0.5, "voxel_size_m": 0.04}
+    )
+    instances = json.loads(workspace.path("instances/instances.json").read_text())
+    assert manifest.num_instances == 2
+    assert [instance["num_views"] for instance in instances] == [2, 2]
+
+
+def test_merge_same_label_takes_the_highest_overlap_first_and_repeats():
+    def cells(*xs):
+        return np.array([[x, 0, 0] for x in xs])
+
+    def label_of(names):
+        return lambda group: names[min(group)]
+
+    groups = merge_same_label(
+        [{0}, {1}, {2}, {3}],
+        label_of(["chair", "chair", "chair", "lamp"]),
+        [cells(0, 1, 2, 3), cells(2, 3, 4, 5), cells(4, 5, 6, 7), cells(0, 1, 2, 3)],
+        0.4,
+    )
+    # 0 and 1 share half of each; merged, they hold half of 2; the lamp never joins.
+    assert groups == [{0, 1, 2}, {3}]
+    # Exactly half is not more than half.
+    assert merge_same_label(
+        [{0}, {1}], label_of(["chair"] * 2), [cells(0, 1), cells(1, 2)], 0.5
+    ) == [{0}, {1}]
+
+
+def test_merge_same_label_votes_the_label_again_after_each_merge():
+    def cells(*xs):
+        return np.array([[x, 0, 0] for x in xs])
+
+    def label_of(group):
+        # Stands in for a vote that the merged members can change: two seats make a chair.
+        return "chair" if group >= {0, 1} else ["seat", "seat", "chair"][min(group)]
+
+    groups = merge_same_label(
+        [{0}, {1}, {2}],
+        label_of,
+        [cells(0, 1), cells(0, 1, 2), cells(1, 2, 3)],
+        0.5,
+    )
+    # The seats merge first (full overlap); only the re-voted label lets the chair join them.
+    assert groups == [{0, 1, 2}]
+
+
+def test_merge_overlap_outside_zero_to_one_is_rejected(tmp_path):
+    from scene_core.errors import SceneError
+
+    with pytest.raises(SceneError) as error:
+        MaskClustering().run(SceneWorkspace(tmp_path, "bad"), {"merge_overlap": 1.5})
+    assert error.value.code == "INVALID_PARAMETERS"

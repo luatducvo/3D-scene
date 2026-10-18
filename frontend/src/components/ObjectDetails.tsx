@@ -1,6 +1,6 @@
 "use client";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
-import type { SceneObject } from "../lib/api/types";
+import { objectLabel, type SceneObject } from "../lib/api/types";
 import { focus } from "./viewer/camera";
 
 export function ObjectDetails({ object }: { object: SceneObject }) {
@@ -9,9 +9,7 @@ export function ObjectDetails({ object }: { object: SceneObject }) {
     format = useFormatter();
   return (
     <article className="object-details">
-      <h2>
-        {locale === "vi" && object.label_vi ? object.label_vi : object.label}
-      </h2>
+      <h2>{objectLabel(object, locale)}</h2>
       <div className="attribute-tags">
         {Object.values(object.attributes || {})
           .flat()

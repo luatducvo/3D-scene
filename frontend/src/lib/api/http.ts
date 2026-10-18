@@ -3,6 +3,7 @@ import type { paths } from "./schema";
 import type { ProgressEvent, QueryEvent, Schemas } from "./types";
 import { ApiError, toApiError } from "./errors";
 import { consumeSSE } from "./sse";
+import { decodeMembership } from "./membership";
 import { shrinkAll } from "../upload/shrink";
 export { ApiError } from "./errors";
 export const apiOrigin =
@@ -48,6 +49,16 @@ export const sceneApi = {
         params: { path: { scene_id: id }, query: { q } },
       }),
     ),
+  /** Object membership from `SceneAssets.membership_url`, decoded (api.md "Object membership"). */
+  getMembership: async (url: string) => {
+    const response = await fetch(url);
+    if (!response.ok)
+      throw toApiError(
+        await response.json().catch(() => null),
+        response.status,
+      );
+    return decodeMembership(await response.arrayBuffer());
+  },
   getMessages: (id: string) =>
     data(typedClient.GET("/api/v1/scenes/{scene_id}/messages", scene(id))),
   /**

@@ -89,7 +89,8 @@ scenes/{scene_id}/
 ├── instances/               instances.json, points/{id}.npy, crops/{id}_{k}.jpg
 ├── embeddings/objects.npz   ids, vectors                           ← RESULT
 ├── attributes/              attributes.json, errors.json
-└── graph/scene_graph.json                                          ← RESULT
+├── graph/scene_graph.json                                          ← RESULT
+└── graph/membership.bin     points and mesh vertices per Object    ← RESULT
 ```
 
 Each Stage folder also holds its `manifest.json`.
@@ -113,9 +114,13 @@ Scene's own or the staging copy) and never touches the database or the network.
 | Member | Answers |
 |---|---|
 | `DIRECTORIES` | What the worker downloads from the Target and swaps into the Scene's local copy |
-| `load()` | The Scene Graph and one embedding per Object. It fails with `RESULTS_INVALID` when a file is missing or unreadable, Object and embedding ids differ or repeat, a vector is not `EMBEDDING_DIM` long, or a value is not finite |
-| `assets()` | Workspace paths of `mesh/mesh.glb` and `mesh/points.ply`, or `None` when absent |
-| `public_file(path)` | The file behind a public path. Only `mesh/` is public, on every Target; any other, malformed or missing path is `FILE_NOT_FOUND` (404) |
+| `load()` | The Scene Graph and one embedding per Object. It fails with `RESULTS_INVALID` when a file is missing or unreadable, Object and embedding ids differ or repeat, a vector is not `EMBEDDING_DIM` long, or a value is not finite. When `graph/membership.bin` exists it must decode and list the Scene Graph's Object ids in the same order, or `load()` fails the same way |
+| `assets()` | Workspace paths of `mesh/mesh.glb`, `mesh/points.ply` and `graph/membership.bin` (keys `mesh`, `points`, `membership`), each `None` when absent; a publication from before membership existed has no `membership` |
+| `public_file(path)` | The file behind a public path. Public on every Target are `mesh/` and the single file `graph/membership.bin` (`PUBLIC`); `instances/`, the Scene Graph JSON and any other, malformed or missing path is `FILE_NOT_FOUND` (404) |
+
+`graph/membership.bin` is written by the graph Stage and encoded and decoded by `ObjectMembership`
+in [membership.py](../../backend/packages/scene-core/src/scene_core/membership.py); its byte layout
+is in [api.md](api.md#object-membership).
 
 `EMBEDDING_DIM = 1024` lives in the same module. The runner, the API search, the fake and the real
 embed Algorithms use it, and a Postgres test checks it equals the `objects.embedding` column type.
@@ -130,11 +135,11 @@ Each row is the contract every replacement Algorithm must honor. Parameters are 
 | 2 | recon | `recon.da3` | `keyframes/` → `recon/` | Depth Anything 3 Nested Giant: metric depth and poses for all Keyframes in one `inference()` call, poses from the ray head. Writes `rgb/` and `frames/` (depth m, conf, camera-to-world pose, K). A non-metric prediction fails with `INVALID_MODEL_OUTPUT`. See [ADR-0003](../adr/0003-depth-anything-3-point-cloud.md). |
 | 3 | align | `align.geocalib_ransac` | `recon/` → `align/` | GeoCalib gravity per Frame, RANSAC floor plane, rotate to z-up with the floor at z = 0, Manhattan yaw so walls follow x/y, ceiling height from the highest large horizontal plane. From here on, poses come from `align/`. |
 | 4 | mesh | `mesh.tsdf` | `recon/`, `align/` → `mesh/` | `points.ply`: confident, edge-free pixels back-projected, averaged on a voxel grid, capped at `max_points`, binary PLY with colors (the viewer's default layer). `mesh.glb`: TSDF fusion in passes of `chunk_voxels` + marching cubes on the CPU. Bounds use percentiles so far outliers are ignored. The point cloud and TSDF run on CuPy with `device: cuda` (see [Array module](#array-module)). |
-| 5 | segment | `segment.sam3` | `recon/rgb` → `segment/` | SAM 3 through Ultralytics ([ADR-0002](../adr/0002-single-gpu-image-ultralytics-sam3.md)), every `frame_stride`-th Frame, prompted with the Vocabulary in [indoor-en.txt](../../backend/config/vocabularies/indoor-en.txt). |
-| 6 | lift | `lift.maskclustering` | `recon/`, `align/`, `segment/` → `instances/` | In-house MaskClustering view consensus: masks → 3D points, cross-view consensus graph (each Frame projects every other Frame's points once; per-node sums give each mask's share), iterative clustering, score × area label voting. Runs on CuPy with `device: cuda`. Drops Instances seen in fewer than `min_views`; picks best views and saves crops. |
+| 5 | segment | `segment.sam3` | `recon/rgb` → `segment/` | SAM 3 through Ultralytics ([ADR-0002](../adr/0002-single-gpu-image-ultralytics-sam3.md)), every `frame_stride`-th Frame, prompted with the Vocabulary in [indoor-en.txt](../../backend/config/vocabularies/indoor-en.txt). Per Frame, masks are kept from the highest score down: one is dropped when its IoU with a kept mask exceeds 0.8, or when more than `containment_threshold` of it lies inside a kept mask with the same label (a seat inside its chair). A contained mask with another label, such as a door handle on a wardrobe, stays. |
+| 6 | lift | `lift.maskclustering` | `recon/`, `align/`, `segment/` → `instances/` | In-house MaskClustering view consensus: masks → 3D points, cross-view consensus graph (each Frame projects every other Frame's points once; per-node sums give each mask's share), iterative clustering, score × area label voting. Groups seen in fewer than `min_views` Frames are dropped next, so fragments cannot merge into an Instance. As the last clustering step, surviving groups with the same label merge, highest overlap first, while their voxel sets overlap by more than `merge_overlap` of the smaller set, so a chair seen only as its seat in some Frames joins the chair seen whole in others; each merge votes the merged group's label again, different labels never merge, and nothing merges or splits after lift. Consensus and clustering run on CuPy with `device: cuda`; the merge runs on the CPU. Then lift votes each label and picks best views over all merged members, and saves crops. |
 | 7 | embed | `embed.metaclip2` | `instances/` → `embeddings/` | MetaCLIP 2: every Object's crops in shared batches of `batch_size`, then a score-weighted mean per Object, L2-normalized, 1024-d. `embed_text` serves query-time search (multilingual). |
 | 8 | attributes | `attributes.none` | `instances/` → `attributes/` | Writes an empty entry per Instance and calls nothing ([ADR-0004](../adr/0004-skip-vlm-attributes.md)). `attributes.vlm_api` (OpenAI-compatible vision model, `VLM_*`) stays registered for switching back. |
-| 9 | graph | `graph.geometric` | `align/`, `instances/`, `embeddings/`, `attributes/` → `graph/` | Fit gravity-aligned oriented boxes, apply every configured Relation rule to every Object pair within the rule's `reach` (pairs whose footprint circles are farther apart cannot satisfy it and are skipped), write the Scene Graph. Each Instance id becomes exactly one Object id. |
+| 9 | graph | `graph.geometric` | `align/`, `instances/`, `embeddings/`, `attributes/`, `mesh/` → `graph/` | Fit gravity-aligned oriented boxes, apply every configured Relation rule to every Object pair within the rule's `reach` (pairs whose footprint circles are farther apart cannot satisfy it and are skipped), write the Scene Graph. Each Instance id becomes exactly one Object id. Then, with those final ids, write `membership.bin`: every point of `mesh/points.ply` and every vertex of `mesh/mesh.glb` within `membership_radius_m` (default 0.02, the lift voxel) of one of an Object's lift points (`instances/points/<id>.npy`) belongs to it, so a point may belong to several Objects (a handle and its wardrobe) or to none. The search hashes lift points on a grid of radius-sized cells and checks distances exactly. `graph.fake` lists the points and vertices inside each fake Object's box (the fake mesh's corners lie in none); both write through `write_membership`, which takes the member search as an argument. A non-positive `membership_radius_m` fails the Stage with `INVALID_PARAMETERS`, and an unreadable `points.ply` or `mesh.glb` with `ASSET_UNREADABLE`. |
 
 Live verification of the GPU adapters is tracked in [GPU-INTEGRATION.md](../GPU-INTEGRATION.md).
 

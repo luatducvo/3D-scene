@@ -8,10 +8,13 @@ import {
   type Schemas,
 } from "../types";
 import { apiOrigin } from "../http";
-import { demoObjects, roomPointCloud } from "./room";
+import { demoObjects, roomMembership, roomPointCloud } from "./room";
 const base = `${apiOrigin}/api/v1/scenes`;
 const objects = demoObjects;
-const demoAssets = { points_url: `${apiOrigin}/api/v1/mock/room.ply` };
+const demoAssets = {
+  points_url: `${apiOrigin}/api/v1/mock/room.ply`,
+  membership_url: `${apiOrigin}/api/v1/mock/room-membership.bin`,
+};
 const scenes = new Map<string, Scene>([
   [
     "demo",
@@ -21,6 +24,18 @@ const scenes = new Map<string, Scene>([
       status: "ready",
       created_at: new Date().toISOString(),
       assets: demoAssets,
+      stage_runs: [],
+    },
+  ],
+  // Published before Object membership existed: it shows points, and hover and highlight are off.
+  [
+    "legacy",
+    {
+      id: "legacy",
+      name: "Phòng khách · Bản cũ",
+      status: "ready",
+      created_at: new Date(Date.now() - 86_400_000).toISOString(),
+      assets: { ...demoAssets, membership_url: null },
       stage_runs: [],
     },
   ],
@@ -54,6 +69,13 @@ export const handlers = [
     `${apiOrigin}/api/v1/mock/room.ply`,
     () =>
       new HttpResponse(roomPointCloud(), {
+        headers: { "Content-Type": "application/octet-stream" },
+      }),
+  ),
+  http.get(
+    `${apiOrigin}/api/v1/mock/room-membership.bin`,
+    () =>
+      new HttpResponse(roomMembership(), {
         headers: { "Content-Type": "application/octet-stream" },
       }),
   ),

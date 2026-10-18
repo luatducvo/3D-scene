@@ -19,10 +19,10 @@ stages:
     params: {voxel_size_m: 0.02, sdf_trunc_m: 0.05, bounds_percentile: 1, points_confidence_percentile: 40, points_edge_threshold: 0.05, points_voxel_m: 0.01, max_points: 3000000, device: cuda, chunk_voxels: 8000000}
   segment:
     algorithm: segment.sam3
-    params: {vocabulary_file: indoor-en.txt, score_threshold: 0.5, frame_stride: 1, half: true, prompt_batch_size: 128}
+    params: {vocabulary_file: indoor-en.txt, score_threshold: 0.5, frame_stride: 1, half: true, prompt_batch_size: 128, containment_threshold: 0.8}
   lift:
     algorithm: lift.maskclustering
-    params: {min_views: 2, num_best_views: 3, device: cuda}
+    params: {min_views: 2, num_best_views: 3, merge_overlap: 0.5, device: cuda}
   embed:
     algorithm: embed.metaclip2
     params: {model_id: facebook/metaclip-2-worldwide-huge-quickgelu, batch_size: 64}
@@ -31,4 +31,5 @@ stages:
     algorithm: attributes.none
   graph:
     algorithm: graph.geometric
-    params: {relations: ["on", under, above, inside, next_to, near, against_wall]}
+    # membership_radius_m: a point or mesh vertex within it of an Object's lift points belongs to it.
+    params: {relations: ["on", under, above, inside, next_to, near, against_wall], membership_radius_m: 0.02}

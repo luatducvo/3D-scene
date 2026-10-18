@@ -5,6 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 from scene_api.main import create_app
 from scene_core.config import ComputeConfig, PipelineConfig, TargetConfig
+from scene_core.membership import ObjectMembership
+from scene_core.results import EMBEDDING_DIM, SceneResults
 from scene_target import open_target_workspace
 from scene_worker.runner import Worker
 
@@ -84,11 +86,16 @@ def test_pipeline_publish_and_rerun(client):
     assert objects[0]["best_views"][0]["frame_id"] == "0000"
     assert "image_url" not in objects[0]["best_views"][0]
     assert client.get(detail["assets"]["mesh_url"]).content.startswith(b"glTF")
+    membership = ObjectMembership.decode(client.get(detail["assets"]["membership_url"]).content)
+    assert membership.ids == ["chair-1", "table-1"]
+    assert all(len(membership.points(i)) for i in range(2))
     # Frame images stay on the Target (ADR-0008).
     frame = detail["assets"]["mesh_url"].replace("mesh/mesh.glb", "recon/rgb/0000.png")
     assert client.get(frame).status_code == 404
     for private in ("raw/private.jpg", "keyframes/0000.jpg", "instances/instances.json"):
         assert client.get(prefix + "/files/" + private).status_code == 404
+    for private in ("instances/points/chair-1.npy", "graph/scene_graph.json"):
+        assert client.get(frame.replace("recon/rgb/0000.png", private)).status_code == 404
     assert (
         client.post(
             prefix + "/uploads", files={"files": ("two.jpg", b"fake", "image/jpeg")}
@@ -121,6 +128,107 @@ def test_progress_replay_and_search(client):
     )
     assert client.get(prefix + "/search", params={"q": "unknown"}).json() == []
     assert client.get(prefix + "/search", params={"q": ""}).json() == []
+
+
+def test_search_keeps_hits_near_the_best_score_and_every_label_match(client):
+    import math
+
+    from psycopg.types.json import Jsonb
+
+    prefix = uploaded(client)
+    client.post(prefix + "/process", json={})
+    worker(client).run_once()
+    scene = prefix.rsplit("/", 1)[1]
+
+    def embedding(similarity):
+        # The fake embeds "chair" as the first axis, so this is the cosine similarity to the query.
+        vector = [0.0] * EMBEDDING_DIM
+        vector[0], vector[2] = similarity, math.sqrt(1 - similarity**2)
+        return str(vector)
+
+    near = {f"near-{i}": s for i, s in enumerate((0.98, 0.97, 0.96))}
+    far = {f"far-{i}": round(0.9 - 0.01 * i, 2) for i in range(10)}
+    with client.app.state.store.connect() as conn:
+        for object_id, similarity, label in (
+            *((k, s, "stool") for k, s in {**near, **far}.items()),
+            ("armchair-1", 0.0, "armchair"),
+        ):
+            conn.execute(
+                "INSERT INTO objects(scene_id,id,label,label_vi,box,embedding) VALUES(%s,%s,%s,NULL,%s,%s::vector)",
+                (
+                    scene,
+                    object_id,
+                    label,
+                    Jsonb({"center": [0, 0, 0], "size": [1, 1, 1], "yaw": 0}),
+                    embedding(similarity),
+                ),
+            )
+
+    def search():
+        return [
+            hit["object"]["id"]
+            for hit in client.get(prefix + "/search", params={"q": "chair"}).json()
+        ]
+
+    # chair-1 matches by label and scores best; armchair-1 matches by label despite no similarity.
+    assert search() == ["chair-1", "armchair-1", "near-0", "near-1", "near-2"]
+    client.app.state.search_margin = 1.0
+    assert search() == ["chair-1", "armchair-1", *near, *list(far)[:5]]
+
+
+def test_qa_counts_are_not_cut_like_get_search(client):
+    import json
+    import math
+
+    from psycopg.types.json import Jsonb
+    from scene_api.qa import ScriptedLLM
+
+    prefix = uploaded(client)
+    client.post(prefix + "/process", json={})
+    worker(client).run_once()
+    scene = prefix.rsplit("/", 1)[1]
+
+    def embedding(chair_similarity):
+        # The fake embeds "chair" as the first axis and "door handle" as zero; the third is unused.
+        vector = [0.0] * EMBEDDING_DIM
+        vector[0], vector[2] = chair_similarity, math.sqrt(1 - chair_similarity**2)
+        return str(vector)
+
+    handles = [f"door-handle-{i}" for i in range(14)]
+    stools = [f"stool-{i}" for i in range(11)]
+    with client.app.state.store.connect() as conn:
+        for object_id, label, label_vi, similarity in (
+            *((i, "door handle", "tay nắm cửa", 0.0) for i in handles),
+            *((i, "stool", None, 0.5) for i in stools),
+        ):
+            conn.execute(
+                "INSERT INTO objects(scene_id,id,label,label_vi,box,embedding) VALUES(%s,%s,%s,%s,%s,%s::vector)",
+                (
+                    scene,
+                    object_id,
+                    label,
+                    label_vi,
+                    Jsonb({"center": [0, 0, 0], "size": [0.1, 0.1, 0.1], "yaw": 0}),
+                    embedding(similarity),
+                ),
+            )
+
+    def counted(label, answer):
+        client.app.state.llm = ScriptedLLM(
+            [call("count_objects", {"label": label}), {"content": answer}]
+        )
+        text = client.post(prefix + "/queries", json={"question": f"How many {label}?"}).text
+        return sorted(
+            json.loads(text.split("event: final\ndata: ")[1].split("\n")[0])["object_ids"]
+        )
+
+    # More than 10 label matches are all counted, and nothing else is.
+    assert counted("door handle", "There are 14.") == sorted(handles)
+    # Similar Objects beyond the GET /search margin still count: the cut is for the endpoint only.
+    assert counted("chair", "There are 12.") == sorted(["chair-1", *stools])
+    assert [
+        hit["object"]["id"] for hit in client.get(prefix + "/search", params={"q": "chair"}).json()
+    ] == ["chair-1"]
 
 
 def test_grounded_qa_stream_and_history(client):
@@ -512,6 +620,18 @@ def test_stage_progress_is_throttled_stored_and_replayed(client):
     )
 
 
+def test_a_scene_published_before_membership_reports_no_membership_url(client):
+    prefix = uploaded(client)
+    client.post(prefix + "/process", json={})
+    worker(client).run_once()
+    scene = prefix.rsplit("/", 1)[1]
+    [version] = list((client.app.state.data_dir / "scenes" / scene).iterdir())
+    (version / SceneResults.MEMBERSHIP).unlink()
+    assets = client.get(prefix).json()["assets"]
+    assert assets["membership_url"] is None
+    assert assets["mesh_url"] and assets["points_url"]
+
+
 def test_unpublished_scenes_do_not_serve_flat_result_folders(client):
     scene = client.post("/api/v1/scenes", json={"name": "Old"}).json()["id"]
     flat_results = client.app.state.data_dir / "scenes" / scene / "mesh"
@@ -520,6 +640,7 @@ def test_unpublished_scenes_do_not_serve_flat_result_folders(client):
     assert client.get(f"/api/v1/scenes/{scene}").json()["assets"] == {
         "mesh_url": None,
         "points_url": None,
+        "membership_url": None,
     }
     assert (
         client.get(f"/api/v1/scenes/{scene}/publications/legacy/files/mesh/mesh.glb").status_code

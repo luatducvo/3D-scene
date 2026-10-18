@@ -4,7 +4,145 @@ import numpy as np
 import pytest
 from scene_core.contracts import SceneWorkspace
 from scene_core.domain import OrientedBox, SceneGraphContext, SceneObject
-from scene_stages.graph import Above, AgainstWall, GeometricGraph, Inside, Near, NextTo, On, Under
+from scene_core.errors import SceneError
+from scene_core.membership import ObjectMembership
+from scene_core.results import SceneResults
+from scene_stages.graph import (
+    Above,
+    AgainstWall,
+    GeometricGraph,
+    Inside,
+    Near,
+    NextTo,
+    On,
+    Under,
+    members_within,
+)
+from scene_stages.mesh import (
+    GLTF_FLOAT,
+    pack_glb,
+    read_glb_positions,
+    read_ply_points,
+    write_ply,
+)
+
+
+def write_glb(path, vertices):
+    """A binary glTF with one primitive holding only POSITION, as a mesh Algorithm writes it."""
+    binary = np.asarray(vertices, dtype="<f4").tobytes()
+    doc = {
+        "asset": {"version": "2.0"},
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+        "buffers": [{"byteLength": len(binary)}],
+        "bufferViews": [{"buffer": 0, "byteLength": len(binary)}],
+        "accessors": [
+            {"bufferView": 0, "componentType": GLTF_FLOAT, "count": len(vertices), "type": "VEC3"}
+        ],
+    }
+    path.write_bytes(pack_glb(doc, binary))
+
+
+def write_mesh(workspace, points, vertices):
+    workspace.dir("mesh")
+    write_ply(workspace.path("mesh/points.ply"), points, np.zeros((len(points), 3), np.uint8))
+    write_glb(workspace.path("mesh/mesh.glb"), vertices)
+
+
+def write_instances(workspace, lifted):
+    workspace.dir("instances/points")
+    instances = []
+    for name, points in lifted.items():
+        np.save(workspace.path(f"instances/points/{name}.npy"), np.asarray(points, float))
+        instances.append(
+            {
+                "id": name,
+                "label": name,
+                "score": 0.9,
+                "num_views": 2,
+                "points_file": f"instances/points/{name}.npy",
+                "best_views": [],
+            }
+        )
+    workspace.path("instances/instances.json").write_text(json.dumps(instances))
+
+
+def grid(low, high, step=0.02):
+    axes = [np.arange(a, b + step / 2, step) for a, b in zip(low, high, strict=True)]
+    return np.stack(np.meshgrid(*axes, indexing="ij"), axis=-1).reshape(-1, 3)
+
+
+def test_membership_lists_a_point_under_every_object_within_the_radius(tmp_path):
+    """A handle inside a wardrobe: its points belong to both; far points belong to neither."""
+    workspace = SceneWorkspace(tmp_path, "fixture")
+    write_instances(
+        workspace,
+        {
+            "wardrobe": grid((0, 0, 0), (1, 0.6, 2)),
+            "handle": grid((0.9, 0.58, 1), (0.96, 0.62, 1.1)),
+        },
+    )
+    shared = [0.92, 0.6, 1.05]  # on both Objects' lift points
+    wardrobe_only = [0.2, 0.3, 0.5]
+    edge = [1.0 + 0.019, 0.3, 0.5]  # 1.9 cm beyond the wardrobe's outermost lift point
+    beyond = [1.0 + 0.021, 0.3, 0.5]  # 2.1 cm beyond it
+    far = [3, 3, 1]
+    write_mesh(
+        workspace,
+        np.array([shared, wardrobe_only, edge, beyond, far]),
+        np.array([far, shared, beyond]),
+    )
+    GeometricGraph().run(workspace, {"relations": [], "membership_radius_m": 0.02})
+    membership = ObjectMembership.decode(workspace.path(SceneResults.MEMBERSHIP).read_bytes())
+    assert membership.ids == ["wardrobe", "handle"]
+    assert (membership.point_count, membership.vertex_count) == (5, 3)
+    assert membership.points(0).tolist() == [0, 1, 2]
+    assert membership.points(1).tolist() == [0]
+    assert membership.vertices(0).tolist() == [1]
+    assert membership.vertices(1).tolist() == [1]
+    np.testing.assert_allclose(
+        read_glb_positions(workspace.path("mesh/mesh.glb")), [far, shared, beyond], rtol=1e-6
+    )
+
+
+def test_members_within_matches_a_brute_force_search():
+    rng = np.random.default_rng(3)
+    targets = rng.uniform(0, 1, (3000, 3))
+    groups = [rng.uniform(0, 1, (n, 3)) for n in (0, 1, 40, 200)]
+    found = members_within(targets, groups, 0.05)
+    for group, members in zip(groups, found, strict=True):
+        if not len(group):
+            assert not len(members)
+            continue
+        distance = np.linalg.norm(targets[:, None] - group[None], axis=-1).min(axis=1)
+        assert members.tolist() == np.flatnonzero(distance <= 0.05).tolist()
+
+
+def test_a_non_positive_membership_radius_is_invalid_parameters(tmp_path):
+    with pytest.raises(SceneError, match="membership_radius_m") as error:
+        GeometricGraph().run(SceneWorkspace(tmp_path, "bad"), {"membership_radius_m": 0})
+    assert error.value.code == "INVALID_PARAMETERS"
+    with pytest.raises(SceneError) as error:
+        members_within(np.zeros((1, 3)), [np.zeros((1, 3))], -1)
+    assert error.value.code == "INVALID_PARAMETERS"
+
+
+@pytest.mark.parametrize(
+    "name,content",
+    [
+        ("points.ply", b"not a ply"),
+        ("points.ply", b"ply\nformat ascii 1.0\nelement vertex 1\nend_header\n"),
+        ("mesh.glb", b"not a glb at all, but long enough"),
+        ("mesh.glb", None),
+    ],
+)
+def test_unreadable_mesh_assets_are_asset_unreadable(tmp_path, name, content):
+    path = tmp_path / name
+    if content is not None:
+        path.write_bytes(content)
+    read = read_ply_points if name.endswith(".ply") else read_glb_positions
+    with pytest.raises(SceneError) as error:
+        read(path)
+    assert error.value.code == "ASSET_UNREADABLE"
 
 
 def object_box(name, center, size):
@@ -77,6 +215,7 @@ def test_graph_keeps_instance_id_and_writes_only_graph(tmp_path):
             ]
         )
     )
+    write_mesh(workspace, np.zeros((1, 3)), np.zeros((3, 3)))
     before = workspace.path("instances/instances.json").read_bytes()
     result = GeometricGraph().run(workspace, {"relations": []})
     graph = json.loads(workspace.path("graph/scene_graph.json").read_text())

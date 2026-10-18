@@ -355,6 +355,11 @@ export interface components {
             mesh_url?: string | null;
             /** Points Url */
             points_url?: string | null;
+            /**
+             * Membership Url
+             * @description Object membership of points and mesh vertices (binary, see docs/architecture/api.md); null for a Scene published before membership existed.
+             */
+            membership_url?: string | null;
         };
         /** SceneCreate */
         SceneCreate: {

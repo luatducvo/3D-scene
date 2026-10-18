@@ -1,4 +1,5 @@
 import type { SceneObject } from "../types";
+import { encodeMembership } from "./membership";
 
 // Small deterministic geometry for UI development; it never represents a user's capture.
 export const demoObjects: SceneObject[] = [
@@ -26,17 +27,35 @@ export const demoObjects: SceneObject[] = [
     attributes: { color: ["green"] },
     best_views: [],
   },
+  // Inside the plant's box: its points belong to both, and picking prefers the smaller pot.
+  {
+    id: "pot-1",
+    label: "flower pot",
+    label_vi: "Chậu hoa",
+    box: { center: [4.48, 3.58, 0.2], size: [0.36, 0.36, 0.4], yaw: 0 },
+    attributes: { material: ["ceramic"] },
+    best_views: [],
+  },
 ];
 
-export function roomPointCloud() {
+type RoomPoint = { position: [number, number, number]; color: number[] };
+let room: RoomPoint[] | null = null;
+/** The room's points in PLY file order, positions rounded as the PLY writes them. */
+export function roomPoints(): RoomPoint[] {
+  if (room) return room;
   let seed = 8;
   const random = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
     return seed / 4294967296;
   };
-  const points: string[] = [];
-  const add = (x: number, y: number, z: number, c: number[]) =>
-    points.push([x.toFixed(3), y.toFixed(3), z.toFixed(3), ...c].join(" "));
+  const points: RoomPoint[] = [];
+  const add = (x: number, y: number, z: number, color: number[]) =>
+    points.push({
+      position: [x, y, z].map((v) =>
+        Number(v.toFixed(3)),
+      ) as RoomPoint["position"],
+      color,
+    });
   function plane(
     x: number,
     y: number,
@@ -87,6 +106,12 @@ export function roomPointCloud() {
       [168, 187, 115],
     );
   }
+  room = points;
+  return points;
+}
+
+export function roomPointCloud() {
+  const points = roomPoints();
   return [
     "ply",
     "format ascii 1.0",
@@ -98,6 +123,31 @@ export function roomPointCloud() {
     "property uchar green",
     "property uchar blue",
     "end_header",
-    ...points,
+    ...points.map(({ position, color }) =>
+      [...position.map((v) => v.toFixed(3)), ...color].join(" "),
+    ),
   ].join("\n");
+}
+
+/** Points within 2 cm of an Object's box belong to it; the floor and the rug belong to nothing. */
+export function roomMembership(): ArrayBuffer {
+  const points = roomPoints();
+  const members = demoObjects.map(({ box }) =>
+    points.flatMap(({ position }, index) =>
+      position[2] > 0.02 &&
+      position.every(
+        (v, axis) =>
+          Math.abs(v - box.center[axis]) <= box.size[axis] / 2 + 0.02,
+      )
+        ? [index]
+        : [],
+    ),
+  );
+  return encodeMembership(
+    demoObjects.map((o) => o.id),
+    points.length,
+    0,
+    members,
+    demoObjects.map(() => []),
+  );
 }

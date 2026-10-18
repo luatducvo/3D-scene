@@ -1,13 +1,111 @@
 "use client";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Html, Line } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { sceneLayers, type SceneLayerProps } from "./layers";
-import { attachCamera } from "./camera";
+import { attachCamera, focus } from "./camera";
+import { pickAt } from "./picking";
 import { focusBounds, homePose, visibleBounds } from "./view";
+import { objectLabel } from "../../lib/api/types";
 import { useViewer } from "../../lib/store/viewerStore";
+
+/** A press that moves less than this many pixels is a click, not an orbit or pan. */
+const CLICK_SLOP_PX = 4;
+/**
+ * Hover and click on Objects through GPU picking. Pointer moves only record the position; the next
+ * frame picks once, so picking runs at most once per frame and never while dragging or measuring.
+ */
+function Picker({
+  objects,
+  membership,
+}: Pick<SceneLayerProps, "objects" | "membership">) {
+  const gl = useThree((s) => s.gl),
+    camera = useThree((s) => s.camera);
+  const pending = useRef<{ x: number; y: number; cx: number; cy: number }>(
+    null,
+  );
+  const known = useRef(new Set<string>());
+  known.current = new Set(objects.map((o) => o.id));
+  /** The known Object id drawn at canvas pixel (x, y), or null. */
+  const objectAt = (x: number, y: number) => {
+    if (!membership) return null;
+    const index = pickAt(gl, camera, x, y);
+    const id = index === null ? undefined : membership.ids[index];
+    return id && known.current.has(id) ? id : null;
+  };
+  const objectAtRef = useRef(objectAt);
+  objectAtRef.current = objectAt;
+  useEffect(() => {
+    const canvas = gl.domElement;
+    let press: { x: number; y: number } | null = null;
+    const local = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+    const leave = () => {
+      pending.current = null;
+      useViewer.getState().hover(null);
+      canvas.style.cursor = "";
+    };
+    const move = (e: PointerEvent) => {
+      if (e.buttons || useViewer.getState().measuring) return leave();
+      pending.current = { ...local(e), cx: e.clientX, cy: e.clientY };
+    };
+    const down = (e: PointerEvent) => {
+      press = e.button === 0 ? local(e) : null;
+    };
+    const up = (e: PointerEvent) => {
+      const start = press;
+      press = null;
+      if (!start || e.button !== 0 || useViewer.getState().measuring) return;
+      const { x, y } = local(e);
+      if (Math.hypot(x - start.x, y - start.y) > CLICK_SLOP_PX) return;
+      const id = objectAtRef.current(x, y);
+      if (id) {
+        useViewer.getState().select(id);
+        focus([id]);
+      } else useViewer.getState().deselect();
+    };
+    canvas.addEventListener("pointermove", move);
+    canvas.addEventListener("pointerleave", leave);
+    canvas.addEventListener("pointerdown", down);
+    canvas.addEventListener("pointerup", up);
+    return () => {
+      canvas.removeEventListener("pointermove", move);
+      canvas.removeEventListener("pointerleave", leave);
+      canvas.removeEventListener("pointerdown", down);
+      canvas.removeEventListener("pointerup", up);
+      leave();
+    };
+  }, [gl]);
+  useFrame(() => {
+    const at = pending.current;
+    if (!at) return;
+    pending.current = null;
+    const id = objectAt(at.x, at.y);
+    useViewer.getState().hover(id ? { id, x: at.cx, y: at.cy } : null);
+    gl.domElement.style.cursor = id ? "pointer" : "";
+  });
+  return null;
+}
+/** The hovered Object's label next to the cursor. */
+function HoverLabel({ objects }: Pick<SceneLayerProps, "objects">) {
+  const locale = useLocale(),
+    hovered = useViewer((s) => s.hovered);
+  const object = hovered && objects.find((o) => o.id === hovered.id);
+  if (!hovered || !object) return null;
+  return (
+    <div
+      className="hover-label"
+      role="tooltip"
+      style={{ left: hovered.x + 14, top: hovered.y + 14 }}
+    >
+      {objectLabel(object, locale)}
+    </div>
+  );
+}
 
 function Controls({ objects }: Pick<SceneLayerProps, "objects">) {
   const ref = useRef<CameraControls>(null),
@@ -120,9 +218,6 @@ export default function SceneCanvas(props: SceneLayerProps) {
           near: 0.01,
           far: 500,
         }}
-        onPointerMissed={() => {
-          if (!useViewer.getState().measuring) useViewer.getState().deselect();
-        }}
         onCreated={({ raycaster }) => {
           raycaster.params.Points.threshold = 0.02;
         }}
@@ -137,7 +232,9 @@ export default function SceneCanvas(props: SceneLayerProps) {
         </Suspense>
         <Measurement />
         <Controls objects={props.objects} />
+        <Picker objects={props.objects} membership={props.membership} />
       </Canvas>
+      <HoverLabel objects={props.objects} />
       {loading && (
         <div className="viewer-state viewer-loading">
           <span className="measurement" role="status">
