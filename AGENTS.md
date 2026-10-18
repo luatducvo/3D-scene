@@ -40,7 +40,7 @@ entries in `.claude/launch.json` run the fake pipeline on the test database that
   `frontend/messages/*.json` is localized.
 - Keep docs live: a behavior change updates the architecture page that describes it in the same
   change. A hard-to-reverse, surprising trade-off gets the next ADR number in `docs/adr/`.
-- The user commits changes; agents edit files only.
+- Agents may commit when the user asks; agents never push.
 
 ## Agent skills
 
