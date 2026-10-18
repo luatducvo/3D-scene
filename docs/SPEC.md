@@ -70,7 +70,7 @@ the Targets before starting the system, and switching provider is a configuratio
 
 ### Objects and search
 27. As a user, I want objects detected from a broad indoor vocabulary without training anything, so that ordinary rooms work out of the box.
-28. As a user, I want each Object shown as an oriented 3D box over the mesh, so that I can see what was found and where.
+28. As a user, I want each Object shown as an oriented 3D box over the mesh, so that I can see what was found and where. Amended by [ADR-0009](adr/0009-show-objects-by-membership.md): Objects are shown by highlighting their own points and mesh vertices; boxes stay in the data but are not drawn.
 29. As a user, I want a list of all Objects with English and Vietnamese labels, so that I can browse what is in the room.
 30. As a user, I want to tap an Object and see its label, size in meters, attributes (color, material, state) and the best photos of it, so that I can verify what the system saw.
 31. As a user, I want to search Objects with free text in English or Vietnamese ("cái ghế màu xanh", "something to sit on"), so that I find things by meaning, not exact label.
@@ -184,7 +184,7 @@ Each ends in something runnable in the browser.
 - **M8** Remaining targets: local GPU profile, Modal, RunPod and generic deploy docs, registry image publishing, remote Workspace cleanup on delete.
 
 ### Acceptance criteria (per milestone)
-- **M1:** with the fake pipeline, creating a Scene, uploading the synthetic fixture images and pressing Process shows all 9 Stages complete over SSE; the Scene becomes `ready`; a fake room mesh and Object boxes render; reprocessing skips all Stages; reprocessing from a Stage reruns it and every later Stage; the 409 rules hold.
+- **M1:** with the fake pipeline, creating a Scene, uploading the synthetic fixture images and pressing Process shows all 9 Stages complete over SSE; the Scene becomes `ready`; a fake room mesh renders and its Objects highlight on hover ([ADR-0009](adr/0009-show-objects-by-membership.md)); reprocessing skips all Stages; reprocessing from a Stage reruns it and every later Stage; the 409 rules hold.
 - **M2:** the same flow with fake GPU Stages targeting a configured remote Target completes; files round-trip by checksum; a Target that is not yet ready is waited for, not failed (including cold starts on providers that scale to zero).
 - **M3:** the user's room capture produces a mesh where the floor is at z ≈ 0, walls are axis-aligned and a known dimension (e.g. a door's height ≈ 2 m) is plausible; rejected files are listed by reason.
 - **M4:** searching a visible object by an English or Vietnamese phrase ranks it in the top results and highlights it.

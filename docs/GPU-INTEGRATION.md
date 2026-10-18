@@ -54,9 +54,15 @@ its output contract checked. Image and text vectors use the same model and L2 no
 
 1. Build and push the GPU image, inspect `/info`, and download weights into the provider's cache.
 2. Process a room capture on the configured provider. Confirm a dense, complete colored point cloud in the viewer, plausible metric dimensions, z=0 floor and axis-aligned walls.
-3. Inspect mask alignment with RGB, multi-view Object identities, boxes and evidence crops.
-4. Search visible objects in both English and Vietnamese and check the ranking/highlights.
-5. Record model versions, image digest and observed results before marking GPU quality tickets verified.
+3. Inspect mask alignment with RGB, multi-view Object identities and evidence crops. Check that one
+   physical thing is one Object (segment `containment_threshold`, lift `merge_overlap`) and that
+   parts such as handles and outlets remain their own Objects.
+4. Search visible objects in both English and Vietnamese and check the ranking/highlights
+   (`SEARCH_MARGIN`).
+5. Check Object Membership ([ADR-0009](adr/0009-show-objects-by-membership.md)): the Scene's
+   `membership_url` is set, hover labels and highlights match the right points in point cloud and
+   mesh view, nested parts pick before their whole, and hovering stays smooth on the full cloud.
+6. Record model versions, image digest and observed results before marking GPU quality tickets verified.
 
 No fallback model substitutes for an unavailable dependency or failed inference. The fake pipeline
 is explicitly configured and only validates application/transport behavior.

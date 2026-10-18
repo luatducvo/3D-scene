@@ -14,7 +14,7 @@ points; each recipe touches only the files it names.
 | LLM / VLM | Nothing (OpenAI-compatible) | `LLM_*` / `VLM_*` in `.env` |
 | Spatial Relation | A `RelationRule` (set `reach` when the rule needs the two footprints within a horizontal gap, so the graph can skip farther pairs) + an entry point in group `scene_relations` | `graph.params.relations` |
 | QA capability | A tool definition and handler in `SceneTools` ([qa.py](../../backend/services/scene-api/src/scene_api/qa.py)) | Nothing |
-| 3D rendering | A layer component | `sceneLayers` in [layers/index.tsx](../../frontend/src/components/viewer/layers/index.tsx) |
+| 3D rendering | A layer component; a layer that draws Scene geometry uses `useObjectHighlighting` with its Object Membership so hover, picking and highlight work ([frontend](frontend.md)) | `sceneLayers` in [layers/index.tsx](../../frontend/src/components/viewer/layers/index.tsx) |
 | API contract | Routes and models in `scene_api`, then `uv run main.py openapi` | Frontend: `npm run api:sync` |
 
 ## Replace an Algorithm (example: another reconstruction method)
