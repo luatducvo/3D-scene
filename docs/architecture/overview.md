@@ -151,3 +151,12 @@ The frontend stores nothing.
 | The web UI | [frontend.md](frontend.md) |
 | Adding or replacing an Algorithm, Relation, QA tool, layer or provider | [extending.md](extending.md) |
 | Why something is the way it is | [docs/adr/](../adr/) |
+
+## Diagrams
+
+Standalone HTML pages; open them in a browser.
+
+- [System architecture](diagrams/system-architecture.html): services and how they connect.
+- [Pipeline config](diagrams/pipeline-config.html): how pipeline configuration flows into Stages.
+- [scene-compute internals](diagrams/scene-compute-internals.html): request sequence inside the
+  compute service.

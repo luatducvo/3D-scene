@@ -50,3 +50,8 @@ next-env.d.ts
 # Claude Code personal files (shared config is .claude/settings.json)
 .claude/settings.local.json
 CLAUDE.local.md
+
+# archify skill working output (candidate, sidecar reports, rendered drafts, delivery locks)
+.archify/
+.archify-delivery-lock.json
+.archify-remove-*/
