@@ -1,0 +1,2 @@
+# Treat architecture diagram HTML files as documentation in GitHub language statistics.
+docs/architecture/diagrams/*.html linguist-documentation=true
