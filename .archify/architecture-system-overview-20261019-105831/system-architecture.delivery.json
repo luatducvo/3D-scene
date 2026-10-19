@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "2b6ce82c-a902-4ea5-a8be-9ee8ad1bed70",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "D:\\repo\\3D-scene\\.archify\\architecture-system-overview-20261019-105831\\candidate.json",
+  "output": "D:\\repo\\3D-scene\\.archify\\architecture-system-overview-20261019-105831\\system-architecture.html",
+  "specification": {
+    "sha256": "0dbea34a7029712412eddc13af0b1f8dfb72aae7dc4f1a78a528066906e3347a",
+    "bytes": 8221
+  },
+  "artifact": {
+    "sha256": "6dc446e200e38348f64a4ae911493223f31b0cac09f4988fc3b46e720397ae2b",
+    "bytes": 835442
+  }
+}
