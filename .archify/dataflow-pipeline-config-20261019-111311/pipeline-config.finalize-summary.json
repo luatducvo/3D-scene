@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "dataflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\repo\\3D-scene\\.archify\\dataflow-pipeline-config-20261019-111311\\candidate.json",
+    "sha256": "d0f2e1ef4fa53e2c5589d9fdc8257a7761d6a895947ad5ede30653b9bc090faf",
+    "bytes": 7465
+  },
+  "artifact": {
+    "path": "D:\\repo\\3D-scene\\.archify\\dataflow-pipeline-config-20261019-111311\\pipeline-config.html",
+    "sha256": "62c02c6ca6b77d002dae1f938dd38a484a115c2098eb0a3ab3e928a7d9336c11",
+    "bytes": 834760
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\repo\\3D-scene\\.archify\\dataflow-pipeline-config-20261019-111311\\pipeline-config.finalize.json",
+    "summaryReceipt": "D:\\repo\\3D-scene\\.archify\\dataflow-pipeline-config-20261019-111311\\pipeline-config.finalize-summary.json",
+    "browserCheckReceipt": "D:\\repo\\3D-scene\\.archify\\dataflow-pipeline-config-20261019-111311\\pipeline-config.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-19T03:59:03.555Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 3909,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  },
+  "visualReviewRecommendation": {
+    "action": "inspect-route-readability",
+    "signals": {
+      "resolvedCrossovers": 3,
+      "routesOverSuggestedBends": 5
+    },
+    "reason": "Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.",
+    "affectedRoutes": {
+      "crossings": [
+        {
+          "left": {
+            "id": "f-recon-mesh",
+            "from": "recon",
+            "to": "mesh",
+            "label": "recon/",
+            "collectionIndex": 3,
+            "artifactIndex": 4
+          },
+          "right": {
+            "id": "f-align-lift",
+            "from": "align",
+            "to": "lift",
+            "label": "align/",
+            "collectionIndex": 8,
+            "artifactIndex": 9
+          },
+          "point": [
+            422.5,
+            284
+          ]
+        },
+        {
+          "left": {
+            "id": "f-lift-graph",
+            "from": "lift",
+            "to": "graph",
+            "label": "instances/",
+            "collectionIndex": 11,
+            "artifactIndex": 12
+          },
+          "right": {
+            "id": "f-mesh-results",
+            "from": "mesh",
+            "to": "results",
+            "label": "mesh/",
+            "collectionIndex": 17,
+            "artifactIndex": 18
+          },
+          "point": [
+            880,
+            490
+          ]
+        },
+        {
+          "left": {
+            "id": "f-attributes-graph",
+            "from": "attributes",
+            "to": "graph",
+            "label": "attributes/",
+            "collectionIndex": 12,
+            "artifactIndex": 13
+          },
+          "right": {
+            "id": "f-mesh-results",
+            "from": "mesh",
+            "to": "results",
+            "label": "mesh/",
+            "collectionIndex": 17,
+            "artifactIndex": 18
+          },
+          "point": [
+            852.5,
+            385
+          ]
+        }
+      ],
+      "detours": [
+        {
+          "relationship": {
+            "id": "f-align-mesh",
+            "from": "align",
+            "to": "mesh",
+            "label": "align/",
+            "collectionIndex": 4,
+            "artifactIndex": 5
+          },
+          "bends": 4,
+          "stretch": 1.286
+        },
+        {
+          "relationship": {
+            "id": "f-segment-lift",
+            "from": "segment",
+            "to": "lift",
+            "label": "segment/",
+            "collectionIndex": 6,
+            "artifactIndex": 7
+          },
+          "bends": 4,
+          "stretch": 1.271
+        },
+        {
+          "relationship": {
+            "id": "f-align-lift",
+            "from": "align",
+            "to": "lift",
+            "label": "align/",
+            "collectionIndex": 8,
+            "artifactIndex": 9
+          },
+          "bends": 4,
+          "stretch": 1
+        },
+        {
+          "relationship": {
+            "id": "f-align-graph",
+            "from": "align",
+            "to": "graph",
+            "label": "align/",
+            "collectionIndex": 13,
+            "artifactIndex": 14
+          },
+          "bends": 4,
+          "stretch": 1.059,
+          "directCorridorBlockers": [
+            {
+              "id": "mesh",
+              "label": "4 · mesh",
+              "box": [
+                474,
+                242,
+                112,
+                58
+              ]
+            }
+          ]
+        },
+        {
+          "relationship": {
+            "id": "f-mesh-graph",
+            "from": "mesh",
+            "to": "graph",
+            "label": "mesh/",
+            "collectionIndex": 14,
+            "artifactIndex": 15
+          },
+          "bends": 4,
+          "stretch": 1.1
+        }
+      ],
+      "truncated": false
+    },
+    "repair": "Advisory only: this mode places or routes these relationships itself. Report them; do not remove relationships or meaning to reduce crossings."
+  }
+}

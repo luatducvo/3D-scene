@@ -1,0 +1,484 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Inside scene-compute: one Stage as a Compute Run",
+    "output": ".archify/sequence-scene-compute-internals-20261019-110916/scene-compute-internals.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/luatducvo/3D-scene.git",
+      "provider": "github",
+      "revision": "27289156479e79a878b4d8626cb68fb174467c29"
+    }
+  },
+  "participants": [
+    {
+      "id": "worker",
+      "type": "external",
+      "label": "scene-worker",
+      "sublabel": "HttpAdapter client",
+      "sources": [
+        {
+          "path": "backend/packages/scene-target/src/scene_target/_http.py",
+          "line": 29,
+          "end_line": 54,
+          "label": "token header"
+        },
+        {
+          "path": "backend/packages/scene-target/src/scene_target/_http.py",
+          "line": 135,
+          "end_line": 162,
+          "label": "start + poll run"
+        }
+      ]
+    },
+    {
+      "id": "http",
+      "type": "security",
+      "label": "HTTP layer",
+      "sublabel": "middleware + routes",
+      "sources": [
+        {
+          "path": "backend/services/scene-compute/src/scene_compute/server.py",
+          "line": 149,
+          "end_line": 186,
+          "label": "token, size, timeout"
+        },
+        {
+          "path": "backend/services/scene-compute/src/scene_compute/server.py",
+          "line": 236,
+          "end_line": 301,
+          "label": "upload + download"
+        },
+        {
+          "path": "backend/services/scene-compute/src/scene_compute/server.py",
+          "line": 330,
+          "end_line": 352,
+          "label": "/runs"
+        }
+      ]
+    },
+    {
+      "id": "runs",
+      "type": "database",
+      "label": "Run records",
+      "sublabel": "dict + runs/*.json",
+      "sources": [
+        {
+          "path": "backend/services/scene-compute/src/scene_compute/server.py",
+          "line": 87,
+          "end_line": 93,
+          "label": "record()"
+        },
+        {
+          "path": "backend/services/scene-compute/src/scene_compute/server.py",
+          "line": 123,
+          "end_line": 139,
+          "label": "restart recovery"
+        }
+      ]
+    },
+    {
+      "id": "pool",
+      "type": "messagebus",
+      "label": "ThreadPool",
+      "sublabel": "max_workers = 1",
+      "sources": [
+        {
+          "path": "backend/services/scene-compute/src/scene_compute/server.py",
+          "line": 69,
+          "end_line": 72,
+          "label": "single worker"
+        },
+        {
+          "path": "backend/services/scene-compute/src/scene_compute/server.py",
+          "line": 95,
+          "end_line": 121,
+          "label": "execute()"
+        }
+      ]
+    },
+    {
+      "id": "executor",
+      "type": "backend",
+      "label": "Executor",
+      "sublabel": "Registry lookup",
+      "sources": [
+        {
+          "path": "backend/packages/scene-core/src/scene_core/executor.py",
+          "line": 8,
+          "end_line": 35,
+          "label": "run()"
+        },
+        {
+          "path": "backend/packages/scene-core/src/scene_core/registry.py",
+          "line": 4,
+          "end_line": 19,
+          "label": "entry points"
+        }
+      ]
+    },
+    {
+      "id": "algorithm",
+      "type": "backend",
+      "label": "Stage Algorithm",
+      "sublabel": "e.g. recon.da3",
+      "sources": [
+        {
+          "path": "backend/packages/scene-core/src/scene_core/ports.py",
+          "line": 10,
+          "end_line": 30,
+          "label": "StageAlgorithm"
+        },
+        {
+          "path": "backend/packages/scene-stages/src/scene_stages/gpu.py",
+          "line": 37,
+          "end_line": 55,
+          "label": "DA3 setup + run"
+        },
+        {
+          "path": "backend/packages/scene-stages/pyproject.toml",
+          "line": 23,
+          "end_line": 42,
+          "label": "registered names"
+        }
+      ]
+    },
+    {
+      "id": "workspace",
+      "type": "database",
+      "label": "Target Workspace",
+      "sublabel": "DATA_DIR/scenes/{id}",
+      "sources": [
+        {
+          "path": "backend/services/scene-compute/src/scene_compute/server.py",
+          "line": 82,
+          "end_line": 85,
+          "label": "workspace()"
+        },
+        {
+          "path": "backend/packages/scene-core/src/scene_core/contracts.py",
+          "line": 5,
+          "end_line": 16,
+          "label": "Stage outputs"
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": 168,
+      "to": 330,
+      "label": "1 · Upload raw/ in chunks"
+    },
+    {
+      "from": 345,
+      "to": 462,
+      "label": "2 · Start a Compute Run"
+    },
+    {
+      "from": 477,
+      "to": 822,
+      "label": "3 · Run in the background"
+    },
+    {
+      "from": 837,
+      "to": 942,
+      "label": "4 · Poll the run"
+    },
+    {
+      "from": 957,
+      "to": 1152,
+      "label": "5 · Download results"
+    }
+  ],
+  "messages": [
+    {
+      "id": "put-chunk",
+      "from": "worker",
+      "to": "http",
+      "y": 180,
+      "label": "PUT files/raw/{name}",
+      "variant": "security",
+      "note": "Every request: X-Compute-Token, body ≤ chunk size, 29 s limit"
+    },
+    {
+      "id": "check-busy",
+      "from": "http",
+      "to": "runs",
+      "y": 240,
+      "label": "no active run?"
+    },
+    {
+      "id": "append-part",
+      "from": "http",
+      "to": "workspace",
+      "y": 270,
+      "label": "append .part",
+      "note": "Last chunk: verify SHA-256, then rename"
+    },
+    {
+      "id": "chunk-ack",
+      "from": "http",
+      "to": "worker",
+      "y": 318,
+      "label": "complete · offset",
+      "variant": "return"
+    },
+    {
+      "id": "post-run",
+      "from": "worker",
+      "to": "http",
+      "y": 360,
+      "label": "POST /runs",
+      "variant": "emphasis"
+    },
+    {
+      "id": "record-queued",
+      "from": "http",
+      "to": "runs",
+      "y": 390,
+      "label": "record queued"
+    },
+    {
+      "id": "submit",
+      "from": "http",
+      "to": "pool",
+      "y": 420,
+      "label": "submit(execute)",
+      "variant": "dashed"
+    },
+    {
+      "id": "run-id",
+      "from": "http",
+      "to": "worker",
+      "y": 450,
+      "label": "202 run_id",
+      "variant": "return"
+    },
+    {
+      "id": "mark-running",
+      "from": "pool",
+      "to": "runs",
+      "y": 490,
+      "label": "state = running"
+    },
+    {
+      "id": "executor-run",
+      "from": "pool",
+      "to": "executor",
+      "y": 520,
+      "label": "run(algorithm, params)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "setup",
+      "from": "executor",
+      "to": "algorithm",
+      "y": 550,
+      "label": "setup() once",
+      "note": "Instance cached: models stay loaded"
+    },
+    {
+      "id": "algorithm-run",
+      "from": "executor",
+      "to": "algorithm",
+      "y": 610,
+      "label": "run(workspace, params)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "read-write",
+      "from": "algorithm",
+      "to": "workspace",
+      "y": 640,
+      "label": "read inputs · write outputs"
+    },
+    {
+      "id": "progress",
+      "from": "algorithm",
+      "to": "runs",
+      "y": 670,
+      "label": "progress",
+      "variant": "dashed"
+    },
+    {
+      "id": "manifest-dict",
+      "from": "algorithm",
+      "to": "executor",
+      "y": 700,
+      "label": "Manifest",
+      "variant": "return"
+    },
+    {
+      "id": "write-manifest",
+      "from": "executor",
+      "to": "workspace",
+      "y": 730,
+      "label": "manifest.json"
+    },
+    {
+      "id": "manifest-back",
+      "from": "executor",
+      "to": "pool",
+      "y": 760,
+      "label": "Manifest",
+      "variant": "return"
+    },
+    {
+      "id": "mark-done",
+      "from": "pool",
+      "to": "runs",
+      "y": 790,
+      "label": "state = done",
+      "note": "On exception: failed + error code"
+    },
+    {
+      "id": "poll",
+      "from": "worker",
+      "to": "http",
+      "y": 850,
+      "label": "GET /runs/{run_id}",
+      "note": "Every poll_interval until done or failed"
+    },
+    {
+      "id": "read-record",
+      "from": "http",
+      "to": "runs",
+      "y": 900,
+      "label": "read record"
+    },
+    {
+      "id": "run-state",
+      "from": "http",
+      "to": "worker",
+      "y": 930,
+      "label": "state · progress · manifest",
+      "variant": "return"
+    },
+    {
+      "id": "list-results",
+      "from": "worker",
+      "to": "http",
+      "y": 970,
+      "label": "GET files?dirs=graph,…"
+    },
+    {
+      "id": "list-disk",
+      "from": "http",
+      "to": "workspace",
+      "y": 1000,
+      "label": "list + SHA-256"
+    },
+    {
+      "id": "file-list",
+      "from": "http",
+      "to": "worker",
+      "y": 1030,
+      "label": "files · next_cursor",
+      "variant": "return"
+    },
+    {
+      "id": "get-range",
+      "from": "worker",
+      "to": "http",
+      "y": 1060,
+      "label": "GET file (Range)",
+      "note": "gzip on the wire; client checks SHA-256"
+    },
+    {
+      "id": "read-range",
+      "from": "http",
+      "to": "workspace",
+      "y": 1110,
+      "label": "read byte range"
+    },
+    {
+      "id": "bytes",
+      "from": "http",
+      "to": "worker",
+      "y": 1140,
+      "label": "206 bytes",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "http",
+      "from": 180,
+      "to": 318,
+      "type": "security"
+    },
+    {
+      "participant": "http",
+      "from": 360,
+      "to": 450,
+      "type": "security"
+    },
+    {
+      "participant": "pool",
+      "from": 420,
+      "to": 800,
+      "type": "messagebus"
+    },
+    {
+      "participant": "executor",
+      "from": 520,
+      "to": 760,
+      "type": "backend"
+    },
+    {
+      "participant": "algorithm",
+      "from": 550,
+      "to": 700,
+      "type": "backend"
+    },
+    {
+      "participant": "http",
+      "from": 850,
+      "to": 930,
+      "type": "security"
+    },
+    {
+      "participant": "http",
+      "from": 970,
+      "to": 1140,
+      "type": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Why asynchronous",
+      "items": [
+        "A Stage can take minutes to hours, but each HTTP request is cut off after 29 s",
+        "So POST /runs returns at once and the worker polls GET /runs until done or failed"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "One GPU, one job at a time",
+      "items": [
+        "The ThreadPool has one thread, so Stage runs and embed_text queries never share the GPU",
+        "While a Workspace has an active run, upload and delete return WORKSPACE_BUSY"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Pluggable Algorithms",
+      "items": [
+        "Registry resolves names like recon.da3 or segment.sam3 from scene_stages entry points",
+        "Algorithms only read and write Workspace folders; they never see HTTP or the database"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Failure handling",
+      "items": [
+        "Errors become a failed record with code and message, which the worker re-raises",
+        "On restart, queued or running records become COMPUTE_INTERRUPTED"
+      ]
+    }
+  ]
+}

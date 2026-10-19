@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "fc703dd3-4e09-4535-82ae-6d4d6518dd4e",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "D:\\repo\\3D-scene\\.archify\\sequence-scene-compute-internals-20261019-110916\\candidate.json",
+  "output": "D:\\repo\\3D-scene\\.archify\\sequence-scene-compute-internals-20261019-110916\\scene-compute-internals.html",
+  "specification": {
+    "sha256": "a55284251887b3ab85d67f6e775a7c79a22383a87dd71674e44515fdd114579c",
+    "bytes": 11204
+  },
+  "artifact": {
+    "sha256": "78344da2d73da3d643b01dda16570f434585a0a9c0a4107a16312f12594ce1c2",
+    "bytes": 838826
+  }
+}
