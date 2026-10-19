@@ -9,7 +9,7 @@ import modal
 REPOSITORY = Path(__file__).resolve().parents[3]
 app = modal.App(os.environ.get("MODAL_APP_NAME", "scene-compute"))
 image = modal.Image.from_dockerfile(
-    REPOSITORY / "backend/docker/compute.Dockerfile",
+    REPOSITORY / "Dockerfile.compute",
     context_dir=REPOSITORY,
     build_args={"EXTRAS": os.environ.get("COMPUTE_EXTRAS", "")},
 )

@@ -243,7 +243,7 @@ def image_name(args):
 
 @command("build the GPU image", *IMAGE_ARGUMENTS)
 def compute_image(args):
-    dockerfile = str(BACKEND / "docker/compute.Dockerfile")
+    dockerfile = str(ROOT / "Dockerfile.compute")
     platform = ["--platform", "linux/amd64", "--build-arg", f"EXTRAS={args.extras}"]
     run("docker", "build", *platform, "-f", dockerfile, "-t", image_name(args), str(ROOT))
 

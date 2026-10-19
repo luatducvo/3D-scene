@@ -128,7 +128,15 @@ go in [GPU-INTEGRATION.md](../GPU-INTEGRATION.md#live-check-log).
 
 ## The GPU image
 
-[compute.Dockerfile](../../backend/docker/compute.Dockerfile), built from the repository root. Empty
+All Docker builds use the repository root as context and share the root `.dockerignore`.
+`Dockerfile.backend` builds the api and worker, `Dockerfile.compute` builds the compute server,
+and `Dockerfile.frontend` builds Next.js. The context includes these Dockerfiles, `pyproject.toml`,
+`uv.lock`, `backend/{packages,services,config,migrations}` and `frontend/`. Each Dockerfile copies
+only its own inputs. Local environments, caches, build output and secrets are excluded even inside
+the included directories. Model weights and Scene data are supplied through runtime storage.
+When adding a `COPY` source outside these paths, update the root `.dockerignore` as well.
+
+[Dockerfile.compute](../../Dockerfile.compute), built from the repository root. Empty
 `EXTRAS` gives the light **fake** image (contract fakes, for testing a provider connection);
 `EXTRAS=gpu` gives the **gpu** image with every real Algorithm (the `gpu` extra in
 [scene-compute/pyproject.toml](../../backend/services/scene-compute/pyproject.toml), which also pins

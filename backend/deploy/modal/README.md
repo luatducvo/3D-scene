@@ -15,7 +15,7 @@ the Hugging Face account to have accepted its gated access terms.
 ## Deploy and connect
 
 From the repository root, run `uv run main.py deploy-modal`. Modal prints the deployed URL. The deployment
-uploads source and builds `backend/docker/compute.Dockerfile` remotely using the repository root
+uploads source and builds `Dockerfile.compute` remotely using the repository root
 as build context; it does not require uploading a locally built CUDA image.
 
 Set `MODAL_COMPUTE_URL` to the printed URL and `COMPUTE_TOKEN` locally. Select

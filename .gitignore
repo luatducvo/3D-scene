@@ -19,17 +19,29 @@ dist/
 .mypy_cache/
 .ruff_cache/
 .coverage
+.coverage.*
+coverage/
 htmlcov/
+.hypothesis/
+.tox/
+.nox/
+.ipynb_checkpoints/
 
 # Environment variables and local secrets
 .env
 .env.*
 !.env.example
+.aws/
 
 # Frontend dependencies and build output
 node_modules/
 frontend/dist/
 frontend/build/
+frontend/out/
+.npm/
+*.log
+playwright-report/
+test-results/
 
 # Editors and operating systems
 .vscode/
@@ -42,6 +54,8 @@ Desktop.ini
 .pytest-tmp*/
 backend/models/
 backend/data/
+/models/
+/data/
 samples/
 .next/
 next-env.d.ts

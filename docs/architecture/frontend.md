@@ -155,6 +155,13 @@ canvas's commit makes React 19 log "synchronously unmount a root" and a `removeC
 
 ## Development and validation
 
+The frontend Docker build uses the repository root as context, with
+[Dockerfile.frontend](../../Dockerfile.frontend) and the shared root `.dockerignore`.
+It copies only `frontend/` into the image. Local dependencies, Next.js output, generated TypeScript
+metadata, test reports and environment files are excluded (`.env.example` remains available).
+The image installs dependencies from `frontend/package-lock.json` and rebuilds the application
+from source; public build configuration comes from the Dockerfile build arguments.
+
 In `frontend/`, run `npm ci`, then `npm run dev` against the backend configured in
 `NEXT_PUBLIC_API_URL`. Set `NEXT_PUBLIC_API_MODE=mock` to work without a backend or GPU. Open `/en`; old `/vi` deep links redirect to the matching English URL.
 
