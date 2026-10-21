@@ -1,3 +1,6 @@
+# Store and check out text files with LF on every OS, overriding core.autocrlf.
+* text=auto eol=lf
+
 # Treat architecture diagram HTML files as documentation in GitHub language statistics.
 docs/diagrams/** linguist-documentation=true
 
