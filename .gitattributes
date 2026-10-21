@@ -1,5 +1,5 @@
 # Treat architecture diagram HTML files as documentation in GitHub language statistics.
-docs/architecture/diagrams/** linguist-documentation=true
+docs/diagrams/** linguist-documentation=true
 
 # Treat the diagram-design skill's example HTML as documentation too.
 .agents/skills/diagram-design/assets/** linguist-documentation=true
