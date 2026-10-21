@@ -291,7 +291,7 @@ def create_app(
         )
 
     def target_workspace():
-        """Uploads and query embedding live on the pipeline's Target (ADR-0005); built once, on first use."""
+        """Uploads and query embedding live on the pipeline's Target; built once, on first use."""
         if app.state.target is None:
             # A request waits briefly for a cold Target instead of a Job's full startup deadline.
             try:
@@ -380,7 +380,7 @@ def create_app(
                 for event in QAAgent(llm).answer(body.question, tools):
                     if event["type"] == "final":
                         by_id = {o["id"]: o for o in objects}
-                        # Evidence names each Object's best Frame; Frame images stay on the Target (ADR-0008).
+                        # Evidence names each Object's best Frame; Frame images stay on the Target.
                         event["evidence"] = [
                             {"object_id": i, "frame_id": v["frame_id"]}
                             for i in event["object_ids"]

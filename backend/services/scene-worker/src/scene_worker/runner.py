@@ -28,7 +28,7 @@ class Worker:
         stage = None
         try:
             scene_id = str(job["scene_id"])
-            # Every Job runs all Stages from the uploaded inputs, which stay on the Target (ADR-0005).
+            # Every Job runs all Stages from the uploaded inputs, which stay on the Target.
             self.target.clear_outputs(scene_id)
             for stage in STAGES:
                 self.store.stage_started(job, stage, self.target.pipeline.stages[stage].algorithm)

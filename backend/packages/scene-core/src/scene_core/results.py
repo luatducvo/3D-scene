@@ -24,8 +24,8 @@ class PublishedScene:
 class SceneResults:
     """Reads published files from a Workspace root (the Scene's own or a staging copy); files only, no database."""
 
-    # The only Workspace directories that return to the worker: publication inputs and served assets
-    # (ADR-0005). Frame images stay on the Target (ADR-0008).
+    # The only Workspace directories that return to the worker: publication inputs and served assets.
+    # Frame images stay on the Target.
     DIRECTORIES = ("graph", "embeddings", "mesh")
     GRAPH = "graph/scene_graph.json"
     EMBEDDINGS = "embeddings/objects.npz"

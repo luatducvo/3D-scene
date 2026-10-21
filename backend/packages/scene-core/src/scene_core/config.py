@@ -23,7 +23,7 @@ class StageConfig(BaseModel):
 
 
 class PipelineConfig(BaseModel):
-    """Every Stage runs on the one Target (ADR-0005), usually named through ${GPU_TARGET}; an unset variable
+    """Every Stage runs on the one Target, usually named through ${GPU_TARGET}; an unset variable
     stays literal so open_target_workspace can name it."""
 
     target: str = "cpu"

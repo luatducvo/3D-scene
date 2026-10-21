@@ -681,7 +681,7 @@
         "title": "Camera"
       },
       "Evidence": {
-        "description": "The Frame that best shows an Object in an answer; its image is not published (ADR-0008).",
+        "description": "The Frame that best shows an Object in an answer; its image is not published.",
         "properties": {
           "object_id": {
             "title": "Object Id",

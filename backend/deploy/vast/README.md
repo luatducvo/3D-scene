@@ -1,13 +1,11 @@
 # Vast.ai targets
 
-Status: written for the first live provider check; not yet exercised. Record each live check in
-[GPU-INTEGRATION](../../../docs/GPU-INTEGRATION.md). Instances are rented by hand in the Vast web
+Status: written for the first live provider check; not yet exercised. Instances are rented by hand in the Vast web
 console; no provider code runs in the application. See the [Vast CLI hello world](https://docs.vast.ai/cli/hello-world)
 and [template settings](https://docs.vast.ai/guides/templates/template-settings) for console details.
 
 scene-compute runs on one Target, `vast`, which is one rented instance. The same Target runs
-either the fake image or the GPU image, which holds every GPU Algorithm
-([ADR-0002](../../../docs/adr/0002-single-gpu-image-ultralytics-sam3.md)).
+either the fake image or the GPU image, which holds every GPU Algorithm.
 
 ## 1. Publish the images
 

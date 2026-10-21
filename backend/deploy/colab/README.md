@@ -13,7 +13,7 @@ scene-worker ── HTTPS (tunnel URL, 100 MB chunks) ─> cloudflared → https
 ```
 
 Every Stage runs on Colab, and uploads are stored there too; only the results return to your
-machine after the last Stage ([ADR-0005](../../../docs/adr/0005-whole-pipeline-on-gpu-host.md)).
+machine after the last Stage.
 Every request finishes in under 300 s and bodies stay under 100 MB, so the tunnel's limits never apply.
 
 ## Run the notebook
@@ -65,7 +65,7 @@ from <http://localhost:3000>.
 ## Limits
 
 - **VRAM.** The Executor keeps every model loaded, and the real pipeline is sized for at least
-  48 GB ([ADR-0002](../../../docs/adr/0002-single-gpu-image-ultralytics-sam3.md)). A T4 (about
+  48 GB. A T4 (about
   15 GB) is enough for the fake pipeline, not for every real model at once; for real models use an
   80 GB A100 runtime and keep `max_keyframes` in [pipeline.yaml](../../config/pipeline.yaml) at 80
   or lower.
@@ -75,4 +75,3 @@ from <http://localhost:3000>.
 - **New URL per tunnel.** Each run of step 6 prints a new URL: update `COLAB_URL` and run
   `uv run main.py up` again.
 
-Record live results in [GPU-INTEGRATION.md](../../../docs/GPU-INTEGRATION.md#live-check-log).

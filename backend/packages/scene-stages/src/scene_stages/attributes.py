@@ -152,7 +152,7 @@ class VisionAttributes(StageAlgorithm):
 
 
 class NoAttributes(StageAlgorithm):
-    """Skips object descriptions: every Object keeps label_vi unset and empty attributes (ADR-0004)."""
+    """Skips object descriptions: every Object keeps label_vi unset and empty attributes."""
 
     name, stage = "attributes.none", "attributes"
     reads, writes = ["instances"], ["attributes"]

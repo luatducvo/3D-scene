@@ -1,5 +1,5 @@
 # Requires real adapters and their optional dependencies; use pipeline.fake.yaml for the skeleton.
-# Every Stage runs on GPU_TARGET, the compute Target running the single GPU image (ADR-0005);
+# Every Stage runs on GPU_TARGET, the compute Target running the single GPU image;
 # set it in backend/.env.
 # No provider is the default.
 target: "${GPU_TARGET}"
@@ -27,7 +27,7 @@ stages:
     algorithm: embed.metaclip2
     params: {model_id: facebook/metaclip-2-worldwide-huge-quickgelu, batch_size: 64}
   attributes:
-    # attributes.vlm_api is disabled; see docs/adr/0004-skip-vlm-attributes.md.
+    # attributes.vlm_api is disabled.
     algorithm: attributes.none
   graph:
     algorithm: graph.geometric

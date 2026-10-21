@@ -249,7 +249,7 @@ export interface components {
         };
         /**
          * Evidence
-         * @description The Frame that best shows an Object in an answer; its image is not published (ADR-0008).
+         * @description The Frame that best shows an Object in an answer; its image is not published.
          */
         Evidence: {
             /** Object Id */

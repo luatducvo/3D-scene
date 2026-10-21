@@ -89,7 +89,7 @@ def test_pipeline_publish_and_rerun(client):
     membership = ObjectMembership.decode(client.get(detail["assets"]["membership_url"]).content)
     assert membership.ids == ["chair-1", "table-1"]
     assert all(len(membership.points(i)) for i in range(2))
-    # Frame images stay on the Target (ADR-0008).
+    # Frame images stay on the Target.
     frame = detail["assets"]["mesh_url"].replace("mesh/mesh.glb", "recon/rgb/0000.png")
     assert client.get(frame).status_code == 404
     for private in ("raw/private.jpg", "keyframes/0000.jpg", "instances/instances.json"):

@@ -1,4 +1,4 @@
-"""Lazy model adapters. Upstream interfaces and manual checks: docs/GPU-INTEGRATION.md."""
+"""Lazy model adapters."""
 
 from __future__ import annotations
 

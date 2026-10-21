@@ -1,4 +1,4 @@
-"""Target Workspace: the only way the api and the worker reach a Scene's Target Workspace (ADR-0005).
+"""Target Workspace: the only way the api and the worker reach a Scene's Target Workspace.
 
 `open_target_workspace` picks the pipeline's one Target and returns a `TargetWorkspace`. Behind it,
 one of two adapters moves files and runs Algorithms: in-process on this machine, or HTTP to a
@@ -72,7 +72,7 @@ class TargetWorkspace:
         """Make this version the Scene's publication: download, finish its folder, then call publish.
 
         The results land in staging and are renamed to DATA_DIR/scenes/{scene}/{version}, complete and
-        never modified again, before publish(that Workspace) commits the database (ADR-0006). If anything
+        never modified again, before publish(that Workspace) commits the database. If anything
         fails first, the folder is removed and the earlier publication stays served. After the commit,
         every other publication folder of the Scene is removed.
         """

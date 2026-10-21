@@ -96,7 +96,7 @@ class QueryRequest(BaseModel):
 
 
 class Evidence(BaseModel):
-    """The Frame that best shows an Object in an answer; its image is not published (ADR-0008)."""
+    """The Frame that best shows an Object in an answer; its image is not published."""
 
     object_id: str
     frame_id: str

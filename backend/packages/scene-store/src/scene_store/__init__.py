@@ -246,7 +246,7 @@ class SceneStore:
 
     def publish(self, job, published: PublishedScene):
         """Replace the Scene's Objects, Relations and room, point it at this Job's publication and mark Job and
-        Scene ready, in one transaction. The publication folder must already be complete (ADR-0006)."""
+        Scene ready, in one transaction. The publication folder must already be complete."""
         scene_id = job["scene_id"]
         graph = published.graph
         with self.connect() as conn:
