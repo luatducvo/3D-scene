@@ -3,7 +3,7 @@ name: commit
 description: Stage all changes and create a git commit following the repo's commit conventions. Use only when the user invokes /commit.
 disable-model-invocation: true
 argument-hint: "[optional commit message]"
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git log:*), Bash(git reset:*)
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git log:*), Bash(git show:*), Bash(git reset:*)
 ---
 
 # Commit
@@ -29,6 +29,7 @@ Stage the working tree and commit it, following the conventions below.
    ```
 8. If a pre-commit hook fails, report the error, fix it if the fix is clearly mechanical, re-stage, and try again as a new commit. Never use `--no-verify` or `--amend`.
 9. Show the result with `git log --oneline -1`.
+10. List the files that were committed, from `git show --name-status --format= HEAD`, one per line with their status (`A` added, `M` modified, `D` deleted, `R` renamed). Also list anything left unstaged in step 3, so the user sees what was not committed.
 
 Do not push.
 
