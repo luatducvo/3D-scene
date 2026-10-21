@@ -8,3 +8,8 @@ docs/diagrams/** linguist-documentation=true
 # Treat the archify skill's HTML templates and examples as documentation.
 .agents/skills/archify/**/*.html linguist-documentation=true
 .claude/skills/archify/**/*.html linguist-documentation=true
+
+# Agent skills ship third-party JS (renderers, vendored libraries); exclude
+# them from GitHub language statistics so they don't outweigh the project's code.
+.agents/skills/** linguist-vendored=true
+.claude/skills/** linguist-vendored=true
