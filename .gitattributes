@@ -4,3 +4,7 @@ docs/diagrams/** linguist-documentation=true
 # Treat the diagram-design skill's example HTML as documentation too.
 .agents/skills/diagram-design/assets/** linguist-documentation=true
 .claude/skills/diagram-design/assets/** linguist-documentation=true
+
+# Treat the archify skill's HTML templates and examples as documentation.
+.agents/skills/archify/**/*.html linguist-documentation=true
+.claude/skills/archify/**/*.html linguist-documentation=true
