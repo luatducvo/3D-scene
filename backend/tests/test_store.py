@@ -7,6 +7,7 @@ import pytest
 from scene_core.contracts import STAGES
 from scene_core.domain import SceneGraph
 from scene_core.errors import SceneError
+from scene_core.resources import backend_folder
 from scene_core.results import EMBEDDING_DIM, PublishedScene
 from scene_stages.fake import OBJECTS
 from scene_store import SceneStore
@@ -221,12 +222,8 @@ def test_each_migration_is_applied_once(store):
         names = [
             row["name"] for row in conn.execute("SELECT name FROM schema_migrations ORDER BY name")
         ]
-    assert names[:4] == [
-        "001_init.sql",
-        "002_stage_progress.sql",
-        "003_drop_skip_residue.sql",
-        "004_scene_publication.sql",
-    ]
+    folder = backend_folder("migrations", "MIGRATIONS_DIR")
+    assert {path.name for path in folder.glob("*.sql")} <= set(names)
 
 
 def test_a_missing_migrations_folder_says_what_to_set(store, tmp_path, monkeypatch):
