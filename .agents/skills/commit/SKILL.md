@@ -3,7 +3,7 @@ name: commit
 description: Stage all changes and create a git commit following the repo's commit conventions. Use only when the user invokes /commit.
 disable-model-invocation: true
 argument-hint: "[optional commit message]"
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git log:*), Bash(git show:*), Bash(git reset:*)
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git log:*), Bash(git show:*), Bash(git reset:*), Bash(git restore:*)
 ---
 
 # Commit
@@ -15,7 +15,7 @@ Stage the working tree and commit it, following the conventions below.
 1. Run `git status --short` and `git diff HEAD --stat`. If there is nothing to commit, say so and stop.
 2. Read `git diff HEAD` and any new untracked files to understand the change.
 3. Check for files that must never be committed (see **Never commit**). If any are present, leave them unstaged, list them, and suggest adding them to `.gitignore`.
-4. If the changes are several unrelated logical changes, say so and offer to split them into separate commits before going on.
+4. If the changes are several unrelated logical changes, say so and offer to split them into separate commits before going on. When the user accepts, follow **Splitting** instead of steps 5–7.
 5. Stage: `git add -A`, then `git reset -- <path>` for anything excluded in step 3.
 6. Write the message (see **Message format**):
    - If the user passed arguments (`$ARGUMENTS`), use them as the subject's description. Add the `type(scope):` prefix if missing, but keep their wording.
@@ -32,6 +32,13 @@ Stage the working tree and commit it, following the conventions below.
 10. List the files that were committed, from `git show --name-status --format= HEAD`, one per line with their status (`A` added, `M` modified, `D` deleted, `R` renamed). Also list anything left unstaged in step 3, so the user sees what was not committed.
 
 Do not push.
+
+## Splitting
+
+1. List every changed path into exactly one group, including deletions and already-staged paths from `git status --short`. Order the groups so each commit leaves the repository working (a file and the files that depend on it land together or in dependency order).
+2. Empty the index: `git restore --staged .`. Paths staged before the split otherwise ride along in the first commit.
+3. For each group, in order: `git add -A -- <paths>`, write its message, commit, then compare `git show --name-status --format= HEAD` with the group's list. The commit is done when the two lists match exactly; fix a mismatch before starting the next group.
+4. When every group is committed, `git status --short` shows nothing except paths excluded in step 3.
 
 ## Message format
 
