@@ -840,11 +840,6 @@ summary {
 .object-details h2 {
   font-size: 24px;
 }
-.attribute-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 .dimensions {
   display: flex;
   flex-direction: column;

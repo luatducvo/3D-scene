@@ -25,7 +25,6 @@
   "objects": "Objects",
   "search": "Search in scene…",
   "size": "Size",
-  "attributes": "Attributes",
   "measure": "Measure",
   "report": "Ingest report",
   "status": {
@@ -46,7 +45,6 @@
     "segment": "Find objects in photos",
     "lift": "Locate objects in 3D",
     "embed": "Index objects for search",
-    "attributes": "Describe objects",
     "graph": "Build spatial relations"
   },
   "stagesCompleted": "{done} of {total} stages",
@@ -183,7 +181,6 @@
     "timing": "Elapsed from recorded timestamps (s)",
     "unavailable": "Not available",
     "statistics": "Recorded statistics",
-    "disabled": "Attribute enrichment is disabled. No VLM descriptions were generated.",
     "stages": {
       "ingest": {
         "title": "Input Frames",
@@ -227,16 +224,10 @@
         "inputs": "Instance views",
         "outputs": "Semantic embedding vectors"
       },
-      "attributes": {
-        "title": "Optional attributes",
-        "purpose": "Describe Instances when attribute enrichment is enabled.",
-        "inputs": "Instances and views",
-        "outputs": "Object descriptions, or empty attributes when disabled"
-      },
       "graph": {
         "title": "Scene Graph",
         "purpose": "Publish Objects, spatial Relations and Object Membership.",
-        "inputs": "Instances, geometry, embeddings and attributes",
+        "inputs": "Instances, alignment and geometry",
         "outputs": "Scene Graph and Object Membership"
       }
     },
@@ -267,10 +258,6 @@
       "embed": {
         "model_id": "Embedding model",
         "dim": "Embedding dimensions"
-      },
-      "attributes": {
-        "num_objects": "Objects",
-        "invalid_outputs": "Invalid descriptions"
       },
       "graph": {
         "num_objects": "Objects",

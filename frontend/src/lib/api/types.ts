@@ -5,7 +5,7 @@ export type SceneObject = Schemas["SceneObject"];
 export type ProgressEvent = Schemas["ProgressEvent"];
 export type StageProgress = Schemas["StageProgress"];
 export type Stage = Schemas["StageRun"]["stage"];
-/** The nine Stages in processing order. */
+/** The Stages in processing order. */
 export const STAGES = [
   "ingest",
   "recon",
@@ -14,7 +14,6 @@ export const STAGES = [
   "segment",
   "lift",
   "embed",
-  "attributes",
   "graph",
 ] as const satisfies readonly Stage[];
 // Type-checking fails here when STAGES misses a Stage of the backend's enum.

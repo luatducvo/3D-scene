@@ -32,7 +32,7 @@ class PipelineConfig(BaseModel):
     @model_validator(mode="after")
     def validate_stages(self):
         if tuple(self.stages) != STAGES:
-            raise ValueError("Pipeline must declare all nine stages in order")
+            raise ValueError("Pipeline must declare every Stage in order")
         return self
 
     @classmethod

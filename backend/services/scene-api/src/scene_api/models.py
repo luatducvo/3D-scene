@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from scene_core.contracts import STAGES
 from scene_core.domain import SceneObject, SceneStatus
 
-# The nine Stages in order; the frontend checks its own list against this enum.
+# The Stages in order; the frontend checks its own list against this enum.
 Stage = Literal[STAGES]
 
 

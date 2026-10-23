@@ -16,7 +16,7 @@ Choosing an Algorithm, its params or a Target is a configuration change, not a c
 
 ## Rules
 
-- A pipeline file declares all nine Stages in order and one `target` that every Stage runs on.
+- A pipeline file declares all eight Stages in order and one `target` that every Stage runs on.
 - `${VAR}` in a YAML file expands from the environment. In a pipeline file an unset variable stays literal, so the worker's start-up error names it.
 - `PIPELINE_CONFIG`, `COMPUTE_CONFIG` and `GPU_TARGET` select the files and the Target.
 - A new environment variable goes into the matching `.env.example` with a comment. `backend/.env` holds the user's secrets: never commit it, print it or copy values out of it. `main.py` creates it from `.env.example` on first use.

@@ -158,9 +158,9 @@ def test_a_publication_failure_names_publish(store):
 def test_recovery_fails_jobs_a_dead_worker_left_running(store):
     scene = uploaded(store)
     job = claimed(store, scene)
-    store.stage_started(job, "attributes", "attributes.fake")
+    store.stage_started(job, "embed", "embed.fake")
     failures = [f for f in store.recover_interrupted() if f["job_id"] == str(job["id"])]
-    assert [(f["stage"], f["code"]) for f in failures] == [("attributes", "WORKER_INTERRUPTED")]
+    assert [(f["stage"], f["code"]) for f in failures] == [("embed", "WORKER_INTERRUPTED")]
     assert store.get_scene(scene)["status"] == "failed"
     assert store.snapshot(scene).events[0][1]["status"] == "failed"
 

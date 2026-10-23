@@ -4,7 +4,7 @@
 
 A failure surfaces; no code path stands in for the one that failed.
 
-- An Algorithm, model, Target or LLM that fails raises. Its Stage fails, then its Job, then its Scene, and the Scene keeps its previous Publication.
+- An Algorithm, model or Target that fails raises. Its Stage fails, then its Job, then its Scene, and the Scene keeps its previous Publication.
 - Do not add an alternative method, a default value in place of a missing input or output, a CPU path when `device: cuda` was configured, or a silent skip.
 - Retrying the same call is not a fallback: waiting for a cold Target, or retrying a 429 or 5xx from the same endpoint, is fine.
 - Reading is strict too. A Publication or Stage output that lacks a file the current code expects is invalid and raises; the user reprocesses the Scene. Do not add branches for results written by older code.

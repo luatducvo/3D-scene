@@ -26,7 +26,7 @@ const scenes = new Map<string, Scene>([
       assets: demoAssets,
       stage_runs: STAGES.map((stage) => ({
         stage,
-        algorithm: stage === "attributes" ? "attributes.none" : `${stage}.fake`,
+        algorithm: `${stage}.fake`,
         status: "done",
         started_at: "2026-10-18T00:00:00Z",
         updated_at: "2026-10-18T00:00:02Z",
@@ -199,12 +199,7 @@ export const handlers = [
     return HttpResponse.json(
       q
         ? objects
-            .filter((o) =>
-              [
-                o.label,
-                ...Object.values(o.attributes || {}).flat(),
-              ].some((value) => value.toLowerCase().includes(q)),
-            )
+            .filter((o) => o.label.toLowerCase().includes(q))
             .map((object, index) => ({
               object,
               score: 1,

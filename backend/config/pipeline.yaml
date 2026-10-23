@@ -26,9 +26,6 @@ stages:
   embed:
     algorithm: embed.metaclip2
     params: {model_id: facebook/metaclip-2-worldwide-huge-quickgelu, batch_size: 64}
-  attributes:
-    # attributes.vlm_api is disabled.
-    algorithm: attributes.none
   graph:
     algorithm: graph.geometric
     # membership_radius_m: a point or mesh vertex within it of an Object's lift points belongs to it.

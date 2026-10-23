@@ -41,8 +41,8 @@ test("progress shows the Job bar, the running Stage count, elapsed time and an e
             started_at: "2026-10-14T12:58:00Z",
             updated_at: start,
           },
-          attributes: {
-            ...event("attributes", "running"),
+          lift: {
+            ...event("lift", "running"),
             started_at: start,
             progress: { done: 50, total: 150, unit: "object" },
           },
@@ -51,7 +51,7 @@ test("progress shows the Job bar, the running Stage count, elapsed time and an e
     </NextIntlClientProvider>,
   );
   expect(markup).toContain('aria-label="Processing progress"');
-  expect(markup).toContain("4.3 of 9 stages");
+  expect(markup).toContain("4.3 of 8 stages");
   expect(markup).toContain("50/150 objects");
   expect(markup).toContain("10:00");
   expect(markup).toContain("2:00");

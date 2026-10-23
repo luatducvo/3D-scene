@@ -217,13 +217,12 @@ class SceneStore:
             conn.execute("DELETE FROM relations WHERE scene_id=%s", (scene_id,))
             for obj in graph.objects:
                 conn.execute(
-                    "INSERT INTO objects(scene_id,id,label,box,attributes,best_views,embedding) VALUES(%s,%s,%s,%s,%s,%s,%s::vector)",
+                    "INSERT INTO objects(scene_id,id,label,box,best_views,embedding) VALUES(%s,%s,%s,%s,%s,%s::vector)",
                     (
                         scene_id,
                         obj.id,
                         obj.label,
                         Jsonb(obj.box.model_dump()),
-                        Jsonb(obj.attributes),
                         Jsonb([v.model_dump() for v in obj.best_views]),
                         str(published.embeddings[obj.id].tolist()),
                     ),

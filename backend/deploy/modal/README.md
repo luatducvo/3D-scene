@@ -38,7 +38,7 @@ retries readiness for up to 900 seconds and uploads missing inputs again by chec
 
 1. Check `/ping`, then authenticated `/info`; confirm version and installed Algorithms.
 2. Create a Scene, upload synthetic images and Process in the browser with fake GPU Stages on Modal.
-   Confirm nine completed Stages, ready status, mesh and boxes.
+   Confirm eight completed Stages, ready status, mesh and boxes.
 3. Verify transferred output checksums against local files and repeat to check unchanged-file skip.
 4. Wait for scale-to-zero, process another Scene, and confirm cold start is awaited successfully.
 5. Delete a Scene and verify its remote Workspace is absent.

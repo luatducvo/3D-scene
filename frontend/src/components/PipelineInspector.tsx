@@ -12,7 +12,6 @@ const METRICS: Record<Stage, string[]> = {
   segment: ["num_masks", "vocabulary_size"],
   lift: ["num_instances"],
   embed: ["model_id", "dim"],
-  attributes: ["num_objects", "invalid_outputs"],
   graph: ["num_objects", "num_relations"],
 };
 
@@ -65,9 +64,6 @@ export function PipelineInspector({ scene }: { scene: Scene }) {
         <dt>{t("timing")}</dt>
         <dd>{duration}</dd>
       </dl>
-      {run?.algorithm === "attributes.none" && (
-        <p className="caption">{t("disabled")}</p>
-      )}
       <h3>{t("statistics")}</h3>
       <dl className="scene-facts">
         {METRICS[stage].map((key) => (

@@ -278,10 +278,6 @@ export interface components {
             /** Label */
             label: string;
             box: components["schemas"]["OrientedBox"];
-            /** Attributes */
-            attributes?: {
-                [key: string]: string[];
-            };
             /** Best Views */
             best_views?: components["schemas"]["BestView"][];
         };
@@ -329,7 +325,7 @@ export interface components {
              * Stage
              * @enum {string}
              */
-            stage: "ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "attributes" | "graph";
+            stage: "ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "graph";
             /** Algorithm */
             algorithm: string;
             /**
@@ -384,7 +380,7 @@ export interface components {
              * Stage
              * @default null
              */
-            stage: ("ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "attributes" | "graph") | null;
+            stage: ("ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "graph") | null;
             /**
              * Status
              * @default null

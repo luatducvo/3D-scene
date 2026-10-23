@@ -7,7 +7,6 @@ import numpy as np
 from PIL import Image
 from scene_core.contracts import (
     AlignManifest,
-    AttributesManifest,
     EmbedManifest,
     GraphManifest,
     IngestManifest,
@@ -28,14 +27,12 @@ OBJECTS = [
         "id": "chair-1",
         "label": "chair",
         "box": {"center": [1, 1, 0.5], "size": [0.5, 0.5, 1], "yaw": 0},
-        "attributes": {"color": ["red"], "material": ["wood"]},
         "best_views": [{"frame_id": "0000", "bbox": [0, 0, 16, 16], "score": 1}],
     },
     {
         "id": "table-1",
         "label": "table",
         "box": {"center": [2, 1, 0.4], "size": [1, 1, 0.8], "yaw": 0},
-        "attributes": {"color": ["brown"], "material": ["wood"]},
         "best_views": [{"frame_id": "0000", "bbox": [0, 0, 16, 16], "score": 1}],
     },
 ]
@@ -270,20 +267,6 @@ class EmbedFake(Fake):
         )
 
 
-class AttributesFake(Fake):
-    name = "attributes.fake"
-    stage = "attributes"
-    manifest_type = AttributesManifest
-    reads = ["instances"]
-    writes = ["attributes"]
-
-    def transform(self, w, p):
-        w.dir("attributes").joinpath("attributes.json").write_text(
-            json.dumps({o["id"]: {"attributes": o["attributes"]} for o in OBJECTS})
-        )
-        return AttributesManifest(num_objects=2)
-
-
 def inside_box(positions, box):
     """Indices of positions inside an axis-aligned box (the fake Objects have no yaw)."""
     half = np.asarray(box["size"]) / 2
@@ -294,7 +277,7 @@ class GraphFake(Fake):
     name = "graph.fake"
     stage = "graph"
     manifest_type = GraphManifest
-    reads = ["instances", "attributes", "align", "mesh"]
+    reads = ["instances", "align", "mesh"]
     writes = ["graph"]
 
     def transform(self, w, p):

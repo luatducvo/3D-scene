@@ -68,8 +68,7 @@ def write_instances(workspace, lifted):
 
 
 def write_graph_inputs(workspace):
-    """The attributes and align outputs graph reads besides instances and mesh, all empty."""
-    workspace.dir("attributes").joinpath("attributes.json").write_text("{}")
+    """The align outputs graph reads besides instances and mesh, all empty."""
     workspace.dir("align").joinpath("manifest.json").write_text(
         json.dumps({"world_to_aligned": np.eye(4).tolist(), "floor_z": 0})
     )

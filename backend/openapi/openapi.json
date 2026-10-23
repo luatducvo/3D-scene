@@ -763,16 +763,6 @@
           "box": {
             "$ref": "#/components/schemas/OrientedBox"
           },
-          "attributes": {
-            "additionalProperties": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "type": "object",
-            "title": "Attributes"
-          },
           "best_views": {
             "items": {
               "$ref": "#/components/schemas/BestView"
@@ -886,7 +876,6 @@
               "segment",
               "lift",
               "embed",
-              "attributes",
               "graph"
             ],
             "title": "Stage"
@@ -1050,7 +1039,6 @@
                   "segment",
                   "lift",
                   "embed",
-                  "attributes",
                   "graph"
                 ],
                 "type": "string"

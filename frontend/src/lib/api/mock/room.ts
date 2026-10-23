@@ -7,21 +7,18 @@ export const demoObjects: SceneObject[] = [
     id: "sofa-1",
     label: "sofa",
     box: { center: [2.3, 3.35, 0.55], size: [2.6, 0.85, 1.1], yaw: 0 },
-    attributes: { color: ["green"], material: ["fabric"] },
     best_views: [],
   },
   {
     id: "table-1",
     label: "coffee table",
     box: { center: [2.55, 1.975, 0.29], size: [1.3, 0.75, 0.58], yaw: 0 },
-    attributes: { material: ["wood"] },
     best_views: [],
   },
   {
     id: "plant-1",
     label: "plant",
     box: { center: [4.45, 3.55, 0.65], size: [0.7, 0.7, 1.3], yaw: 0 },
-    attributes: { color: ["green"] },
     best_views: [],
   },
   // Inside the plant's box: its points belong to both, and picking prefers the smaller pot.
@@ -29,7 +26,6 @@ export const demoObjects: SceneObject[] = [
     id: "pot-1",
     label: "flower pot",
     box: { center: [4.48, 3.58, 0.2], size: [0.36, 0.36, 0.4], yaw: 0 },
-    attributes: { material: ["ceramic"] },
     best_views: [],
   },
 ];

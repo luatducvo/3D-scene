@@ -9,7 +9,6 @@ const object: SceneObject = {
   id: "sofa-1",
   label: "sofa",
   box: { center: [0, 0, 0.5], size: [2.1, 0.86, 0.82], yaw: 0 },
-  attributes: { color: ["green"], material: ["fabric"] },
   best_views: [
     {
       frame_id: "frame-1",
@@ -19,7 +18,7 @@ const object: SceneObject = {
   ],
 };
 
-test("selected object details expose geometry and attributes without evidence or suggestions", () => {
+test("selected object details expose label and geometry without attributes, evidence or suggestions", () => {
   const markup = renderToStaticMarkup(
     <NextIntlClientProvider locale="en" timeZone="UTC" messages={en}>
       <ObjectDetails object={object} />
@@ -27,8 +26,7 @@ test("selected object details expose geometry and attributes without evidence or
   );
   expect(markup).toContain("sofa");
   expect(markup).toContain("2.10 × 0.86 × 0.82 m");
-  expect(markup).toContain("green");
-  expect(markup).toContain("fabric");
+  expect(markup).not.toContain("attribute");
   expect(markup).not.toContain("<img");
   expect(markup).not.toContain("frame-1");
   expect(markup).not.toContain("<ul");

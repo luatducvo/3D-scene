@@ -80,9 +80,13 @@ def test_pipeline_publish_and_rerun(client):
     assert runner.run_once()
     detail = client.get(prefix).json()
     assert detail["status"] == "ready", detail
-    assert [s["status"] for s in detail["stage_runs"]] == ["done"] * 9
+    assert [(s["stage"], s["status"]) for s in detail["stage_runs"]] == [
+        (stage, "done")
+        for stage in ("ingest", "recon", "align", "mesh", "segment", "lift", "embed", "graph")
+    ]
     objects = client.get(prefix + "/objects").json()
     assert [o["id"] for o in objects] == ["chair-1", "table-1"]
+    assert all("attributes" not in o for o in objects)
     assert objects[0]["best_views"][0]["frame_id"] == "0000"
     assert "image_url" not in objects[0]["best_views"][0]
     assert client.get(detail["assets"]["mesh_url"]).content.startswith(b"glTF")
@@ -110,7 +114,7 @@ def test_pipeline_publish_and_rerun(client):
     assert client.get(prefix).json()["stage_runs"] == []  # the previous Job's Stage Runs are gone
     runner.run_once()
     rerun = client.get(prefix).json()
-    assert [s["status"] for s in rerun["stage_runs"]] == ["done"] * 9
+    assert [s["status"] for s in rerun["stage_runs"]] == ["done"] * 8
     # A new publication gets new URLs; the previous one is removed.
     assert rerun["assets"]["mesh_url"] != detail["assets"]["mesh_url"]
     assert client.get(detail["assets"]["mesh_url"]).status_code == 404
@@ -124,7 +128,7 @@ def test_progress_replay_and_search(client):
     worker(client).run_once()
     response = client.get(prefix + "/events")
     assert response.headers["content-type"].startswith("text/event-stream")
-    assert response.text.count("event: stage") == 9
+    assert response.text.count("event: stage") == 8
     assert '"ready"' in response.text
     assert (
         client.get(prefix + "/search", params={"q": "cái ghế"}).json()[0]["object"]["id"]
@@ -316,7 +320,7 @@ def test_whole_pipeline_runs_on_the_gpu_host_and_returns_only_results(tmp_path):
                 runner.run_once()
                 detail = client.get(prefix).json()
                 assert detail["status"] == "ready", detail
-                assert [s["status"] for s in detail["stage_runs"]] == ["done"] * 9
+                assert [s["status"] for s in detail["stage_runs"]] == ["done"] * 8
             assert not (remote_root / "scenes" / scene / "segment" / "stale.npz").exists()
             assert len(list((remote_root / "scenes" / scene / "raw").iterdir())) == 2
             [version] = list((local / "scenes" / scene).iterdir())
@@ -394,15 +398,15 @@ def test_worker_start_fails_jobs_interrupted_by_a_restart(client):
     runner = worker(client)
     assert client.post(prefix + "/process", json={}).status_code == 202
     job = runner.store.claim()
-    runner.store.stage_started(job, "attributes", "attributes.fake")  # a worker died mid-Stage
+    runner.store.stage_started(job, "embed", "embed.fake")  # a worker died mid-Stage
     worker(client).recover_interrupted()
     detail = client.get(prefix).json()
     assert detail["status"] == "failed"
     assert (
         detail["failure"]["code"] == "WORKER_INTERRUPTED"
-        and detail["failure"]["stage"] == "attributes"
+        and detail["failure"]["stage"] == "embed"
     )
-    assert next(s for s in detail["stage_runs"] if s["stage"] == "attributes")["status"] == "failed"
+    assert next(s for s in detail["stage_runs"] if s["stage"] == "embed")["status"] == "failed"
     assert client.post(prefix + "/process", json={}).status_code == 202
     assert runner.run_once() and client.get(prefix).json()["status"] == "ready"
 

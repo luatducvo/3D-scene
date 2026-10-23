@@ -2,7 +2,7 @@
 
 ## Stages
 
-Every Job runs all nine Stages in this order. A Stage reads earlier Stages' folders and writes its own, inside the Scene's Target Workspace.
+Every Job runs all eight Stages in this order. A Stage reads earlier Stages' folders and writes its own, inside the Scene's Target Workspace.
 
 | Stage | Reads | Writes | Real Algorithm | Produces |
 | --- | --- | --- | --- | --- |
@@ -13,8 +13,7 @@ Every Job runs all nine Stages in this order. A Stage reads earlier Stages' fold
 | segment | `recon` | `segment` | `segment.sam3` | SAM 3 masks per Frame for the concepts of a Vocabulary (`segment/masks/*.npz`) |
 | lift | `segment`, `align`, `recon` | `instances` | `lift.maskclustering` | Instances from masks that agree across views: `instances.json`, 3D points, crops of Best Views |
 | embed | `instances` | `embeddings` | `embed.metaclip2` | one 1024-d MetaCLIP 2 vector per Instance (`embeddings/objects.npz`) |
-| attributes | `instances` | `attributes` | `attributes.none` | empty attributes; `attributes.vlm_api` (a vision LLM) exists but is not configured |
-| graph | `instances`, `attributes`, `align`, `mesh` | `graph` | `graph.geometric` | `scene_graph.json` (Objects with oriented boxes, Relations, room) and `membership.bin` |
+| graph | `instances`, `align`, `mesh` | `graph` | `graph.geometric` | `scene_graph.json` (Objects with oriented boxes, Relations, room) and `membership.bin` |
 
 `STAGES` and `OUTPUTS` in `scene_core/contracts.py` define this table's first three columns. Each Stage's Manifest model is in the same file; the Executor validates the Algorithm's return value against it and writes it as `<folder>/manifest.json`.
 
@@ -41,7 +40,6 @@ mesh/           points.ply, mesh.glb
 segment/        masks/*.npz
 instances/      instances.json, points/*.npy, crops/*.jpg
 embeddings/     objects.npz (ids, vectors)
-attributes/     attributes.json
 graph/          scene_graph.json, membership.bin
 ```
 

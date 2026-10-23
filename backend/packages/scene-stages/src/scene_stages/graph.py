@@ -179,7 +179,7 @@ class AgainstWall(SpatialRule):
 
 class GeometricGraph(StageAlgorithm):
     name, stage = "graph.geometric", "graph"
-    reads, writes = ["instances", "attributes", "align", "mesh"], ["graph"]
+    reads, writes = ["instances", "align", "mesh"], ["graph"]
     manifest_type = GraphManifest
 
     def run(self, workspace, params):
@@ -187,21 +187,18 @@ class GeometricGraph(StageAlgorithm):
         if radius <= 0:
             raise SceneError("INVALID_PARAMETERS", "membership_radius_m must be positive")
         instances = json.loads(workspace.path("instances/instances.json").read_text())
-        attributes = json.loads(workspace.path("attributes/attributes.json").read_text())
         context = SceneGraphContext.model_validate(
             json.loads(workspace.path("align/manifest.json").read_text())
         )
         context.walls = json.loads(workspace.path("align/walls.json").read_text())
         objects, lifted = [], []
         for instance in instances:
-            attribute = attributes.get(instance["id"], {})
             lifted.append(np.load(workspace.path(instance["points_file"]), allow_pickle=False))
             objects.append(
                 SceneObject(
                     id=instance["id"],
                     label=instance["label"],
                     box=fit_box(lifted[-1]),
-                    attributes=attribute.get("attributes", {}),
                     best_views=instance.get("best_views", []),
                 )
             )

@@ -15,7 +15,7 @@ The three generated files are never edited by hand. Frontend types come from `Sc
 
 | Definition | Backend | Frontend |
 | --- | --- | --- |
-| The nine Stages, in order | `STAGES`, `OUTPUTS` in `scene_core/contracts.py`; every `config/pipeline*.yaml` | `STAGES` in `src/lib/api/types.ts` (typecheck fails when one is missing); `METRICS` in `PipelineInspector.tsx`; stage strings in `messages/en.json` |
+| The eight Stages, in order | `STAGES`, `OUTPUTS` in `scene_core/contracts.py`; every `config/pipeline*.yaml` | `STAGES` in `src/lib/api/types.ts` (typecheck fails when one is missing); `METRICS` in `PipelineInspector.tsx`; stage strings in `messages/en.json` |
 | Manifest fields | `*Manifest` models in `scene_core/contracts.py` | `METRICS` in `PipelineInspector.tsx`; `IngestReport.tsx` |
 | Upload long side | `ingest.params.long_side` in `config/pipeline.yaml` | `UPLOAD_LONG_SIDE` in `src/lib/upload/shrink.ts` |
 | Object membership binary format | `scene_core/membership.py` | `src/lib/api/membership.ts`, `src/lib/api/mock/membership.ts` |

@@ -2,7 +2,7 @@
 name="scene-stages"
 version="0.1.0"
 requires-python=">=3.12"
-dependencies=["scene-core", "pillow>=11", "httpx>=0.28"]
+dependencies=["scene-core", "pillow>=11"]
 [project.optional-dependencies]
 # One extra per heavy Algorithm; each runtime installs only what it runs.
 mesh-tsdf=["trimesh>=4", "scikit-image>=0.24"]
@@ -28,7 +28,6 @@ scene-core={workspace=true}
 "segment.fake"="scene_stages.fake:SegmentFake"
 "lift.fake"="scene_stages.fake:LiftFake"
 "embed.fake"="scene_stages.fake:EmbedFake"
-"attributes.fake"="scene_stages.fake:AttributesFake"
 "graph.fake"="scene_stages.fake:GraphFake"
 "ingest.opencv"="scene_stages.ingest:OpenCVIngest"
 "recon.da3"="scene_stages.gpu:DepthAnything3Reconstruction"
@@ -37,8 +36,6 @@ scene-core={workspace=true}
 "segment.sam3"="scene_stages.gpu:Sam3Segmentation"
 "lift.maskclustering"="scene_stages.lift:MaskClustering"
 "embed.metaclip2"="scene_stages.gpu:MetaClipEmbeddings"
-"attributes.vlm_api"="scene_stages.attributes:VisionAttributes"
-"attributes.none"="scene_stages.attributes:NoAttributes"
 "graph.geometric"="scene_stages.graph:GeometricGraph"
 
 [project.entry-points.scene_relations]

@@ -2,7 +2,7 @@
 
 ## Targets
 
-The pipeline file names one Target, and everything that touches a Target Workspace uses it: uploads, all nine Stages, deleting a Scene, and embedding Search queries. Keeping the whole pipeline on one machine means Frames and intermediate arrays never cross the network; only a Publication does.
+The pipeline file names one Target, and everything that touches a Target Workspace uses it: uploads, all eight Stages, deleting a Scene, and embedding Search queries. Keeping the whole pipeline on one machine means Frames and intermediate arrays never cross the network; only a Publication does.
 
 `backend/config/compute.yaml` lists the Targets:
 

@@ -2347,7 +2347,6 @@ name = "scene-stages"
 version = "0.1.0"
 source = { editable = "backend/packages/scene-stages" }
 dependencies = [
-    { name = "httpx" },
     { name = "pillow" },
     { name = "scene-core" },
 ]
@@ -2391,7 +2390,6 @@ requires-dist = [
     { name = "cupy-cuda12x", marker = "extra == 'gpu-arrays'", specifier = ">=13.4" },
     { name = "depth-anything-3", marker = "extra == 'recon-da3'", git = "https://github.com/ByteDance-Seed/Depth-Anything-3.git" },
     { name = "geocalib", marker = "extra == 'align-geocalib'", git = "https://github.com/cvg/GeoCalib.git" },
-    { name = "httpx", specifier = ">=0.28" },
     { name = "huggingface-hub", marker = "extra == 'embed-metaclip2'" },
     { name = "huggingface-hub", marker = "extra == 'recon-da3'" },
     { name = "huggingface-hub", marker = "extra == 'segment-sam3'" },

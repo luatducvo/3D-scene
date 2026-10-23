@@ -213,7 +213,7 @@ def create_app(database_url=None, data_dir=None, pipeline=None, compute=None, ta
         with store.connect() as conn:
             store.get_scene(scene_id, conn)
             return conn.execute(
-                "SELECT id,label,box,attributes,best_views FROM objects WHERE scene_id=%s ORDER BY id",
+                "SELECT id,label,box,best_views FROM objects WHERE scene_id=%s ORDER BY id",
                 (scene_id,),
             ).fetchall()
 

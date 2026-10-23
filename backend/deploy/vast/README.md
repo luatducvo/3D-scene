@@ -102,7 +102,7 @@ curl -H "X-Compute-Token: $COMPUTE_TOKEN" http://PUBLIC_IP:EXTERNAL_PORT/info
 ```
 
 `/ping` returns 200 when ready; `/info` lists the image's Algorithms and GPU. Then create a Scene
-with the synthetic images and Process it with the fake pipeline: all nine Stages complete, files
+with the synthetic images and Process it with the fake pipeline: all eight Stages complete, files
 round-trip by checksum, and deleting the Scene removes its remote Workspace.
 
 ## 7. Finish a session

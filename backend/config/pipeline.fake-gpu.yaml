@@ -9,5 +9,4 @@ stages:
   segment: {algorithm: segment.fake}
   lift: {algorithm: lift.fake}
   embed: {algorithm: embed.fake}
-  attributes: {algorithm: attributes.fake}
   graph: {algorithm: graph.fake}

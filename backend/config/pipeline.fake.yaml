@@ -21,9 +21,6 @@ stages:
   embed:
     algorithm: embed.fake
     params: {}
-  attributes:
-    algorithm: attributes.fake
-    params: {}
   graph:
     algorithm: graph.fake
     params: {}

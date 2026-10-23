@@ -9,15 +9,6 @@ export function ObjectDetails({ object }: { object: SceneObject }) {
   return (
     <article className="object-details">
       <h2>{object.label}</h2>
-      <div className="attribute-tags">
-        {Object.values(object.attributes || {})
-          .flat()
-          .map((value, i) => (
-            <span className="badge" key={`${value}-${i}`}>
-              {value}
-            </span>
-          ))}
-      </div>
       <h3>{t("size")}</h3>
       <div className="dimensions">
         <strong>
