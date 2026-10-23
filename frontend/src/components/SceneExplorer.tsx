@@ -64,7 +64,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     error: unknown;
     isFetching: boolean;
   }>({ data: [], error: null, isFetching: false });
-  const resultSource = useViewer((s) => s.resultSource);
   const similarities = useViewer((s) => s.similarities);
   const membershipUrl = scene.assets?.membership_url;
   const membership = useQuery({
@@ -88,7 +87,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     setQuery(q);
     if (!q) {
       setResults({ data: [], error: null, isFetching: false });
-      if (useViewer.getState().resultSource === "search")
+      if (useViewer.getState().highlightedIds.length)
         useViewer.getState().clearResult();
       return;
     }
@@ -108,7 +107,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
         if (
           useViewer.getState().showResult(
             version,
-            "search",
             hits.map((hit) => hit.object.id),
             values,
           )
@@ -117,7 +115,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
       } catch (error) {
         if (!disposed) {
           setResults({ data: [], error, isFetching: false });
-          useViewer.getState().showResult(version, "search", []);
+          useViewer.getState().showResult(version, []);
         }
       }
     }, 300);
@@ -283,11 +281,9 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
             )}
           </div>
         </div>
-        {resultSource === "search" &&
-          similarities &&
-          Object.keys(similarities).length > 0 && (
-            <HeatmapLegend values={Object.values(similarities)} />
-          )}
+        {similarities && Object.keys(similarities).length > 0 && (
+          <HeatmapLegend values={Object.values(similarities)} />
+        )}
         <div className="spatial-tools" aria-label={t("ui.spatialTools")}>
           <button
             className="secondary"

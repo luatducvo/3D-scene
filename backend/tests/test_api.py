@@ -406,8 +406,7 @@ def test_worker_start_fails_jobs_interrupted_by_a_restart(client):
     detail = client.get(prefix).json()
     assert detail["status"] == "failed"
     assert (
-        detail["failure"]["code"] == "WORKER_INTERRUPTED"
-        and detail["failure"]["stage"] == "embed"
+        detail["failure"]["code"] == "WORKER_INTERRUPTED" and detail["failure"]["stage"] == "embed"
     )
     assert next(s for s in detail["stage_runs"] if s["stage"] == "embed")["status"] == "failed"
     assert client.post(prefix + "/process", json={}).status_code == 202

@@ -97,9 +97,7 @@ class GeometricObjects(StageAlgorithm):
                     best_views=instance.get("best_views", []),
                 )
             )
-        path = workspace.path(SceneResults.OBJECTS)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(OBJECT_LIST.dump_json(objects, indent=2))
+        write_objects(workspace, objects)
         write_membership(
             workspace,
             [obj.id for obj in objects],
@@ -108,10 +106,17 @@ class GeometricObjects(StageAlgorithm):
         return ObjectsManifest(num_objects=len(objects))
 
 
+def write_objects(workspace, objects):
+    """Write the Objects file of a Publication, in the order their membership lists them."""
+    path = workspace.path(SceneResults.OBJECTS)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(OBJECT_LIST.dump_json(objects, indent=2))
+
+
 def write_membership(workspace, ids, members_of):
-    """Write objects/membership.bin for the final Object `ids`. `members_of(positions)` returns, per
-    id in order, the indices of `positions` that belong to it; it is asked once for the points of
-    mesh/points.ply and once for the vertices of mesh/mesh.glb."""
+    """Write the Object Membership file for the final Object `ids`. `members_of(positions)` returns,
+    per id in order, the indices of `positions` that belong to it; it is asked once for the points
+    of the point cloud and once for the vertices of the mesh."""
     points = read_ply_points(workspace.path(SceneResults.ASSETS["points"]))
     vertices = read_glb_positions(workspace.path(SceneResults.ASSETS["mesh"]))
     membership = ObjectMembership.from_lists(

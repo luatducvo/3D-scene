@@ -13,13 +13,11 @@ export type Hover = { id: string; x: number; y: number };
 type ViewerState = {
   appearance: "original" | "instances";
   setAppearance: (appearance: "original" | "instances") => void;
-  resultSource: "search" | null;
   similarities: Record<string, number> | null;
   resultVersion: number;
   beginResult: () => number;
   showResult: (
     version: number,
-    source: "search",
     ids: string[],
     similarities?: Record<string, number>,
   ) => boolean;
@@ -53,7 +51,6 @@ type ViewerState = {
 };
 const initial = {
   appearance: "original" as const,
-  resultSource: null,
   similarities: null,
   resultVersion: 0,
   selectedId: null,
@@ -76,10 +73,9 @@ export const useViewer = create<ViewerState>((set, get) => ({
     set({ resultVersion: version });
     return version;
   },
-  showResult: (version, source, ids, similarities) => {
+  showResult: (version, ids, similarities) => {
     if (version !== get().resultVersion) return false;
     set({
-      resultSource: source,
       highlightedIds: ids,
       similarities: similarities ?? null,
       selectedId: null,
@@ -89,7 +85,6 @@ export const useViewer = create<ViewerState>((set, get) => ({
   clearResult: () =>
     set((s) => ({
       resultVersion: s.resultVersion + 1,
-      resultSource: null,
       similarities: null,
       highlightedIds: [],
       selectedId: null,
@@ -113,7 +108,6 @@ export const useViewer = create<ViewerState>((set, get) => ({
       measuring: false,
       selectedId: null,
       highlightedIds: [],
-      resultSource: null,
       similarities: null,
       resultVersion: s.resultVersion + 1,
     })),

@@ -37,7 +37,7 @@ def claimed(store, scene):
 def published(scene):
     return PublishedScene(
         [SceneObject.model_validate(o) for o in OBJECTS],
-        {o["id"]: np.full(EMBEDDING_DIM, 0.1, dtype=np.float32) for o in OBJECTS}
+        {o["id"]: np.full(EMBEDDING_DIM, 0.1, dtype=np.float32) for o in OBJECTS},
     )
 
 

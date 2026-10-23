@@ -215,17 +215,17 @@ class GeoCalibAlignment(StageAlgorithm):
         for _ in range(12):
             if len(remaining) < minimum:
                 break
-            normal, offset, inliers = fit_plane(remaining, threshold=threshold)
+            normal, _, inliers = fit_plane(remaining, threshold=threshold)
             if inliers.sum() < minimum:
                 break
             points = remaining[inliers]
             agreement = float(normal @ up)
             if abs(agreement) >= np.cos(np.deg2rad(15)):
                 if agreement < 0:
-                    normal, offset = -normal, -offset
+                    normal = -normal
                 horizontal.append((float(np.median(points @ up)), normal, points))
             elif abs(agreement) <= np.sin(np.deg2rad(15)):
-                vertical.append((normal, offset, len(points)))
+                vertical.append((normal, len(points)))
             remaining = remaining[~inliers]
         if not horizontal:
             raise SceneError("FLOOR_NOT_FOUND", "No large horizontal floor plane found")
@@ -233,9 +233,9 @@ class GeoCalibAlignment(StageAlgorithm):
         rotation = _rotation_to_up(floor[1])
         if not vertical:
             raise SceneError("WALLS_NOT_FOUND", "No vertical planes for Manhattan alignment")
-        normals = np.asarray([rotation @ normal for normal, _, _ in vertical])
+        normals = np.asarray([rotation @ normal for normal, _ in vertical])
         angles = np.arctan2(normals[:, 1], normals[:, 0])
-        votes = np.asarray([weight for _, _, weight in vertical])
+        votes = np.asarray([weight for _, weight in vertical])
         yaw = np.arctan2(np.sum(votes * np.sin(4 * angles)), np.sum(votes * np.cos(4 * angles))) / 4
         c, s = np.cos(-yaw), np.sin(-yaw)
         rotation = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]]) @ rotation

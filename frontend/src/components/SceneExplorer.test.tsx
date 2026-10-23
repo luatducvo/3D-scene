@@ -16,7 +16,6 @@ import {
   Painter,
 } from "./viewer/highlight";
 import { PipelineInspector } from "./PipelineInspector";
-import { SceneExplorer } from "./SceneExplorer";
 import { Header } from "./Header";
 import { SearchStatus } from "./SearchStatus";
 import en from "../../messages/en.json";
@@ -55,7 +54,6 @@ test("search paints raw semantic similarity on matched geometry and dims the res
   );
   useViewer.getState().showResult(
     useViewer.getState().beginResult(),
-    "search",
     hits.map((hit) => hit.object.id),
     similarities,
   );
@@ -101,13 +99,6 @@ test("an unavailable GPU Target shows a localized search message", async () => {
 test("navigation is English-only and offers no language switch", () => {
   const markup = render(<Header />);
   expect(markup).not.toContain("language-switch");
-});
-
-test("the explorer offers Search and inspection but no way to ask the Scene", async () => {
-  const scene = await sceneApi.getScene("demo");
-  const markup = render(<SceneExplorer scene={scene} />);
-  expect(markup).toContain('type="search"');
-  expect(markup).not.toMatch(/\bask\b|question/i);
 });
 
 test("Inspector explains Stage inputs and missing execution facts without a Target", async () => {

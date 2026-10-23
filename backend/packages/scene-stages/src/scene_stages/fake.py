@@ -15,12 +15,13 @@ from scene_core.contracts import (
     ReconManifest,
     SegmentManifest,
 )
+from scene_core.domain import OBJECT_LIST
 from scene_core.errors import SceneError
 from scene_core.ports import StageAlgorithm
-from scene_core.results import EMBEDDING_DIM, SceneResults
+from scene_core.results import EMBEDDING_DIM
 
 from .mesh import GLTF_FLOAT, GLTF_UNSIGNED_SHORT, pack_glb, write_ply
-from .objects import write_membership
+from .objects import write_membership, write_objects
 
 OBJECTS = [
     {
@@ -280,8 +281,7 @@ class ObjectsFake(Fake):
     writes = ["objects"]
 
     def transform(self, w, p):
-        w.dir("objects")
-        w.path(SceneResults.OBJECTS).write_text(json.dumps(OBJECTS))
+        write_objects(w, OBJECT_LIST.validate_python(OBJECTS))
         # Members are the room's points and vertices inside each Object's box: floor points under
         # the chair and the table. The fake mesh has only the room's corners, so no vertex is inside.
         write_membership(
