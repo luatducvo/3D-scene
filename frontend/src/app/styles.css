@@ -958,18 +958,3 @@ summary {
   display: flex;
   justify-content: space-between;
 }
-
-.inspector-stages {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 20px;
-}
-.inspector-stages button {
-  font-size: 12px;
-  padding: 6px 9px;
-}
-.inspector dd {
-  overflow-wrap: anywhere;
-  margin-bottom: 12px;
-}

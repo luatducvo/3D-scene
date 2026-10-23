@@ -36,4 +36,4 @@ Change `backend/migrations/001_init.sql`, the one schema file, and the `SceneSto
 
 ## A new Stage
 
-The eight Stages are fixed across both sides. A ninth touches `STAGES`, `OUTPUTS` and a new Manifest in `scene_core/contracts.py`; a Fake Algorithm and a real one; every `config/pipeline*.yaml`; `STAGES` in `frontend/src/lib/api/types.ts`; `METRICS` in `PipelineInspector.tsx`; the Stage strings in `messages/en.json`; the mock Scene in `mock/handlers.ts`; and the API contract.
+The eight Stages are fixed across both sides. A ninth touches `STAGES`, `OUTPUTS` and a new Manifest in `scene_core/contracts.py`; a Fake Algorithm and a real one; every `config/pipeline*.yaml`; `STAGES` in `frontend/src/lib/api/types.ts`; the Stage strings in `messages/en.json`; the mock Scene in `mock/handlers.ts`; and the API contract.

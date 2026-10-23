@@ -15,7 +15,6 @@ import {
   objectIndices,
   Painter,
 } from "./viewer/highlight";
-import { PipelineInspector } from "./PipelineInspector";
 import { Header } from "./Header";
 import { SearchStatus } from "./SearchStatus";
 import en from "../../messages/en.json";
@@ -99,15 +98,4 @@ test("an unavailable GPU Target shows a localized search message", async () => {
 test("navigation is English-only and offers no language switch", () => {
   const markup = render(<Header />);
   expect(markup).not.toContain("language-switch");
-});
-
-test("Inspector explains Stage inputs and missing execution facts without a Target", async () => {
-  const scene = await sceneApi.getScene("demo");
-  const markup = render(
-    <PipelineInspector scene={{ ...scene, stage_runs: [] }} />,
-  );
-  expect(markup).toContain("Input Frames");
-  expect(markup).toContain("Reconstruction");
-  expect(markup).toContain("Not available");
-  expect(markup).not.toContain("<pre");
 });

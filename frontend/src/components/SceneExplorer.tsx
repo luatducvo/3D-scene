@@ -17,15 +17,13 @@ import { DesignIcon } from "./DesignIcon";
 import { SearchStatus } from "./SearchStatus";
 import { ObjectDetails } from "./ObjectDetails";
 import { normalizeSimilarities } from "./viewer/highlight";
-import { PipelineInspector } from "./PipelineInspector";
 import { HeatmapLegend } from "./HeatmapLegend";
 import { StatusBadge } from "./StatusBadge";
 
 const SceneCanvas = dynamic(() => import("./viewer/SceneCanvas"), {
   ssr: false,
 });
-type Panel =
-  "object" | "measure" | "layers" | "info" | "inspector" | null;
+type Panel = "object" | "measure" | "layers" | "info" | null;
 
 class ViewerBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
@@ -170,15 +168,13 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
       ? Math.hypot(...points[0].map((n, i) => n - points[1][i]))
       : null;
   const title =
-    panel === "inspector"
-      ? t("inspector.title")
-      : panel === "layers"
-        ? t("ui.displayLayers")
-        : panel === "measure"
-          ? t("measure")
-          : panel === "info"
-            ? t("ui.sceneInfo")
-            : t("ui.objectDetails");
+    panel === "layers"
+      ? t("ui.displayLayers")
+      : panel === "measure"
+        ? t("measure")
+        : panel === "info"
+          ? t("ui.sceneInfo")
+          : t("ui.objectDetails");
   const errorFallback = (
     <div className="viewer-state">
       <p>{t("ui.viewerError")}</p>
@@ -286,13 +282,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
         )}
         <div className="spatial-tools" aria-label={t("ui.spatialTools")}>
           <button
-            className="secondary"
-            aria-expanded={panel === "inspector"}
-            onClick={() => openPanel("inspector")}
-          >
-            {t("inspector.title")}
-          </button>
-          <button
             className="secondary icon-button"
             aria-label={t("ui.resetView")}
             title={t("ui.resetView")}
@@ -359,7 +348,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
           </button>
         </div>
         {panel === "object" && selected && <ObjectDetails object={selected} />}
-        {panel === "inspector" && <PipelineInspector scene={scene} />}
         {panel === "info" && (
           <div className="panel-body">
             <h3>{scene.name}</h3>

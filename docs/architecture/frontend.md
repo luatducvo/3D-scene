@@ -27,7 +27,7 @@ The Scene page shows:
 
 ## Scene Explorer
 
-`src/components/SceneExplorer.tsx` holds the 3D canvas, the Search box and a side panel that shows one of: `object` (`ObjectDetails` for the Selection), `measure`, `layers` (point cloud or mesh, point size, Instance Colors), `info`, `inspector` (`PipelineInspector`, each Stage's purpose, inputs, outputs, Manifest figures and duration).
+`src/components/SceneExplorer.tsx` holds the 3D canvas, the Search box and a side panel that shows one of: `object` (`ObjectDetails` for the Selection), `measure`, `layers` (point cloud or mesh, point size, Instance Colors) or `info`.
 
 - A Search Highlights its hits and colours them as an Object Heatmap (`HeatmapLegend`). `showResult` drops a result whose version is stale, so a slow Search cannot overwrite a newer one.
 - The camera moves only through `goHome` (whole room, clears Selection and Highlight) and `focus(ids)` in `viewer/camera.ts`.
