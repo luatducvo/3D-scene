@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -101,4 +102,26 @@ test("clicking a Search Hit selects it and empties the Search box", async () => 
   await waitFor(() => expect(box.value).toBe(""));
   expect(useViewer.getState().selectedId).toBe("sofa-1");
   expect(useViewer.getState().highlightedIds).toEqual([]);
+});
+
+test("Object details opens only on request, follows the Selection and closes without one", async () => {
+  await explore();
+  const details = () =>
+    screen.getByRole("button", { name: en.ui.objectDetails }) as HTMLButtonElement;
+  const panel = () => screen.queryByRole("complementary", { name: en.ui.objectDetails });
+  expect(details().disabled).toBe(true);
+  act(() => useViewer.getState().click("sofa-1"));
+  expect(panel()).toBeNull();
+  expect(details().disabled).toBe(false);
+  fireEvent.click(details());
+  await waitFor(() => expect(panel()?.textContent).toContain("sofa"));
+  act(() => useViewer.getState().click("table-1"));
+  await waitFor(() => expect(panel()?.textContent).toContain("coffee table"));
+  fireEvent.click(details());
+  expect(panel()).toBeNull();
+  expect(useViewer.getState().selectedId).toBe("table-1");
+  fireEvent.click(details());
+  act(() => useViewer.getState().click(null));
+  expect(panel()).toBeNull();
+  expect(details().disabled).toBe(true);
 });

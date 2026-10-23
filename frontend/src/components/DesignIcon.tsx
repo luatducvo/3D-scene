@@ -1,4 +1,10 @@
-type IconName = "brand" | "home" | "measure" | "layers" | "info" | "upload";
+type IconName =
+  | "brand"
+  | "home"
+  | "measure"
+  | "details"
+  | "info"
+  | "upload";
 
 export function DesignIcon({ name }: { name: IconName }) {
   return (

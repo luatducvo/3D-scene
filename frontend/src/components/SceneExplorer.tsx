@@ -122,10 +122,8 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     };
   }, [query, scene.id]);
   useEffect(() => {
-    if (selectedId) {
-      useViewer.getState().setMeasuring(false);
-      setPanel("object");
-    } else setPanel((previous) => (previous === "object" ? null : previous));
+    if (!selectedId)
+      setPanel((previous) => (previous === "object" ? null : previous));
   }, [selectedId]);
   useEffect(() => {
     useViewer.getState().setLayers(defaultLayers(scene.assets ?? {}));
@@ -139,7 +137,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     return () => previousFocus.current?.focus();
   }, [panel]);
   function closePanel() {
-    if (panel === "object") useViewer.getState().deselect();
     if (panel === "measure") useViewer.getState().setMeasuring(false);
     setPanel(null);
   }
@@ -157,7 +154,8 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
       closePanel();
       return;
     }
-    useViewer.getState().deselect();
+    // Object details belong to the Selection; Measurement and Scene info replace it.
+    if (next !== "object") useViewer.getState().deselect();
     useViewer.getState().setMeasuring(next === "measure");
     setPanel(next);
   }
@@ -294,6 +292,16 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
             onClick={() => openPanel("measure")}
           >
             <DesignIcon name="measure" />
+          </button>
+          <button
+            className="secondary icon-button"
+            aria-label={t("ui.objectDetails")}
+            title={t("ui.objectDetails")}
+            aria-pressed={panel === "object"}
+            disabled={!selectedId}
+            onClick={() => openPanel("object")}
+          >
+            <DesignIcon name="details" />
           </button>
           <button
             className="secondary icon-button"
