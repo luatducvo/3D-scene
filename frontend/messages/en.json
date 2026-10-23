@@ -45,7 +45,7 @@
     "segment": "Find objects in photos",
     "lift": "Locate objects in 3D",
     "embed": "Index objects for search",
-    "graph": "Measure objects"
+    "objects": "Measure objects"
   },
   "stagesCompleted": "{done} of {total} stages",
   "etaSoon": "less than a minute left",
@@ -224,11 +224,11 @@
         "inputs": "Instance views",
         "outputs": "Semantic embedding vectors"
       },
-      "graph": {
-        "title": "Scene Graph",
+      "objects": {
+        "title": "Objects",
         "purpose": "Publish Objects with their boxes and Object Membership.",
         "inputs": "Instances and geometry",
-        "outputs": "Scene Graph and Object Membership"
+        "outputs": "Objects with boxes, and Object Membership"
       }
     },
     "metrics": {
@@ -259,7 +259,7 @@
         "model_id": "Embedding model",
         "dim": "Embedding dimensions"
       },
-      "graph": {
+      "objects": {
         "num_objects": "Objects"
       }
     }

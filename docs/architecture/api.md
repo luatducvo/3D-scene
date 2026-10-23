@@ -43,7 +43,7 @@ Only live events carry an SSE `id`.
 
 ## Publication files
 
-`assets` gives `mesh_url` (`mesh/mesh.glb`), `points_url` (`mesh/points.ply`) and `membership_url` (`graph/membership.bin`), each a URL that names the Publication, so a new Job's files never reuse an old URL. Only `mesh/` and `graph/membership.bin` are public (`SceneResults.PUBLIC`); everything else, including the Scene Graph, is served through the Objects endpoints.
+`assets` gives `mesh_url` (`mesh/mesh.glb`), `points_url` (`mesh/points.ply`) and `membership_url` (`objects/membership.bin`), each a URL that names the Publication, so a new Job's files never reuse an old URL. Only `mesh/` and `objects/membership.bin` are public (`SceneResults.PUBLIC`); everything else, including the Objects file, is served through the Objects endpoints.
 
 ## Search
 
@@ -65,7 +65,7 @@ The query is embedded on the Target with the embed Stage's Algorithm and compare
 
 ## Object membership file
 
-`graph/membership.bin`, written by the graph Stage, encoded by `scene_core/membership.py` and decoded by `frontend/src/lib/api/membership.ts`. All integers are little-endian `uint32`, and every section starts on a 4-byte boundary so the browser can view each array in place:
+`objects/membership.bin`, written by the objects Stage, encoded by `scene_core/membership.py` and decoded by `frontend/src/lib/api/membership.ts`. All integers are little-endian `uint32`, and every section starts on a 4-byte boundary so the browser can view each array in place:
 
 ```
 magic "SCMB" | version 1 | object_count N | point_count | vertex_count | ids_byte_length L
@@ -74,4 +74,4 @@ point_offsets[N + 1]  | point_indices[point_offsets[N]]
 vertex_offsets[N + 1] | vertex_indices[vertex_offsets[N]]
 ```
 
-Object `i` owns `point_indices[point_offsets[i] : point_offsets[i + 1]]`, sorted and unique; vertices work the same way. Points index `mesh/points.ply`, vertices index every primitive of `mesh/mesh.glb` in order. The ids list the Scene Graph's Objects in the same order.
+Object `i` owns `point_indices[point_offsets[i] : point_offsets[i + 1]]`, sorted and unique; vertices work the same way. Points index `mesh/points.ply`, vertices index every primitive of `mesh/mesh.glb` in order. The ids list the Objects of `objects/objects.json` in the same order.

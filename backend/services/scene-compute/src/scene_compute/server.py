@@ -181,7 +181,7 @@ def create_app(
             )
 
     # Added last, so it wraps every response. A tunnel's downlink limits Publication, and a mesh
-    # or Scene Graph shrinks to 40% or 10%; clients that send Accept-Encoding: gzip (httpx does)
+    # or Objects file shrinks to 40% or 10%; clients that send Accept-Encoding: gzip (httpx does)
     # get compressed bodies, decoded before Range lengths and checksums are compared.
     app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 

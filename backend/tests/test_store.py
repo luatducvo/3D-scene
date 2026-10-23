@@ -5,7 +5,7 @@ import os
 import numpy as np
 import pytest
 from scene_core.contracts import STAGES
-from scene_core.domain import SceneGraph
+from scene_core.domain import SceneObject
 from scene_core.errors import SceneError
 from scene_core.results import EMBEDDING_DIM, PublishedScene
 from scene_stages.fake import OBJECTS
@@ -35,9 +35,9 @@ def claimed(store, scene):
 
 
 def published(scene):
-    graph = SceneGraph.model_validate({"objects": OBJECTS})
     return PublishedScene(
-        graph, {o["id"]: np.full(EMBEDDING_DIM, 0.1, dtype=np.float32) for o in OBJECTS}
+        [SceneObject.model_validate(o) for o in OBJECTS],
+        {o["id"]: np.full(EMBEDDING_DIM, 0.1, dtype=np.float32) for o in OBJECTS}
     )
 
 
@@ -128,7 +128,7 @@ def test_a_stage_failure_fails_the_stage_run_job_and_scene_with_one_shape(store)
 def test_a_publication_failure_names_publish(store):
     scene = uploaded(store)
     job = claimed(store, scene)
-    assert store.fail(job, None, "RESULTS_INVALID", "missing graph")["stage"] == "publish"
+    assert store.fail(job, None, "RESULTS_INVALID", "missing objects")["stage"] == "publish"
     assert store.get_scene(scene)["status"] == "failed"
     again = claimed(store, scene)  # a failed Scene can be processed again
     store.fail(again, None, "TEST", "done with this Job")

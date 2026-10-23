@@ -28,7 +28,7 @@ scene-core={workspace=true}
 "segment.fake"="scene_stages.fake:SegmentFake"
 "lift.fake"="scene_stages.fake:LiftFake"
 "embed.fake"="scene_stages.fake:EmbedFake"
-"graph.fake"="scene_stages.fake:GraphFake"
+"objects.fake"="scene_stages.fake:ObjectsFake"
 "ingest.opencv"="scene_stages.ingest:OpenCVIngest"
 "recon.da3"="scene_stages.gpu:DepthAnything3Reconstruction"
 "align.geocalib_ransac"="scene_stages.gpu:GeoCalibAlignment"
@@ -36,6 +36,6 @@ scene-core={workspace=true}
 "segment.sam3"="scene_stages.gpu:Sam3Segmentation"
 "lift.maskclustering"="scene_stages.lift:MaskClustering"
 "embed.metaclip2"="scene_stages.gpu:MetaClipEmbeddings"
-"graph.geometric"="scene_stages.graph:GeometricGraph"
+"objects.geometric"="scene_stages.objects:GeometricObjects"
 [tool.hatch.metadata]
 allow-direct-references=true

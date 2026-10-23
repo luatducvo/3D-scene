@@ -88,13 +88,13 @@ def test_stages_run_on_the_target_and_only_results_are_published(target):
     workspace.replace_results(
         "room", "job-1", lambda results: staged.append(SceneResults(results).load())
     )
-    assert [o.id for o in staged[0].graph.objects] == ["chair-1", "table-1"]
+    assert [o.id for o in staged[0].objects] == ["chair-1", "table-1"]
     results = published(workspace, "job-1")
     assert [p.name for p in results.root.parent.iterdir()] == ["job-1"]
     assert sorted(p.name for p in results.root.iterdir()) == [
         "embeddings",
-        "graph",
         "mesh",
+        "objects",
     ]
     assert (
         SceneResults(results).assets()["mesh"]

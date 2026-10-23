@@ -24,7 +24,7 @@ const membership = decodeMembership(
   ),
 );
 
-test("the membership file decodes to each Object's points in Scene Graph order", () => {
+test("the membership file decodes to each Object's points in Object order", () => {
   expect(membership.ids).toEqual(["wardrobe", "handle", "chair"]);
   expect(membership.pointCount).toBe(6);
   expect([...membership.points(0)]).toEqual([0, 1, 2, 3]);

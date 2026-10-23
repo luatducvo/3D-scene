@@ -7,7 +7,7 @@ import numpy as np
 from pydantic import ValidationError
 
 from .contracts import SceneWorkspace
-from .domain import SceneGraph
+from .domain import OBJECT_LIST, SceneObject
 from .errors import SceneError
 from .membership import ObjectMembership
 
@@ -17,7 +17,7 @@ EMBEDDING_DIM = 1024
 
 @dataclass(frozen=True)
 class PublishedScene:
-    graph: SceneGraph
+    objects: list[SceneObject]
     embeddings: dict[str, np.ndarray]
 
 
@@ -26,11 +26,11 @@ class SceneResults:
 
     # The only Workspace directories that return to the worker: publication inputs and served assets.
     # Frame images stay on the Target.
-    DIRECTORIES = ("graph", "embeddings", "mesh")
-    GRAPH = "graph/scene_graph.json"
+    DIRECTORIES = ("objects", "embeddings", "mesh")
+    OBJECTS = "objects/objects.json"
     EMBEDDINGS = "embeddings/objects.npz"
-    # Which points and mesh vertices belong to each Object (scene_core.membership); written by graph.
-    MEMBERSHIP = "graph/membership.bin"
+    # Which points and mesh vertices belong to each Object (scene_core.membership); written by objects.
+    MEMBERSHIP = "objects/membership.bin"
     # Served to browsers on every Target: a trailing slash names a whole directory, anything else one
     # file. Everything else in a Workspace stays private.
     PUBLIC = ("mesh/", MEMBERSHIP)
@@ -44,10 +44,10 @@ class SceneResults:
         self.workspace = workspace
 
     def load(self) -> PublishedScene:
-        """Read the Scene Graph and Object embeddings, check they agree and that every viewer asset exists, before any transaction opens."""
+        """Read the Objects and their embeddings, check they agree and that every viewer asset exists, before any transaction opens."""
         try:
-            graph = SceneGraph.model_validate_json(
-                self.workspace.path(self.GRAPH).read_text(encoding="utf-8")
+            objects = OBJECT_LIST.validate_json(
+                self.workspace.path(self.OBJECTS).read_text(encoding="utf-8")
             )
             with np.load(self.workspace.path(self.EMBEDDINGS), allow_pickle=False) as data:
                 ids = [str(key) for key in data["ids"]]
@@ -56,15 +56,13 @@ class SceneResults:
             raise SceneError(
                 "RESULTS_INVALID", f"Published results are missing or unreadable: {exc}"
             ) from exc
-        object_ids = [o.id for o in graph.objects]
+        object_ids = [o.id for o in objects]
         if (
             len(set(ids)) != len(ids)
             or len(set(object_ids)) != len(object_ids)
             or set(ids) != set(object_ids)
         ):
-            raise SceneError(
-                "RESULTS_INVALID", "Scene Graph Objects and embeddings have different ids"
-            )
+            raise SceneError("RESULTS_INVALID", "Objects and embeddings have different ids")
         if vectors.shape != (len(ids), EMBEDDING_DIM):
             raise SceneError(
                 "RESULTS_INVALID",
@@ -78,17 +76,17 @@ class SceneResults:
                 "RESULTS_INVALID", f"Published results are missing {', '.join(missing)}"
             )
         self._check_membership(object_ids)
-        return PublishedScene(graph, dict(zip(ids, vectors, strict=True)))
+        return PublishedScene(objects, dict(zip(ids, vectors, strict=True)))
 
     def _check_membership(self, object_ids: list[str]) -> None:
-        """The membership file must decode and list the Scene Graph's Objects in order."""
+        """The membership file must decode and list the Objects in order."""
         try:
             membership = ObjectMembership.decode(self.workspace.path(self.MEMBERSHIP).read_bytes())
         except (OSError, ValueError) as exc:
             raise SceneError("RESULTS_INVALID", f"Object membership is unreadable: {exc}") from exc
         if membership.ids != object_ids:
             raise SceneError(
-                "RESULTS_INVALID", "Object membership and the Scene Graph list different Objects"
+                "RESULTS_INVALID", "Object membership and the Objects file list different Objects"
             )
 
     def assets(self) -> dict[str, str]:

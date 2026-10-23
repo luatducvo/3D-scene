@@ -876,7 +876,7 @@
               "segment",
               "lift",
               "embed",
-              "graph"
+              "objects"
             ],
             "title": "Stage"
           },
@@ -1039,7 +1039,7 @@
                   "segment",
                   "lift",
                   "embed",
-                  "graph"
+                  "objects"
                 ],
                 "type": "string"
               },

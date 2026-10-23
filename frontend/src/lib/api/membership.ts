@@ -1,10 +1,10 @@
 /**
- * Object membership (`SceneAssets.membership_url`, `graph/membership.bin`): which points of
+ * Object membership (`SceneAssets.membership_url`, `objects/membership.bin`): which points of
  * `points.ply` and which vertices of `mesh.glb` belong to each Object. The format is documented in
  * docs/architecture/api.md ("Object membership"); every array is a zero-copy view of the buffer.
  */
 export type Membership = {
-  /** Object ids in the Scene Graph's order; an Object's index is its position here. */
+  /** Object ids in the order of the Objects file; an Object's index is its position here. */
   ids: string[];
   /** Vertices of `points.ply` when the file was written. */
   pointCount: number;

@@ -3,8 +3,8 @@
 import json
 
 import numpy as np
-from scene_core.contracts import GraphManifest
-from scene_core.domain import SceneGraph, SceneObject
+from scene_core.contracts import ObjectsManifest
+from scene_core.domain import OBJECT_LIST, SceneObject
 from scene_core.errors import SceneError
 from scene_core.geometry import fit_box
 from scene_core.membership import ObjectMembership
@@ -76,10 +76,10 @@ def members_within(targets, groups, radius):
     return [members[starts[i] : starts[i + 1]] for i in range(len(groups))]
 
 
-class GeometricGraph(StageAlgorithm):
-    name, stage = "graph.geometric", "graph"
-    reads, writes = ["instances", "mesh"], ["graph"]
-    manifest_type = GraphManifest
+class GeometricObjects(StageAlgorithm):
+    name, stage = "objects.geometric", "objects"
+    reads, writes = ["instances", "mesh"], ["objects"]
+    manifest_type = ObjectsManifest
 
     def run(self, workspace, params):
         radius = float(params.get("membership_radius_m", 0.02))
@@ -97,19 +97,19 @@ class GeometricGraph(StageAlgorithm):
                     best_views=instance.get("best_views", []),
                 )
             )
-        workspace.dir("graph").joinpath("scene_graph.json").write_text(
-            SceneGraph(objects=objects).model_dump_json(indent=2), encoding="utf-8"
-        )
+        path = workspace.path(SceneResults.OBJECTS)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(OBJECT_LIST.dump_json(objects, indent=2))
         write_membership(
             workspace,
             [obj.id for obj in objects],
             lambda positions: members_within(positions, lifted, radius),
         )
-        return GraphManifest(num_objects=len(objects))
+        return ObjectsManifest(num_objects=len(objects))
 
 
 def write_membership(workspace, ids, members_of):
-    """Write graph/membership.bin for the final Object `ids`. `members_of(positions)` returns, per
+    """Write objects/membership.bin for the final Object `ids`. `members_of(positions)` returns, per
     id in order, the indices of `positions` that belong to it; it is asked once for the points of
     mesh/points.ply and once for the vertices of mesh/mesh.glb."""
     points = read_ply_points(workspace.path(SceneResults.ASSETS["points"]))

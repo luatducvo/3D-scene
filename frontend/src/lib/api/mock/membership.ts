@@ -5,7 +5,7 @@ import {
   MEMBERSHIP_VERSION,
 } from "../membership";
 
-/** Writes the `graph/membership.bin` format (api.md "Object membership") for the mock room. */
+/** Writes the `objects/membership.bin` format (api.md "Object membership") for the mock room. */
 export function encodeMembership(
   ids: string[],
   pointCount: number,

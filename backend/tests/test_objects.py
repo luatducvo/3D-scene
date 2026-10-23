@@ -6,7 +6,6 @@ from scene_core.contracts import SceneWorkspace
 from scene_core.errors import SceneError
 from scene_core.membership import ObjectMembership
 from scene_core.results import SceneResults
-from scene_stages.graph import GeometricGraph, members_within
 from scene_stages.mesh import (
     GLTF_FLOAT,
     pack_glb,
@@ -14,6 +13,7 @@ from scene_stages.mesh import (
     read_ply_points,
     write_ply,
 )
+from scene_stages.objects import GeometricObjects, members_within
 
 
 def write_glb(path, vertices):
@@ -80,7 +80,7 @@ def test_membership_lists_a_point_under_every_object_within_the_radius(tmp_path)
         np.array([shared, wardrobe_only, edge, beyond, far]),
         np.array([far, shared, beyond]),
     )
-    GeometricGraph().run(workspace, {"membership_radius_m": 0.02})
+    GeometricObjects().run(workspace, {"membership_radius_m": 0.02})
     membership = ObjectMembership.decode(workspace.path(SceneResults.MEMBERSHIP).read_bytes())
     assert membership.ids == ["wardrobe", "handle"]
     assert (membership.point_count, membership.vertex_count) == (5, 3)
@@ -108,7 +108,7 @@ def test_members_within_matches_a_brute_force_search():
 
 def test_a_non_positive_membership_radius_is_invalid_parameters(tmp_path):
     with pytest.raises(SceneError, match="membership_radius_m") as error:
-        GeometricGraph().run(SceneWorkspace(tmp_path, "bad"), {"membership_radius_m": 0})
+        GeometricObjects().run(SceneWorkspace(tmp_path, "bad"), {"membership_radius_m": 0})
     assert error.value.code == "INVALID_PARAMETERS"
     with pytest.raises(SceneError) as error:
         members_within(np.zeros((1, 3)), [np.zeros((1, 3))], -1)
@@ -134,7 +134,7 @@ def test_unreadable_mesh_assets_are_asset_unreadable(tmp_path, name, content):
     assert error.value.code == "ASSET_UNREADABLE"
 
 
-def test_graph_keeps_instance_id_and_writes_only_graph(tmp_path):
+def test_objects_keep_their_instance_id_and_the_stage_writes_only_objects(tmp_path):
     workspace = SceneWorkspace(tmp_path, "fixture")
     workspace.dir("instances/points")
     np.save(
@@ -157,10 +157,10 @@ def test_graph_keeps_instance_id_and_writes_only_graph(tmp_path):
     )
     write_mesh(workspace, np.zeros((1, 3)), np.zeros((3, 3)))
     before = workspace.path("instances/instances.json").read_bytes()
-    result = GeometricGraph().run(workspace, {})
-    graph = json.loads(workspace.path("graph/scene_graph.json").read_text())
+    result = GeometricObjects().run(workspace, {})
+    objects = json.loads(workspace.path("objects/objects.json").read_text())
     assert result.model_dump() == {"num_objects": 1}
-    assert set(graph) == {"objects"}
-    assert graph["objects"][0]["id"] == "cup"
-    assert graph["objects"][0]["box"]["center"][2] == pytest.approx(1.1)
+    assert [o["id"] for o in objects] == ["cup"]
+    assert objects[0]["box"]["center"][2] == pytest.approx(1.1)
+    assert sorted(p.name for p in workspace.root.iterdir()) == ["instances", "mesh", "objects"]
     assert workspace.path("instances/instances.json").read_bytes() == before

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-STAGES = ("ingest", "recon", "align", "mesh", "segment", "lift", "embed", "graph")
+STAGES = ("ingest", "recon", "align", "mesh", "segment", "lift", "embed", "objects")
 OUTPUTS = {
     "ingest": ["keyframes"],
     "recon": ["recon"],
@@ -11,7 +11,7 @@ OUTPUTS = {
     "segment": ["segment"],
     "lift": ["instances"],
     "embed": ["embeddings"],
-    "graph": ["graph"],
+    "objects": ["objects"],
 }
 
 
@@ -80,5 +80,5 @@ class EmbedManifest(BaseModel):
     embeddings_file: str
 
 
-class GraphManifest(BaseModel):
+class ObjectsManifest(BaseModel):
     num_objects: int

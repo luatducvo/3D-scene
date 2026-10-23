@@ -82,16 +82,17 @@ def test_pipeline_publish_and_rerun(client):
     assert detail["status"] == "ready", detail
     assert [(s["stage"], s["status"]) for s in detail["stage_runs"]] == [
         (stage, "done")
-        for stage in ("ingest", "recon", "align", "mesh", "segment", "lift", "embed", "graph")
+        for stage in ("ingest", "recon", "align", "mesh", "segment", "lift", "embed", "objects")
     ]
     objects = client.get(prefix + "/objects").json()
     assert [o["id"] for o in objects] == ["chair-1", "table-1"]
     assert all("attributes" not in o for o in objects)
-    graph = next(s for s in detail["stage_runs"] if s["stage"] == "graph")
-    assert graph["manifest"] == {"num_objects": 2}
+    last = next(s for s in detail["stage_runs"] if s["stage"] == "objects")
+    assert last["manifest"] == {"num_objects": 2}
     assert objects[0]["best_views"][0]["frame_id"] == "0000"
     assert "image_url" not in objects[0]["best_views"][0]
     assert client.get(detail["assets"]["mesh_url"]).content.startswith(b"glTF")
+    assert detail["assets"]["membership_url"].endswith("/objects/membership.bin")
     membership = ObjectMembership.decode(client.get(detail["assets"]["membership_url"]).content)
     assert membership.ids == ["chair-1", "table-1"]
     assert all(len(membership.points(i)) for i in range(2))
@@ -104,7 +105,7 @@ def test_pipeline_publish_and_rerun(client):
     assert client.get(frame).status_code == 404
     for private in ("raw/private.jpg", "keyframes/0000.jpg", "instances/instances.json"):
         assert client.get(prefix + "/files/" + private).status_code == 404
-    for private in ("instances/points/chair-1.npy", "graph/scene_graph.json"):
+    for private in ("instances/points/chair-1.npy", "objects/objects.json"):
         assert client.get(frame.replace("recon/rgb/0000.png", private)).status_code == 404
     assert (
         client.post(
@@ -330,8 +331,8 @@ def test_whole_pipeline_runs_on_the_gpu_host_and_returns_only_results(tmp_path):
             workspace = version
             assert sorted(p.name for p in workspace.iterdir()) == [
                 "embeddings",
-                "graph",
                 "mesh",
+                "objects",
             ]
             assert_failed_reprocess_keeps_results(client, runner, prefix, detail)
 
@@ -349,7 +350,7 @@ def test_a_failed_reprocess_keeps_results_on_the_in_process_target(client):
 def assert_failed_reprocess_keeps_results(client, runner, prefix, detail):
     """A Job failing at its last Stage leaves the earlier mesh and Objects in place."""
     mesh = client.get(detail["assets"]["mesh_url"]).content
-    runner.target.pipeline.stages["graph"].params = {"fail": "deliberate failure"}
+    runner.target.pipeline.stages["objects"].params = {"fail": "deliberate failure"}
     client.post(prefix + "/process", json={})
     runner.run_once()
     failed = client.get(prefix).json()
@@ -357,7 +358,7 @@ def assert_failed_reprocess_keeps_results(client, runner, prefix, detail):
     assert failed["assets"]["mesh_url"] and client.get(failed["assets"]["mesh_url"]).content == mesh
     objects = client.get(prefix + "/objects").json()
     assert len(objects) == 2
-    runner.target.pipeline.stages["graph"].params = {}
+    runner.target.pipeline.stages["objects"].params = {}
 
 
 def test_search_reports_unavailable_compute_target(client, monkeypatch):

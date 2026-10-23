@@ -8,19 +8,19 @@ from PIL import Image
 from scene_core.contracts import (
     AlignManifest,
     EmbedManifest,
-    GraphManifest,
     IngestManifest,
     LiftManifest,
     MeshManifest,
+    ObjectsManifest,
     ReconManifest,
     SegmentManifest,
 )
 from scene_core.errors import SceneError
 from scene_core.ports import StageAlgorithm
-from scene_core.results import EMBEDDING_DIM
+from scene_core.results import EMBEDDING_DIM, SceneResults
 
-from .graph import write_membership
 from .mesh import GLTF_FLOAT, GLTF_UNSIGNED_SHORT, pack_glb, write_ply
+from .objects import write_membership
 
 OBJECTS = [
     {
@@ -272,15 +272,16 @@ def inside_box(positions, box):
     return np.flatnonzero(np.all(np.abs(positions - box["center"]) <= half, axis=1))
 
 
-class GraphFake(Fake):
-    name = "graph.fake"
-    stage = "graph"
-    manifest_type = GraphManifest
+class ObjectsFake(Fake):
+    name = "objects.fake"
+    stage = "objects"
+    manifest_type = ObjectsManifest
     reads = ["instances", "mesh"]
-    writes = ["graph"]
+    writes = ["objects"]
 
     def transform(self, w, p):
-        w.dir("graph").joinpath("scene_graph.json").write_text(json.dumps({"objects": OBJECTS}))
+        w.dir("objects")
+        w.path(SceneResults.OBJECTS).write_text(json.dumps(OBJECTS))
         # Members are the room's points and vertices inside each Object's box: floor points under
         # the chair and the table. The fake mesh has only the room's corners, so no vertex is inside.
         write_membership(
@@ -288,4 +289,4 @@ class GraphFake(Fake):
             [o["id"] for o in OBJECTS],
             lambda positions: [inside_box(positions, o["box"]) for o in OBJECTS],
         )
-        return GraphManifest(num_objects=2)
+        return ObjectsManifest(num_objects=2)

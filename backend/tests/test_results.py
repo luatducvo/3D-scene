@@ -28,9 +28,9 @@ def write_embeddings(workspace, ids, vectors):
     )
 
 
-def test_load_returns_graph_with_one_embedding_per_object(workspace):
+def test_load_returns_objects_with_one_embedding_each(workspace):
     published = SceneResults(workspace).load()
-    assert [o.id for o in published.graph.objects] == ["chair-1", "table-1"]
+    assert [o.id for o in published.objects] == ["chair-1", "table-1"]
     assert set(published.embeddings) == {"chair-1", "table-1"}
     assert all(v.shape == (EMBEDDING_DIM,) for v in published.embeddings.values())
 
@@ -44,7 +44,7 @@ def test_load_returns_graph_with_one_embedding_per_object(workspace):
         (["chair-1", "table-1"], np.full((2, EMBEDDING_DIM), np.nan), "non-finite"),
     ],
 )
-def test_load_rejects_embeddings_that_disagree_with_the_graph(workspace, ids, vectors, message):
+def test_load_rejects_embeddings_that_disagree_with_the_objects(workspace, ids, vectors, message):
     write_embeddings(workspace, ids, vectors)
     with pytest.raises(SceneError, match=message) as error:
         SceneResults(workspace).load()
@@ -52,7 +52,7 @@ def test_load_rejects_embeddings_that_disagree_with_the_graph(workspace, ids, ve
 
 
 def test_load_reports_missing_results(workspace):
-    workspace.path(SceneResults.GRAPH).unlink()
+    workspace.path(SceneResults.OBJECTS).unlink()
     with pytest.raises(SceneError) as error:
         SceneResults(workspace).load()
     assert error.value.code == "RESULTS_INVALID"
@@ -62,7 +62,7 @@ def test_assets_name_every_viewer_file(workspace):
     assert SceneResults(workspace).assets() == {
         "mesh": "mesh/mesh.glb",
         "points": "mesh/points.ply",
-        "membership": "graph/membership.bin",
+        "membership": "objects/membership.bin",
     }
 
 
@@ -126,9 +126,9 @@ def test_load_rejects_membership_of_other_objects(workspace):
         "recon/rgb/0000.png",
         "instances/instances.json",
         "raw/one.jpg",
-        "graph/scene_graph.json",
-        "graph/manifest.json",
-        "graph/membership.bin/x",
+        "objects/objects.json",
+        "objects/manifest.json",
+        "objects/membership.bin/x",
         "instances/points/chair-1.npy",
         "embeddings/objects.npz",
         "recon/frames/0000.npz",

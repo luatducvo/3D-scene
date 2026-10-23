@@ -17,8 +17,8 @@ Compose (`compose.yaml`) runs these under three profiles: `backend` (Postgres, s
 ## Data flow
 
 1. **Upload**: scene-api stores files under `raw/` in the Scene's Target Workspace. The browser first shrinks photos to the long side ingest expects.
-2. **Process**: `POST /process` inserts a queued Job. The worker claims it, clears earlier Stage outputs (keeping `raw/`), and runs ingest → recon → align → mesh → segment → lift → embed → graph on the one Target. Each Stage is one Compute Run and leaves a Manifest and a Stage Run.
-3. **Publish**: the worker downloads only `graph/`, `embeddings/` and `mesh/` into `DATA_DIR/scenes/{scene}/{job}/`, then writes Objects and embeddings to the database and points the Scene at that Publication, in one transaction. Frames and every other intermediate stay on the Target.
+2. **Process**: `POST /process` inserts a queued Job. The worker claims it, clears earlier Stage outputs (keeping `raw/`), and runs ingest → recon → align → mesh → segment → lift → embed → objects on the one Target. Each Stage is one Compute Run and leaves a Manifest and a Stage Run.
+3. **Publish**: the worker downloads only `objects/`, `embeddings/` and `mesh/` into `DATA_DIR/scenes/{scene}/{job}/`, then writes Objects and embeddings to the database and points the Scene at that Publication, in one transaction. Frames and every other intermediate stay on the Target.
 4. **Explore**: the browser loads the mesh, point cloud and Object membership from the Publication, lists Objects, and runs Searches (the query is embedded on the Target, then compared in pgvector).
 
 Progress reaches the browser as `scene_events` rows that the store writes with each transition and `GET /events` streams as SSE.
@@ -28,8 +28,8 @@ Progress reaches the browser as `scene_events` rows that the store writes with e
 | Path | Holds |
 | --- | --- |
 | `main.py` | project commands (`uv run main.py --help`) |
-| `backend/packages/scene-core/src/scene_core/` | `domain.py` Scene Graph models · `contracts.py` Stages, Workspace paths, Manifests · `ports.py` `StageAlgorithm` · `config.py` pipeline and compute config · `executor.py` runs an Algorithm in a Workspace · `registry.py` entry-point lookup · `results.py` Publication files · `membership.py` membership binary · `geometry.py` box and plane fitting · `errors.py` `SceneError` |
-| `backend/packages/scene-stages/src/scene_stages/` | `ingest.py` · `gpu.py` recon, align, segment, embed · `mesh.py` · `lift.py` · `graph.py` Object boxes and membership · `fake.py` Fake Algorithms · `arrays.py` NumPy/CuPy choice |
+| `backend/packages/scene-core/src/scene_core/` | `domain.py` Object models · `contracts.py` Stages, Workspace paths, Manifests · `ports.py` `StageAlgorithm` · `config.py` pipeline and compute config · `executor.py` runs an Algorithm in a Workspace · `registry.py` entry-point lookup · `results.py` Publication files · `membership.py` membership binary · `geometry.py` box and plane fitting · `errors.py` `SceneError` |
+| `backend/packages/scene-stages/src/scene_stages/` | `ingest.py` · `gpu.py` recon, align, segment, embed · `mesh.py` · `lift.py` · `objects.py` Object boxes and membership · `fake.py` Fake Algorithms · `arrays.py` NumPy/CuPy choice |
 | `backend/packages/scene-store/` | `SceneStore`: every write, the event stream |
 | `backend/packages/scene-target/` | `TargetWorkspace`, `open_target_workspace`, in-process and HTTP adapters |
 | `backend/services/scene-api/` | `main.py` routes and Search ranking · `models.py` API models |

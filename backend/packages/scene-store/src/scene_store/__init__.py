@@ -211,10 +211,9 @@ class SceneStore:
         """Replace the Scene's Objects, point it at this Job's publication and mark Job and
         Scene ready, in one transaction. The publication folder must already be complete."""
         scene_id = job["scene_id"]
-        graph = published.graph
         with self.connect() as conn:
             conn.execute("DELETE FROM objects WHERE scene_id=%s", (scene_id,))
-            for obj in graph.objects:
+            for obj in published.objects:
                 conn.execute(
                     "INSERT INTO objects(scene_id,id,label,box,best_views,embedding) VALUES(%s,%s,%s,%s,%s,%s::vector)",
                     (

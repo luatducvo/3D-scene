@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 
 class SceneStatus(StrEnum):
@@ -30,5 +30,5 @@ class SceneObject(BaseModel):
     best_views: list[BestView] = Field(default_factory=list)
 
 
-class SceneGraph(BaseModel):
-    objects: list[SceneObject] = Field(default_factory=list)
+# The objects Stage's file: a Scene's Objects, in the order their Object Membership lists them.
+OBJECT_LIST = TypeAdapter(list[SceneObject])

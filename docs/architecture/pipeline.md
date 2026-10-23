@@ -13,7 +13,7 @@ Every Job runs all eight Stages in this order. A Stage reads earlier Stages' fol
 | segment | `recon` | `segment` | `segment.sam3` | SAM 3 masks per Frame for the concepts of a Vocabulary (`segment/masks/*.npz`) |
 | lift | `segment`, `align`, `recon` | `instances` | `lift.maskclustering` | Instances from masks that agree across views: `instances.json`, 3D points, crops of Best Views |
 | embed | `instances` | `embeddings` | `embed.metaclip2` | one 1024-d MetaCLIP 2 vector per Instance (`embeddings/objects.npz`) |
-| graph | `instances`, `align`, `mesh` | `graph` | `graph.geometric` | `scene_graph.json` (Objects with oriented boxes) and `membership.bin` |
+| objects | `instances`, `mesh` | `objects` | `objects.geometric` | `objects.json` (Objects with oriented boxes) and `membership.bin` |
 
 `STAGES` and `OUTPUTS` in `scene_core/contracts.py` define this table's first three columns. Each Stage's Manifest model is in the same file; the Executor validates the Algorithm's return value against it and writes it as `<folder>/manifest.json`.
 
@@ -39,10 +39,10 @@ mesh/           points.ply, mesh.glb
 segment/        masks/*.npz
 instances/      instances.json, points/*.npy, crops/*.jpg
 embeddings/     objects.npz (ids, vectors)
-graph/          scene_graph.json, membership.bin
+objects/        objects.json, membership.bin
 ```
 
-Each output folder also holds its `manifest.json`. A Publication, at `DATA_DIR/scenes/{scene_id}/{job_id}/` on the API host, holds only `graph/`, `embeddings/` and `mesh/` (`SceneResults.DIRECTORIES`).
+Each output folder also holds its `manifest.json`. A Publication, at `DATA_DIR/scenes/{scene_id}/{job_id}/` on the API host, holds only `objects/`, `embeddings/` and `mesh/` (`SceneResults.DIRECTORIES`).
 
 ## Jobs
 
@@ -62,9 +62,9 @@ A Scene has at most one queued or running Job (a unique index enforces it). Stag
 
 `TargetWorkspace.replace_results` and `SceneStore.publish`:
 
-1. Download `graph/`, `embeddings/` and `mesh/` from the Target into `DATA_DIR/staging/{scene}/{job}`, checking each file's SHA-256.
+1. Download `objects/`, `embeddings/` and `mesh/` from the Target into `DATA_DIR/staging/{scene}/{job}`, checking each file's SHA-256.
 2. Rename the staging folder to `DATA_DIR/scenes/{scene}/{job}`. It is never modified again.
-3. `SceneResults.load` checks the Scene Graph, embeddings and membership agree (same Object ids, 1024-d finite vectors) or raises `RESULTS_INVALID`.
+3. `SceneResults.load` checks the Objects, embeddings and membership agree (same Object ids, 1024-d finite vectors) or raises `RESULTS_INVALID`.
 4. In one transaction: replace the Scene's Objects, set `scenes.publication` to the Job id, mark the Job done and the Scene ready.
 5. Delete the Scene's other Publication folders.
 

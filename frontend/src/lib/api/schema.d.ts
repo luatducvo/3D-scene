@@ -325,7 +325,7 @@ export interface components {
              * Stage
              * @enum {string}
              */
-            stage: "ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "graph";
+            stage: "ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "objects";
             /** Algorithm */
             algorithm: string;
             /**
@@ -380,7 +380,7 @@ export interface components {
              * Stage
              * @default null
              */
-            stage: ("ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "graph") | null;
+            stage: ("ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "objects") | null;
             /**
              * Status
              * @default null
