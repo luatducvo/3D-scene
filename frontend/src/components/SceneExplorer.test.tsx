@@ -17,7 +17,7 @@ import {
 } from "./viewer/highlight";
 import { MemoryRouter } from "react-router-dom";
 import { Header } from "./Header";
-import { SearchStatus } from "./SearchStatus";
+import { SearchError } from "./SearchError";
 import en from "../../messages/en.json";
 
 // The mock SceneApi that mock mode serves in the browser.
@@ -89,9 +89,7 @@ test("an unavailable GPU Target shows a localized search message", async () => {
     ),
   );
   const error = await sceneApi.searchObjects("demo", "chair").catch((e) => e);
-  const markup = render(
-    <SearchStatus fetching={false} error={error} count={0} onClear={() => {}} />,
-  );
+  const markup = render(<SearchError error={error} />);
   expect(markup).toContain(en.searchErrors.COMPUTE_UNAVAILABLE);
   expect(markup).not.toContain("Target gpu has no URL");
 });

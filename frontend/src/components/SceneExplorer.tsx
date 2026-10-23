@@ -10,7 +10,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "use-intl";
 import { sceneApi } from "../lib/api";
-import type { Scene, Schemas } from "../lib/api/types";
+import type { Scene } from "../lib/api/types";
 import { useViewer } from "../lib/store/viewerStore";
 import { focus, goHome } from "./viewer/camera";
 import {
@@ -19,7 +19,7 @@ import {
   showMode,
   viewMode,
 } from "./viewer/view";
-import { SearchStatus } from "./SearchStatus";
+import { SearchError } from "./SearchError";
 import { ObjectDetails } from "./ObjectDetails";
 import { normalizeSimilarities } from "./viewer/highlight";
 import { HeatmapLegend } from "./HeatmapLegend";
@@ -60,11 +60,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     queryKey: ["objects", scene.id],
     queryFn: () => sceneApi.listObjects(scene.id),
   });
-  const [results, setResults] = useState<{
-    data: Schemas["SearchHit"][];
-    error: unknown;
-    isFetching: boolean;
-  }>({ data: [], error: null, isFetching: false });
+  const [searchError, setSearchError] = useState<unknown>(null);
   const similarities = useViewer((s) => s.similarities);
   const membershipUrl = scene.assets?.membership_url;
   const membership = useQuery({
@@ -85,14 +81,14 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
   );
   useEffect(() => {
     if (!query) {
-      setResults({ data: [], error: null, isFetching: false });
+      setSearchError(null);
       if (useViewer.getState().highlightedIds.length)
         useViewer.getState().endSearch();
       return;
     }
     const version = useViewer.getState().beginResult();
     let disposed = false;
-    setResults({ data: [], error: null, isFetching: true });
+    setSearchError(null);
     const timer = setTimeout(async () => {
       try {
         const hits = await sceneApi.searchObjects(scene.id, query);
@@ -102,7 +98,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
             hits.map((hit) => [hit.object.id, hit.raw_similarity]),
           ),
         );
-        setResults({ data: hits, error: null, isFetching: false });
+        setSearchError(null);
         if (
           useViewer.getState().showResult(
             version,
@@ -113,7 +109,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
           focus(hits.map((hit) => hit.object.id));
       } catch (error) {
         if (!disposed) {
-          setResults({ data: [], error, isFetching: false });
+          setSearchError(error);
           useViewer.getState().showResult(version, [], {});
         }
       }
@@ -204,6 +200,9 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
                 />
               </Suspense>
             </ViewerBoundary>
+            {query && searchError != null && (
+              <SearchError error={searchError} />
+            )}
             {!hasPoints && !hasMesh && (
               <div className="asset-notice" role="status">
                 {t("ui.noGeometry")}
@@ -284,14 +283,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
                 value={search}
                 onChange={(e) => useViewer.getState().setSearch(e.target.value)}
               />
-              {query && (
-                <SearchStatus
-                  fetching={results.isFetching}
-                  error={results.error}
-                  count={results.data?.length || 0}
-                  onClear={() => useViewer.getState().setSearch("")}
-                />
-              )}
             </div>
           </div>
           <div className="spatial-tools" aria-label={t("ui.spatialTools")}>

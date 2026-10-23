@@ -728,12 +728,6 @@ summary {
   width: 336px;
   max-width: 40%;
 }
-.search-status {
-  margin-top: 16px;
-}
-.search-status p {
-  margin-bottom: 12px;
-}
 .spatial-tools {
   position: absolute;
   right: 24px;
@@ -1311,18 +1305,6 @@ body,
   width: 310px;
   max-width: 100%;
 }
-.search-status {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  right: 0;
-  z-index: 6;
-  max-height: 38dvh;
-  overflow: auto;
-  margin: 0;
-  padding: 16px;
-  box-shadow: 0 6px 20px #26334812;
-}
 .spatial-tools {
   grid-row: 3;
   position: static;
@@ -1443,4 +1425,16 @@ button.secondary:hover:not(:disabled),
     transition: none !important;
     scroll-behavior: auto !important;
   }
+}
+
+.search-error {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  z-index: 6;
+  margin: 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--danger-bg);
 }
