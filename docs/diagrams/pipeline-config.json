@@ -2,14 +2,14 @@
   "schema_version": 1,
   "diagram_type": "dataflow",
   "meta": {
-    "title": "pipeline.yaml — nine Stages on GPU_TARGET",
+    "title": "pipeline.yaml — eight Stages on GPU_TARGET",
     "output": "docs/architecture/diagrams/pipeline-config.html",
     "quality_profile": "showcase",
     "locale": "en",
     "repository": {
       "url": "https://github.com/luatducvo/3D-scene.git",
       "provider": "github",
-      "revision": "27289156479e79a878b4d8626cb68fb174467c29"
+      "revision": "10f86854e16057d60fc3e27cb8641db9bc9010ca"
     }
   },
   "stages": [
@@ -26,7 +26,7 @@
       "label": "Objects"
     },
     {
-      "label": "Scene Graph"
+      "label": "Publication"
     }
   ],
   "nodes": [
@@ -200,44 +200,23 @@
       ]
     },
     {
-      "id": "attributes",
+      "id": "objects",
       "type": "backend",
-      "label": "8 · attributes",
-      "sublabel": "attributes.none",
-      "tag": "disabled",
-      "stage": 3,
-      "row": 2,
-      "sources": [
-        {
-          "path": "backend/config/pipeline.yaml",
-          "line": 29,
-          "end_line": 31
-        },
-        {
-          "path": "backend/packages/scene-stages/src/scene_stages/attributes.py",
-          "line": 154,
-          "end_line": 158
-        }
-      ]
-    },
-    {
-      "id": "graph",
-      "type": "backend",
-      "label": "9 · graph",
-      "sublabel": "graph.geometric",
+      "label": "8 · objects",
+      "sublabel": "objects.geometric",
       "tag": "CPU",
       "stage": 4,
       "row": 1,
       "sources": [
         {
           "path": "backend/config/pipeline.yaml",
-          "line": 32,
-          "end_line": 35
+          "line": 29,
+          "end_line": 32
         },
         {
-          "path": "backend/packages/scene-stages/src/scene_stages/graph.py",
-          "line": 180,
-          "end_line": 182
+          "path": "backend/packages/scene-stages/src/scene_stages/objects.py",
+          "line": 79,
+          "end_line": 81
         }
       ]
     },
@@ -327,41 +306,23 @@
       "variant": "emphasis"
     },
     {
-      "id": "f-lift-attributes",
+      "id": "f-lift-objects",
       "from": "lift",
-      "to": "attributes",
-      "label": "instances/"
-    },
-    {
-      "id": "f-lift-graph",
-      "from": "lift",
-      "to": "graph",
+      "to": "objects",
       "label": "instances/",
       "variant": "emphasis"
     },
     {
-      "id": "f-attributes-graph",
-      "from": "attributes",
-      "to": "graph",
-      "label": "attributes/"
-    },
-    {
-      "id": "f-align-graph",
-      "from": "align",
-      "to": "graph",
-      "label": "align/"
-    },
-    {
-      "id": "f-mesh-graph",
+      "id": "f-mesh-objects",
       "from": "mesh",
-      "to": "graph",
+      "to": "objects",
       "label": "points.ply + glb"
     },
     {
-      "id": "f-graph-results",
-      "from": "graph",
+      "id": "f-objects-results",
+      "from": "objects",
       "to": "results",
-      "label": "graph/",
+      "label": "objects/",
       "variant": "emphasis"
     },
     {
@@ -396,7 +357,7 @@
         "recon: Depth Anything 3 Nested Giant at 504 px; align: RANSAC floor at 2 cm",
         "mesh: TSDF voxel 2 cm, up to 3M points; segment: SAM 3 with indoor-en.txt, score ≥ 0.5",
         "lift: seen in ≥ 2 views; embed: MetaCLIP 2, batch 64",
-        "graph: on, under, above, inside, next_to, near, against_wall; membership radius 2 cm"
+        "objects: membership radius 2 cm"
       ]
     },
     {
@@ -404,9 +365,8 @@
       "title": "Notes",
       "items": [
         "recon writes only per-Frame depth, confidence and poses; the point cloud (points.ply) and mesh (mesh.glb) are both built by Stage 4 mesh",
-        "attributes.none writes an empty entry per Instance (ADR-0004)",
         "Arrows are the folders each Algorithm reads, from its reads list in code",
-        "Only graph/, embeddings/ and mesh/ leave the Target; the rest stays there"
+        "Only objects/, embeddings/ and mesh/ leave the Target; the rest stays there"
       ]
     }
   ]

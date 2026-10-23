@@ -9,7 +9,7 @@
     "repository": {
       "url": "https://github.com/luatducvo/3D-scene.git",
       "provider": "github",
-      "revision": "27289156479e79a878b4d8626cb68fb174467c29"
+      "revision": "10f86854e16057d60fc3e27cb8641db9bc9010ca"
     }
   },
   "participants": [
@@ -140,7 +140,7 @@
         {
           "path": "backend/packages/scene-stages/pyproject.toml",
           "line": 23,
-          "end_line": 42,
+          "end_line": 39,
           "label": "registered names"
         }
       ]
@@ -362,7 +362,7 @@
       "from": "worker",
       "to": "http",
       "y": 970,
-      "label": "GET files?dirs=graph,…"
+      "label": "GET files?dirs=objects,…"
     },
     {
       "id": "list-disk",

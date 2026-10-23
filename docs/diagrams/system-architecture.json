@@ -9,7 +9,7 @@
     "repository": {
       "url": "https://github.com/luatducvo/3D-scene.git",
       "provider": "github",
-      "revision": "27289156479e79a878b4d8626cb68fb174467c29"
+      "revision": "10f86854e16057d60fc3e27cb8641db9bc9010ca"
     }
   },
   "components": [
@@ -40,7 +40,7 @@
       "type": "frontend",
       "label": "frontend",
       "sublabel": "Next.js · react-three-fiber",
-      "tag": "upload · 3D viewer · chat",
+      "tag": "upload · 3D viewer · search",
       "pos": [
         40,
         200
@@ -74,7 +74,7 @@
       "id": "scene-api",
       "type": "backend",
       "label": "scene-api",
-      "sublabel": "FastAPI :8000 · QA agent",
+      "sublabel": "FastAPI :8000 · Search",
       "pos": [
         370,
         200
@@ -86,21 +86,15 @@
       "sources": [
         {
           "path": "backend/services/scene-api/src/scene_api/main.py",
-          "line": 82,
-          "end_line": 110,
+          "line": 62,
+          "end_line": 90,
           "label": "composition"
         },
         {
           "path": "backend/services/scene-api/src/scene_api/main.py",
-          "line": 261,
-          "end_line": 335,
+          "line": 231,
+          "end_line": 300,
           "label": "SSE + search"
-        },
-        {
-          "path": "backend/services/scene-api/src/scene_api/main.py",
-          "line": 351,
-          "end_line": 380,
-          "label": "QA query"
         }
       ]
     },
@@ -126,14 +120,14 @@
         },
         {
           "path": "backend/packages/scene-store/src/scene_store/__init__.py",
-          "line": 134,
-          "end_line": 161,
+          "line": 97,
+          "end_line": 124,
           "label": "enqueue + claim"
         },
         {
           "path": "backend/packages/scene-store/src/scene_store/__init__.py",
-          "line": 247,
-          "end_line": 285,
+          "line": 210,
+          "end_line": 235,
           "label": "publish"
         }
       ]
@@ -160,8 +154,8 @@
         },
         {
           "path": "backend/services/scene-api/src/scene_api/main.py",
-          "line": 183,
-          "end_line": 196,
+          "line": 153,
+          "end_line": 166,
           "label": "publication files"
         }
       ]
@@ -170,7 +164,7 @@
       "id": "scene-worker",
       "type": "backend",
       "label": "scene-worker",
-      "sublabel": "Job runner · 9 Stages",
+      "sublabel": "Job runner · 8 Stages",
       "pos": [
         1060,
         200
@@ -191,28 +185,6 @@
           "line": 9,
           "end_line": 16,
           "label": "poll loop"
-        }
-      ]
-    },
-    {
-      "id": "llm",
-      "type": "external",
-      "label": "LLM endpoint",
-      "sublabel": "OpenAI-compatible",
-      "pos": [
-        40,
-        400
-      ],
-      "size": [
-        170,
-        64
-      ],
-      "sources": [
-        {
-          "path": "backend/services/scene-api/src/scene_api/qa.py",
-          "line": 48,
-          "end_line": 76,
-          "label": "chat/completions"
         }
       ]
     },
@@ -375,14 +347,6 @@
       "toSide": "left"
     },
     {
-      "id": "api-llm",
-      "from": "scene-api",
-      "to": "llm",
-      "label": "chat/completions",
-      "fromSide": "bottom",
-      "toSide": "right"
-    },
-    {
       "id": "compute-workspace",
       "from": "scene-compute",
       "to": "target-workspace",
@@ -395,7 +359,7 @@
       "title": "Job pipeline",
       "items": [
         "POST /process inserts a Job; the worker claims it with FOR UPDATE SKIP LOCKED every 0.5 s",
-        "Nine Stages in order: ingest → recon → align → mesh → segment → lift → embed → attributes → graph",
+        "Eight Stages in order: ingest → recon → align → mesh → segment → lift → embed → objects",
         "Each Stage is one Compute Run; progress lands in stage_runs + scene_events and the API streams it as SSE"
       ]
     },
@@ -403,8 +367,8 @@
       "dot": "cyan",
       "title": "Publication",
       "items": [
-        "Only results (graph, embeddings, mesh) leave the Target; intermediates stay there (ADR-0005)",
-        "Results land in staging, are renamed to /scenes/{id}/{job}, then one transaction writes Objects + Relations and marks the Scene ready (ADR-0006)"
+        "Only results (objects, embeddings, mesh) leave the Target; intermediates stay there (ADR-0005)",
+        "Results land in staging, are renamed to /scenes/{id}/{job}, then one transaction writes the Objects and marks the Scene ready (ADR-0006)"
       ]
     },
     {
@@ -418,10 +382,10 @@
     },
     {
       "dot": "amber",
-      "title": "Grounded QA",
+      "title": "Search",
       "items": [
-        "The QA agent loops LLM tool calls over geometric SceneTools and rejects numbers no tool returned",
-        "Search and find_objects embed the query text on the Target, then rank Objects by pgvector cosine similarity"
+        "Search embeds the query text on the Target, then ranks Objects by pgvector cosine similarity",
+        "Label matches come first; other Objects within SEARCH_MARGIN of the best similarity follow, 10 hits at most"
       ]
     }
   ]
