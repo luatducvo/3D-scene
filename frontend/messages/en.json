@@ -153,8 +153,7 @@
     "upAxis": "Vertical axis"
   },
   "appearance": {
-    "original": "Original",
-    "instances": "Instances"
+    "instances": "Instance Colors"
   },
   "heatmap": {
     "title": "Relative similarity",

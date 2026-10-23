@@ -743,6 +743,7 @@ summary {
   gap: 8px;
   flex-shrink: 0;
 }
+.instance-colors,
 .point-size {
   display: flex;
   align-items: center;
@@ -833,13 +834,6 @@ summary {
 }
 .panel-body p {
   margin: 0;
-}
-.layer-toggle {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  min-height: 44px;
-  gap: 16px;
 }
 .object-details {
   display: flex;

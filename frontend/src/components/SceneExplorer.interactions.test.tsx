@@ -5,6 +5,7 @@ import { setupServer } from "msw/node";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sceneApi } from "../lib/api";
+import type { Scene } from "../lib/api/types";
 import { handlers } from "../lib/api/mock/handlers";
 import { useViewer } from "../lib/store/viewerStore";
 import { viewMode } from "./viewer/view";
@@ -23,8 +24,8 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-async function explore(id = "demo") {
-  const scene = await sceneApi.getScene(id);
+async function explore(change: (scene: Scene) => Scene = (scene) => scene) {
+  const scene = change(await sceneApi.getScene("demo"));
   render(
     <NextIntlClientProvider locale="en" timeZone="UTC" messages={en}>
       <QueryClientProvider client={new QueryClient()}>
@@ -49,11 +50,36 @@ test("one Points/Mesh switch changes the geometry, with point size only for poin
   expect(screen.getByRole("slider", { name: en.ui.pointSize })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: en.layers.mesh }));
   expect(screen.queryByRole("slider", { name: en.ui.pointSize })).toBeNull();
-  expect(screen.queryByRole("switch")).toBeNull();
+  expect(screen.queryByRole("switch", { name: en.layers.mesh })).toBeNull();
 });
 
 test("there is no Display layers panel and no topbar Clear button", async () => {
   await explore();
   expect(screen.queryByRole("button", { name: "Display layers" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+});
+
+test("one Instance Colors switch paints each Object in its own colour, in either geometry", async () => {
+  await explore();
+  const instances = screen.getByRole("switch", { name: en.appearance.instances });
+  expect(screen.queryByRole("button", { name: "Original" })).toBeNull();
+  fireEvent.click(instances);
+  expect(useViewer.getState().appearance).toBe("instances");
+  fireEvent.click(screen.getByRole("button", { name: en.layers.mesh }));
+  expect(useViewer.getState().appearance).toBe("instances");
+  fireEvent.click(instances);
+  expect(useViewer.getState().appearance).toBe("original");
+});
+
+test("Instance Colors is disabled, with the notice, when the Scene has no Object Membership", async () => {
+  await explore((scene) => ({
+    ...scene,
+    assets: { ...scene.assets, membership_url: null },
+  }));
+  expect(
+    screen
+      .getByRole("switch", { name: en.appearance.instances })
+      .hasAttribute("disabled"),
+  ).toBe(true);
+  expect(screen.getByText(en.ui.highlightFailed)).toBeTruthy();
 });

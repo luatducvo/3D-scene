@@ -204,16 +204,20 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
         )}
         <div className="viewer-topbar">
           <div className="view-modes" aria-label={t("ui.viewMode")}>
-            {(["original", "instances"] as const).map((mode) => (
-              <button
-                key={mode}
-                className={appearance === mode ? "" : "secondary"}
-                aria-pressed={appearance === mode}
-                onClick={() => useViewer.getState().setAppearance(mode)}
-              >
-                {t(`appearance.${mode}`)}
-              </button>
-            ))}
+            <label className="instance-colors">
+              <span>{t("appearance.instances")}</span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={appearance === "instances"}
+                disabled={highlighting !== "available"}
+                onChange={(e) =>
+                  useViewer
+                    .getState()
+                    .setAppearance(e.target.checked ? "instances" : "original")
+                }
+              />
+            </label>
             <button
               className={viewMode(layers) === "points" ? "" : "secondary"}
               aria-pressed={viewMode(layers) === "points"}
