@@ -20,18 +20,20 @@ Every request finishes in under 300 s and bodies stay under 100 MB, so the tunne
 
 Open the notebook in Colab and run its cells in order:
 
+0. **Download weights.** Once, on any runtime (a CPU runtime is enough), fetch every model's
+   weights (over 10 GB) into the Drive cache that step 5 checks, so GPU time is not spent
+   downloading. It needs only `HF_TOKEN` in Colab secrets: no clone or install.
 1. **GPU check.** Runtime → Change runtime type → pick a GPU, then `nvidia-smi`.
 2. **uv and Python 3.12.**
 3. **Clone the repository** into `/content/3D-scene` (set `REPO_URL`; for a private repository use a
    token URL or upload a zip without `.venv`, `.git`, `data` and `models`).
 4. **Install** `uv sync --python 3.12 --package scene-compute --extra gpu`. Drop `--extra gpu` for
    the fake image's dependencies when you only want to test the connection.
-5. **Model cache.** Mounts Google Drive and sets `MODELS_DIR` there, so weights
-   (over 10 GB) download once and survive runtime resets. Set `HF_TOKEN` for gated SAM 3 weights.
-   Before downloading, the cell prints `cached` for each model already complete on Drive and
-   `download` with the missing files for each model it will fetch. It then waits for Drive to
-   finish uploading new weights (`drive.flush_and_unmount()`) and mounts Drive again, so a later
-   runtime reset cannot lose a half-uploaded file.
+5. **Model cache check.** Mounts Google Drive and sets `MODELS_DIR` there. It never downloads:
+   it prints `cached` for each model complete on Drive and `MISSING` with the missing files
+   otherwise, then raises an error and stops if any weight is missing; run step 0 and this cell
+   again. When every weight is present it sets `HF_HUB_OFFLINE=1`, so the server never downloads
+   at run time.
 6. **Tunnel.** Starts `cloudflared` for port 9000 and prints the public URL.
 7. **Server.** Read `COMPUTE_TOKEN` from Colab secrets, then start uvicorn on port 9000, reusing
    the cache configuration from step 5 without printing the token. The cell sets
