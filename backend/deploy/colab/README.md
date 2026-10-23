@@ -22,7 +22,9 @@ Open the notebook in Colab and run its cells in order:
 
 0. **Download weights.** Once, on any runtime (a CPU runtime is enough), fetch every model's
    weights (over 10 GB) into the Drive cache that step 5 checks, so GPU time is not spent
-   downloading. It needs only `HF_TOKEN` in Colab secrets: no clone or install.
+   downloading. It needs only `HF_TOKEN` in Colab secrets: no clone or install. It downloads to
+   the runtime SSD and then copies each file to Drive, because the Drive mount mishandles the
+   chunked writes of large Hugging Face downloads.
 1. **GPU check.** Runtime → Change runtime type → pick a GPU, then `nvidia-smi`.
 2. **uv and Python 3.12.**
 3. **Clone the repository** into `/content/3D-scene` (set `REPO_URL`; for a private repository use a
