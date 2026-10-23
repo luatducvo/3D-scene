@@ -2,12 +2,12 @@ import json
 from pathlib import Path
 
 from .main import app
-from .models import ProgressEvent, QueryEvent
+from .models import ProgressEvent
 
 
 def export(path=None):
     schema = app.openapi()
-    for model in (ProgressEvent, QueryEvent):
+    for model in (ProgressEvent,):
         definition = model.model_json_schema(ref_template="#/components/schemas/{model}")
         definitions = definition.pop("$defs", {})
         schema["components"]["schemas"].update(definitions)

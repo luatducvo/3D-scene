@@ -12,7 +12,7 @@ Libraries in `packages/`, processes in `services/`. Dependencies point one way: 
 | `scene-stages` | every Algorithm (real and fake) and Relation rule |
 | `scene-store` | every database write, the `scene_events` outbox |
 | `scene-target` | `TargetWorkspace`, the only way to reach a Target Workspace |
-| `scene-api` | FastAPI app: routes, read queries, Search ranking, QA agent |
+| `scene-api` | FastAPI app: routes, read queries, Search ranking |
 | `scene-worker` | the Job runner |
 | `scene-compute` | the HTTP server that runs Algorithms on a GPU host |
 
@@ -29,4 +29,4 @@ Libraries in `packages/`, processes in `services/`. Dependencies point one way: 
 
 - Stages, Jobs and publishing: [docs/architecture/pipeline.md](../docs/architecture/pipeline.md)
 - Targets, scene-compute, `deploy/`: [docs/architecture/compute.md](../docs/architecture/compute.md)
-- Routes, events, Search, QA, database: [docs/architecture/api.md](../docs/architecture/api.md)
+- Routes, events, Search, database: [docs/architecture/api.md](../docs/architecture/api.md)

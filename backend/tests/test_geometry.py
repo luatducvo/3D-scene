@@ -6,7 +6,6 @@ from scene_core.geometry import (
     fit_box,
     fit_plane,
     footprint_overlap,
-    relative_direction,
 )
 
 
@@ -21,7 +20,7 @@ def test_rotated_box_and_true_surface_distance():
     assert result.center == pytest.approx([0, 0, 1.5])
 
 
-def test_plane_fit_rejects_outliers_and_direction_uses_view():
+def test_plane_fit_rejects_outliers():
     rng = np.random.default_rng(42)
     floor = np.column_stack([rng.uniform(-3, 3, (200, 2)), np.zeros(200)])
     points = np.vstack([floor, rng.uniform(-3, 3, (20, 3))])
@@ -29,7 +28,3 @@ def test_plane_fit_rejects_outliers_and_direction_uses_view():
     assert abs(normal[2]) == pytest.approx(1)
     assert abs(offset) < 0.01
     assert inliers.sum() >= 200
-    a = OrientedBox(center=(1, 0, 0), size=(1, 1, 1))
-    b = OrientedBox(center=(0, 0, 0), size=(1, 1, 1))
-    assert relative_direction(a, b, (0, -5, 1), (0, 0, 1)) == "right"
-    assert relative_direction(a, b, (0, 5, 1), (0, 0, 1)) == "left"

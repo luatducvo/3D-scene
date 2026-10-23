@@ -14,14 +14,8 @@ Each recipe lists every file the change touches. Finish with the done check in [
 
 1. Subclass `RelationRule` in `scene_stages/graph.py` with `predicate`, `reach` (the widest footprint gap in metres at which it can hold, or `None`) and `evaluate(a, b, context)`.
 2. Register it under `[project.entry-points.scene_relations]` in `scene-stages/pyproject.toml`.
-3. Add the predicate to `graph.params.relations` in `config/pipeline.yaml` and to the `get_relations` tool description in `scene_api/qa.py`.
+3. Add the predicate to `graph.params.relations` in `config/pipeline.yaml`.
 4. Test it in `backend/tests/test_graph.py`.
-
-## A new QA tool
-
-1. Add a `_tool(...)` definition to `SceneTools.definitions` and a `_<name>` method in `scene_api/qa.py`.
-2. Return every number the answer may state in the tool result, since the grounding check only accepts numbers that tools returned; add Object ids it refers to to `self.mentioned`.
-3. Test it with `ScriptedLLM` in `backend/tests/test_api.py`.
 
 ## A new API endpoint
 

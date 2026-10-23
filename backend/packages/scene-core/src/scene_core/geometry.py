@@ -85,10 +85,6 @@ def box_surface_distance(a, b):
     return float(np.hypot(xy, z))
 
 
-def center_distance(a, b):
-    return float(np.linalg.norm(np.asarray(_box(a).center) - _box(b).center))
-
-
 def _convex_hull(points):
     points = sorted(set(map(tuple, points)))
     if len(points) <= 2:
@@ -155,18 +151,3 @@ def fit_plane(points, threshold=0.02, iterations=300, seed=42):
         normal = -normal
     offset = -float(center @ normal)
     return normal, offset, abs(points @ normal + offset) <= threshold
-
-
-def relative_direction(a, b, camera_position, camera_target):
-    forward = np.asarray(camera_target, float) - camera_position
-    forward[2] = 0
-    length = np.linalg.norm(forward)
-    if length < 1e-8:
-        raise ValueError("View direction must have a horizontal component")
-    forward /= length
-    right = np.cross(forward, [0, 0, 1])
-    delta = np.asarray(_box(a).center) - _box(b).center
-    horizontal, depth = float(delta @ right), float(delta @ forward)
-    if abs(horizontal) >= abs(depth):
-        return "right" if horizontal >= 0 else "left"
-    return "behind" if depth >= 0 else "in_front"

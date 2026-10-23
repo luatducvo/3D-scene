@@ -4,7 +4,6 @@ export type Scene = Schemas["SceneDetail"];
 export type SceneObject = Schemas["SceneObject"];
 export type ProgressEvent = Schemas["ProgressEvent"];
 export type StageProgress = Schemas["StageProgress"];
-export type QueryEvent = Schemas["QueryEvent"];
 export type Stage = Schemas["StageRun"]["stage"];
 /** The nine Stages in processing order. */
 export const STAGES = [

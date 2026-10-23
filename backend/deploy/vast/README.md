@@ -114,9 +114,9 @@ so the worker reports the missing Target instead of waiting 900 s on a dead URL.
 
 ## Known limits
 
-- Free-text search and Object-finding questions embed the query on `GPU_TARGET`. Without a
-  running GPU instance they fail with `COMPUTE_UNAVAILABLE` (HTTP 503 for search, an
-  `error` event in the answer stream); the viewer, Object list and measurements still work.
+- Free-text Search embeds the query on `GPU_TARGET`. Without a running GPU instance it
+  fails with `COMPUTE_UNAVAILABLE` (HTTP 503); the viewer, Object list and measurements
+  still work.
 - A new instance has a new URL; Stages already completed are not rerun after switching, because the
   config hash excludes the Target.
 - A container restart during a Compute Run fails that Job.

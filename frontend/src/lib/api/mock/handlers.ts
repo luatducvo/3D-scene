@@ -4,7 +4,6 @@ import {
   progressEvent,
   type Scene,
   type ProgressEvent,
-  type QueryEvent,
   type Schemas,
 } from "../types";
 import { apiOrigin } from "../http";
@@ -48,7 +47,7 @@ const missing = () =>
     { error: { code: "NOT_FOUND", message: "Scene not found" } },
     { status: 404 },
   );
-const stream = (events: (ProgressEvent | QueryEvent)[]) =>
+const stream = (events: ProgressEvent[]) =>
   new HttpResponse(
     new ReadableStream({
       async start(controller) {
@@ -213,37 +212,5 @@ export const handlers = [
             }))
         : [],
     );
-  }),
-  http.post(`${base}/:id/queries`, async ({ request }) => {
-    const body = (await request.json()) as Schemas["QueryRequest"];
-    void body.question;
-    const answer =
-      "This sample scene contains a sofa, a coffee table and a plant. The relevant region is highlighted in 3D.";
-    return stream([
-      {
-        type: "tool",
-        tool: "count_objects",
-        delta: null,
-        answer: null,
-        object_ids: [],
-        evidence: [],
-      },
-      {
-        type: "delta",
-        delta: answer,
-        tool: null,
-        answer: null,
-        object_ids: [],
-        evidence: [],
-      },
-      {
-        type: "final",
-        answer,
-        tool: null,
-        delta: null,
-        object_ids: ["sofa-1"],
-        evidence: [],
-      },
-    ]);
   }),
 ];

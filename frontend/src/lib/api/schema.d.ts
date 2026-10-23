@@ -162,23 +162,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/scenes/{scene_id}/queries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Ask */
-        post: operations["ask_api_v1_scenes__scene_id__queries_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -201,44 +184,6 @@ export interface components {
         Body_upload_files_api_v1_scenes__scene_id__uploads_post: {
             /** Files */
             files: string[];
-        };
-        /** Camera */
-        Camera: {
-            /** Position */
-            position: [
-                number,
-                number,
-                number
-            ];
-            /** Target */
-            target: [
-                number,
-                number,
-                number
-            ];
-            /**
-             * Up
-             * @default [
-             *       0,
-             *       0,
-             *       1
-             *     ]
-             */
-            up: [
-                number,
-                number,
-                number
-            ];
-        };
-        /**
-         * Evidence
-         * @description The Frame that best shows an Object in an answer; its image is not published.
-         */
-        Evidence: {
-            /** Object Id */
-            object_id: string;
-            /** Frame Id */
-            frame_id: string;
         };
         /** Failure */
         Failure: {
@@ -282,39 +227,6 @@ export interface components {
              * @default 0
              */
             yaw: number;
-        };
-        /** QueryEvent */
-        QueryEvent: {
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "tool" | "delta" | "final";
-            /**
-             * Tool
-             * @default null
-             */
-            tool: string | null;
-            /**
-             * Delta
-             * @default null
-             */
-            delta: string | null;
-            /**
-             * Answer
-             * @default null
-             */
-            answer: string | null;
-            /** Object Ids */
-            object_ids?: string[];
-            /** Evidence */
-            evidence?: components["schemas"]["Evidence"][];
-        };
-        /** QueryRequest */
-        QueryRequest: {
-            /** Question */
-            question: string;
-            camera?: components["schemas"]["Camera"] | null;
         };
         /** SceneAssets */
         SceneAssets: {
@@ -856,42 +768,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchHit"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    ask_api_v1_scenes__scene_id__queries_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                scene_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["QueryRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": unknown;
-                    "application/json": components["schemas"]["QueryEvent"];
                 };
             };
             /** @description Validation Error */

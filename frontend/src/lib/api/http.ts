@@ -1,6 +1,6 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
-import type { ProgressEvent, QueryEvent, Schemas } from "./types";
+import type { ProgressEvent, Schemas } from "./types";
 import { ApiError, toApiError } from "./errors";
 import { consumeSSE } from "./sse";
 import { decodeMembership } from "./membership";
@@ -123,19 +123,4 @@ export const sceneApi = {
     })();
     return () => stop.abort();
   },
-  askQuestion: async (
-    id: string,
-    body: Schemas["QueryRequest"],
-    receive: (event: QueryEvent) => void,
-    signal?: AbortSignal,
-  ) =>
-    consumeSSE(
-      await fetch(`${apiOrigin}/api/v1/scenes/${id}/queries`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal,
-      }),
-      receive,
-    ),
 };

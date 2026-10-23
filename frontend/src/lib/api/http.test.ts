@@ -39,19 +39,16 @@ test("a locked capture reports the server error code to the UI", async () => {
     message: "Processing is active",
   });
 });
-test("questions preserve tool, split UTF-8 deltas and final citations", async () => {
+/** Serve `parts` as one SSE response on the Scene's events stream and collect what subscribeProgress receives. */
+async function progressFrom(parts: Uint8Array[]) {
   server.use(
-    http.post(
-      "http://localhost:8000/api/v1/scenes/room/queries",
+    http.get(
+      "http://localhost:8000/api/v1/scenes/room/events",
       () =>
         new HttpResponse(
           new ReadableStream({
             start(controller) {
-              const bytes = new TextEncoder().encode(
-                'event: tool\ndata: {"type":"tool","tool":"count_objects"}\n\nevent: delta\ndata: {"type":"delta","delta":"café"}\n\nevent: final\ndata: {"type":"final","answer":"one chair","object_ids":["chair-1"],"evidence":[]}\n\n',
-              );
-              for (let i = 0; i < bytes.length; i += 3)
-                controller.enqueue(bytes.slice(i, i + 3));
+              for (const part of parts) controller.enqueue(part);
               controller.close();
             },
           }),
@@ -59,73 +56,33 @@ test("questions preserve tool, split UTF-8 deltas and final citations", async ()
         ),
     ),
   );
-  const events: unknown[] = [];
-  await sceneApi.askQuestion("room", { question: "Count chairs" }, (event) =>
-    events.push(event),
+  const events: { type: string }[] = [];
+  await new Promise<void>((done) => {
+    const stop = sceneApi.subscribeProgress("room", (event) => {
+      events.push(event);
+      if (event.type === "status") {
+        stop();
+        done();
+      }
+    });
+  });
+  return events;
+}
+test("progress events keep UTF-8 characters split between network packets", async () => {
+  const bytes = new TextEncoder().encode(
+    'event: progress\ndata: {"type":"progress","stage":"ingest","done":1,"total":2,"unit":"image"}\n\n' +
+      'event: status\ndata: {"type":"status","status":"failed","error":{"message":"café"}}\n\n',
   );
-  expect(events).toEqual([
-    { type: "tool", tool: "count_objects" },
-    { type: "delta", delta: "café" },
-    {
-      type: "final",
-      answer: "one chair",
-      object_ids: ["chair-1"],
-      evidence: [],
-    },
+  const parts = [];
+  for (let i = 0; i < bytes.length; i += 3) parts.push(bytes.slice(i, i + 3));
+  expect(await progressFrom(parts)).toEqual([
+    { type: "progress", stage: "ingest", done: 1, total: 2, unit: "image" },
+    { type: "status", status: "failed", error: { message: "café" } },
   ]);
 });
-test("question stream supports CRLF boundaries split between network packets", async () => {
-  server.use(
-    http.post(
-      "http://localhost:8000/api/v1/scenes/room/queries",
-      () =>
-        new HttpResponse(
-          new ReadableStream({
-            start(controller) {
-              for (const part of [
-                'data: {"type":"delta","delta":"hello"}\r',
-                "\n\r",
-                "\n",
-              ])
-                controller.enqueue(new TextEncoder().encode(part));
-              controller.close();
-            },
-          }),
-        ),
-    ),
-  );
-  const events: unknown[] = [];
-  await sceneApi.askQuestion("room", { question: "Hello" }, (event) =>
-    events.push(event),
-  );
-  expect(events).toEqual([{ type: "delta", delta: "hello" }]);
-});
-test("a question reports refused and mid-stream errors with their codes", async () => {
-  server.use(
-    http.post("http://localhost:8000/api/v1/scenes/room/queries", () =>
-      HttpResponse.json(
-        { error: { code: "SCENE_NOT_READY", message: "Process first" } },
-        { status: 409 },
-      ),
-    ),
-  );
-  await expect(
-    sceneApi.askQuestion("room", { question: "?" }, () => {}),
-  ).rejects.toMatchObject({ code: "SCENE_NOT_READY" });
-  server.use(
-    http.post(
-      "http://localhost:8000/api/v1/scenes/room/queries",
-      () =>
-        new HttpResponse(
-          'event: tool\ndata: {"type":"tool","tool":"count_objects"}\n\n' +
-            'event: error\ndata: {"error":{"code":"QA_STEP_LIMIT","message":"No answer"}}\n\n',
-          { headers: { "Content-Type": "text/event-stream" } },
-        ),
-    ),
-  );
-  const seen: string[] = [];
-  await expect(
-    sceneApi.askQuestion("room", { question: "?" }, (e) => seen.push(e.type)),
-  ).rejects.toMatchObject({ code: "QA_STEP_LIMIT" });
-  expect(seen).toEqual(["tool"]);
+test("progress events support CRLF boundaries split between network packets", async () => {
+  const parts = ['data: {"type":"status","status":"ready"}\r', "\n\r", "\n"];
+  expect(
+    await progressFrom(parts.map((part) => new TextEncoder().encode(part))),
+  ).toEqual([{ type: "status", status: "ready" }]);
 });

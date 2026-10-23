@@ -17,7 +17,6 @@ All under `/api/v1/scenes`.
 | `GET /{scene}/events` | SSE progress stream |
 | `GET /{scene}/objects`, `GET /{scene}/objects/{object}` | Objects of the current Publication |
 | `GET /{scene}/search?q=` | Search Hits |
-| `POST /{scene}/queries` `{question, camera?}` | SSE answer stream |
 | `GET /{scene}/publications/{job}/files/{path}` | a public file of a Publication |
 
 ## Scene lifecycle
@@ -29,7 +28,6 @@ All under `/api/v1/scenes`.
 | upload | `created` or `uploaded`, no active Job | `SCENE_LOCKED`, `SCENE_BUSY` |
 | process | `uploaded`, `ready` or `failed`, no active Job | `SCENE_NOT_UPLOADED`, `SCENE_BUSY` |
 | delete | no active Job | `SCENE_BUSY` |
-| ask a question | `ready` | `SCENE_NOT_READY` |
 
 Uploads accept `.jpg .jpeg .png .webp .heic` photos or one `.mp4 .mov .mkv .webm` video, never both and never a second video (`INVALID_UPLOAD`, `UNSUPPORTED_MEDIA`). Each stored name is the sanitised original stem plus a random suffix, so ingest keeps capture order.
 
@@ -52,16 +50,6 @@ Only live events carry an SSE `id`.
 The query is embedded on the Target with the embed Stage's Algorithm and compared with each Object's embedding by cosine similarity in pgvector. A label match is the query containing the Object's label, or the reverse.
 
 - `GET /search` returns every label match (score = similarity + 1), then the other Objects within `SEARCH_MARGIN` (default 0.05) of the best similarity, at most 10 hits in all. Each hit carries `score` and `raw_similarity`.
-- The QA tools rank the same way but keep every Object scoring above 0.15, uncut, so counts stay whole.
-
-## Question answering
-
-`qa.py`. `QAAgent` sends the question to an OpenAI-compatible chat endpoint (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`) with the tools of `SceneTools`: `find_objects`, `count_objects`, `get_object`, `get_room_info`, `measure_distance`, `get_relations`, `relative_direction`, plus `final_answer`. Each question is independent and answered in English.
-
-- Every number in the answer must appear in a tool result or the question, at the precision stated (metres may be restated in centimetres or millimetres). The first ungrounded answer is sent back once; a second fails with `QA_UNGROUNDED`.
-- More than six steps fails with `QA_STEP_LIMIT`.
-- `relative_direction` from the user's viewpoint needs the `camera` sent with the question.
-- The stream sends `tool` events, one `delta`, then `final` with `answer`, `object_ids` and `evidence` (the first Best View Frame id of each Object; Frame images are not published).
 
 ## Database
 

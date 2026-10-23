@@ -16,7 +16,6 @@ import {
 import { DesignIcon } from "./DesignIcon";
 import { SearchStatus } from "./SearchStatus";
 import { ObjectDetails } from "./ObjectDetails";
-import { ChatPanel } from "./ChatPanel";
 import { normalizeSimilarities } from "./viewer/highlight";
 import { PipelineInspector } from "./PipelineInspector";
 import { HeatmapLegend } from "./HeatmapLegend";
@@ -26,7 +25,7 @@ const SceneCanvas = dynamic(() => import("./viewer/SceneCanvas"), {
   ssr: false,
 });
 type Panel =
-  "object" | "chat" | "measure" | "layers" | "info" | "inspector" | null;
+  "object" | "measure" | "layers" | "info" | "inspector" | null;
 
 class ViewerBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
@@ -175,15 +174,13 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
   const title =
     panel === "inspector"
       ? t("inspector.title")
-      : panel === "chat"
-        ? t("ui.askScene")
-        : panel === "layers"
-          ? t("ui.displayLayers")
-          : panel === "measure"
-            ? t("measure")
-            : panel === "info"
-              ? t("ui.sceneInfo")
-              : t("ui.objectDetails");
+      : panel === "layers"
+        ? t("ui.displayLayers")
+        : panel === "measure"
+          ? t("measure")
+          : panel === "info"
+            ? t("ui.sceneInfo")
+            : t("ui.objectDetails");
   const errorFallback = (
     <div className="viewer-state">
       <p>{t("ui.viewerError")}</p>
@@ -343,13 +340,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
           <span>{t("ui.zoomHint")}</span>
           <span>{t("ui.panHint")}</span>
         </div>
-        <button
-          className="ask-scene"
-          onClick={() => openPanel("chat")}
-          aria-expanded={panel === "chat"}
-        >
-          {t("ui.askScene")}
-        </button>
         {objects.error && (
           <p className="viewer-error" role="alert">
             {String(objects.error)}
@@ -373,10 +363,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
           </button>
         </div>
         {panel === "object" && selected && <ObjectDetails object={selected} />}
-        <div hidden={panel !== "chat"}>
-          <p className="caption muted">{t("ui.chatSubtitle")}</p>
-          <ChatPanel sceneId={scene.id} />
-        </div>
         {panel === "inspector" && <PipelineInspector scene={scene} />}
         {panel === "info" && (
           <div className="panel-body">

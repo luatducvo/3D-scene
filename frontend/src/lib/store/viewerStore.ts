@@ -13,13 +13,13 @@ export type Hover = { id: string; x: number; y: number };
 type ViewerState = {
   appearance: "original" | "instances";
   setAppearance: (appearance: "original" | "instances") => void;
-  resultSource: "search" | "qa" | null;
+  resultSource: "search" | null;
   similarities: Record<string, number> | null;
   resultVersion: number;
   beginResult: () => number;
   showResult: (
     version: number,
-    source: "search" | "qa",
+    source: "search",
     ids: string[],
     similarities?: Record<string, number>,
   ) => boolean;
@@ -29,8 +29,6 @@ type ViewerState = {
   hovered: Hover | null;
   measuring: boolean;
   points: Point[];
-  /** The last camera pose, sent with questions so answers can say left or right. */
-  camera: { position: Point; target: Point };
   layers: Layers;
   /** Bounds of each loaded room layer; visibleBounds picks the one framing the view. */
   loadedBounds: Partial<Record<ViewMode, Bounds>>;
@@ -47,7 +45,6 @@ type ViewerState = {
   clear: () => void;
   /** Forget everything about the current Scene, for leaving it. */
   reset: () => void;
-  setCamera: (position: Point, target: Point) => void;
   toggleLayer: (layer: Layer) => void;
   setLayers: (layers: Layers) => void;
   setPointSize: (size: number) => void;
@@ -64,7 +61,6 @@ const initial = {
   hovered: null,
   measuring: false,
   points: [],
-  camera: { position: [6, -8, 5] as Point, target: [0, 0, 1] as Point },
   layers: { points: true, mesh: false },
   loadedBounds: {},
   membershipMismatch: {},
@@ -122,7 +118,6 @@ export const useViewer = create<ViewerState>((set, get) => ({
       resultVersion: s.resultVersion + 1,
     })),
   reset: () => set((s) => ({ ...initial, resultVersion: s.resultVersion + 1 })),
-  setCamera: (position, target) => set({ camera: { position, target } }),
   toggleLayer: (layer) =>
     set((s) => ({ layers: { ...s.layers, [layer]: !s.layers[layer] } })),
   setLayers: (layers) => set({ layers }),

@@ -27,10 +27,10 @@ The Scene page shows:
 
 ## Scene Explorer
 
-`src/components/SceneExplorer.tsx` holds the 3D canvas, the Search box and a side panel that shows one of: `object` (`ObjectDetails` for the Selection), `chat` (`ChatPanel`, one question at a time), `measure`, `layers` (point cloud or mesh, point size, Instance Colors), `info`, `inspector` (`PipelineInspector`, each Stage's purpose, inputs, outputs, Manifest figures and duration).
+`src/components/SceneExplorer.tsx` holds the 3D canvas, the Search box and a side panel that shows one of: `object` (`ObjectDetails` for the Selection), `measure`, `layers` (point cloud or mesh, point size, Instance Colors), `info`, `inspector` (`PipelineInspector`, each Stage's purpose, inputs, outputs, Manifest figures and duration).
 
-- A Search Highlights its hits and colours them as an Object Heatmap (`HeatmapLegend`); a question's answer Highlights its `object_ids`. `showResult` drops a result whose version is stale, so a slow Search cannot overwrite a newer one.
-- The camera moves only through `goHome` (whole room, clears Selection and Highlight) and `focus(ids)` in `viewer/camera.ts`. The last camera pose goes with each question, for left and right answers.
+- A Search Highlights its hits and colours them as an Object Heatmap (`HeatmapLegend`). `showResult` drops a result whose version is stale, so a slow Search cannot overwrite a newer one.
+- The camera moves only through `goHome` (whole room, clears Selection and Highlight) and `focus(ids)` in `viewer/camera.ts`.
 
 ## Viewer
 
@@ -51,4 +51,4 @@ Object Membership (`src/lib/api/membership.ts`) maps each Object to its points a
 
 ## Mock mode
 
-With `NEXT_PUBLIC_API_MODE=mock`, `src/app/providers.tsx` starts MSW (`public/mockServiceWorker.js`) before rendering. `src/lib/api/mock/handlers.ts` serves every API path, including SSE progress and question streams, with a demo Scene built in `mock/room.ts` and its membership in `mock/membership.ts`.
+With `NEXT_PUBLIC_API_MODE=mock`, `src/app/providers.tsx` starts MSW (`public/mockServiceWorker.js`) before rendering. `src/lib/api/mock/handlers.ts` serves every API path, including the SSE progress stream, with a demo Scene built in `mock/room.ts` and its membership in `mock/membership.ts`.

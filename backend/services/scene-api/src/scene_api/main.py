@@ -20,8 +20,6 @@ from scene_target import delete_quietly, open_target_workspace
 
 from .models import (
     JobCreated,
-    QueryEvent,
-    QueryRequest,
     SceneCreate,
     SceneCreated,
     SceneDetail,
@@ -34,8 +32,6 @@ QUERY_READY_TIMEOUT_S = 10
 # GET /search keeps Objects whose similarity is within SEARCH_MARGIN of the best one, SEARCH_MAX_HITS in all.
 SEARCH_MARGIN = 0.05
 SEARCH_MAX_HITS = 10
-# The QA tools keep every Object whose similarity, plus 1 for a label match, exceeds this.
-TOOL_MIN_SCORE = 0.15
 
 
 def label_matches(obj, query):
@@ -63,23 +59,10 @@ def rank_search_hits(objects, similarities, query, margin, limit=SEARCH_MAX_HITS
     return _best_first(labelled) + _best_first(similar)[: max(0, limit - len(labelled))]
 
 
-def rank_tool_hits(objects, similarities, query):
-    """The QA tools' ranking, uncut so counts stay whole: every Object scoring above TOOL_MIN_SCORE,
-    best first, where the score is its similarity plus 1 for a label match."""
-    hits = []
-    for obj in objects:
-        score = similarities.get(obj["id"], 0.0) + (1 if label_matches(obj, query) else 0)
-        if score > TOOL_MIN_SCORE:
-            hits.append({"object": obj, "score": score})
-    return _best_first(hits)
-
-
-def create_app(
-    database_url=None, data_dir=None, pipeline=None, compute=None, llm=None, target=None
-):
+def create_app(database_url=None, data_dir=None, pipeline=None, compute=None, target=None):
     """target replaces the TargetWorkspace built from pipeline and compute, for tests."""
-    # SOLID review (SRP): composition, HTTP routes, read SQL, upload coordination, search ranking
-    # and QA streaming live here. Extract the use cases behind small interfaces as these change;
+    # SOLID review (SRP): composition, HTTP routes, read SQL, upload coordination and search
+    # ranking live here. Extract the use cases behind small interfaces as these change;
     # keep HTTP validation/serialization here and transactional writes in SceneStore.
     store = SceneStore(
         database_url or os.getenv("DATABASE_URL", "postgresql://scene:scene@localhost:5432/scene")
@@ -90,7 +73,6 @@ def create_app(
     app.state.store = store
     app.state.data_dir = data_dir
     app.state.target = target
-    app.state.llm = llm
     app.state.search_margin = float(os.getenv("SEARCH_MARGIN", SEARCH_MARGIN))
     app.add_middleware(
         CORSMiddleware,
@@ -298,11 +280,6 @@ def create_app(
             public_objects(scene_id), similarities(scene_id, q), q, app.state.search_margin
         )
 
-    def tool_search(scene_id, q, objects):
-        if not q.strip():
-            return []
-        return rank_tool_hits(objects, similarities(scene_id, q), q)
-
     def similarities(scene_id, q):
         """Cosine similarity of the query embedding, made on the Target, to each Object's."""
         import numpy as np
@@ -321,71 +298,6 @@ def create_app(
                 ).fetchall():
                     scores[row["id"]] = float(row["score"] or 0)
         return scores
-
-    @app.post(
-        "/api/v1/scenes/{scene_id}/queries",
-        response_class=StreamingResponse,
-        responses={200: {"model": QueryEvent, "content": {"text/event-stream": {}}}},
-    )
-    def ask(scene_id: uuid.UUID, body: QueryRequest):
-        from .qa import OpenAICompatibleLLM, QAAgent, SceneTools
-
-        with store.connect() as conn:
-            scene = store.get_scene(scene_id, conn)
-            if scene["status"] != "ready":
-                raise SceneError(
-                    "SCENE_NOT_READY", "Process the Scene before asking questions", 409
-                )
-            relations = conn.execute(
-                "SELECT subject_id,predicate,object_id,value FROM relations WHERE scene_id=%s",
-                (scene_id,),
-            ).fetchall()
-        llm = app.state.llm or OpenAICompatibleLLM.from_env()
-        if llm is None:
-            raise SceneError(
-                "LLM_NOT_CONFIGURED", "Set LLM_BASE_URL and LLM_MODEL to ask questions", 503
-            )
-        objects = public_objects(scene_id)
-        tools = SceneTools(
-            objects,
-            relations,
-            scene["room"],
-            lambda q: tool_search(scene_id, q, objects),
-            body.camera.model_dump() if body.camera else None,
-        )
-
-        def stream():
-            try:
-                for event in QAAgent(llm).answer(body.question, tools):
-                    if event["type"] == "final":
-                        by_id = {o["id"]: o for o in objects}
-                        # Evidence names each Object's best Frame; Frame images stay on the Target.
-                        event["evidence"] = [
-                            {"object_id": i, "frame_id": v["frame_id"]}
-                            for i in event["object_ids"]
-                            for v in by_id[i]["best_views"][:1]
-                        ]
-                    yield (
-                        f"event: {event['type']}\ndata: "
-                        + json.dumps(
-                            QueryEvent.model_validate(event).model_dump(mode="json"),
-                            ensure_ascii=False,
-                        )
-                        + "\n\n"
-                    )
-            except Exception as exc:
-                code = getattr(exc, "code", "QA_FAILED")
-                yield (
-                    "event: error\ndata: "
-                    + json.dumps({"error": {"code": code, "message": str(exc)}}, ensure_ascii=False)
-                    + "\n\n"
-                )
-
-        return StreamingResponse(
-            stream(),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
 
     return app
 

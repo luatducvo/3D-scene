@@ -1,13 +1,13 @@
 # System overview
 
-A user creates a Scene, uploads photos or one video of a room, and starts a Job. The worker runs the nine Stages on the pipeline's Target, publishes the result, and the browser then shows the room in 3D, finds Objects by text and answers questions about them. Terms are defined in [GLOSSARY.md](../../GLOSSARY.md).
+A user creates a Scene, uploads photos or one video of a room, and starts a Job. The worker runs the nine Stages on the pipeline's Target, publishes the result, and the browser then shows the room in 3D and finds Objects by text. Terms are defined in [GLOSSARY.md](../../GLOSSARY.md).
 
 ## Processes
 
 | Process | Code | Role |
 | --- | --- | --- |
 | frontend | `frontend/` | Next.js app; talks only to scene-api |
-| scene-api | `backend/services/scene-api` | REST and SSE API; stores uploads on the Target; serves Publication files; Search and question answering |
+| scene-api | `backend/services/scene-api` | REST and SSE API; stores uploads on the Target; serves Publication files; Search |
 | scene-worker | `backend/services/scene-worker` | claims queued Jobs, runs every Stage on the Target, publishes |
 | Postgres + pgvector | `backend/migrations/001_init.sql` | Scenes, Jobs, Stage Runs, Objects with embeddings, Relations, events |
 | scene-compute | `backend/services/scene-compute` | optional; runs Algorithms on a GPU host behind an HTTP contract |
@@ -19,7 +19,7 @@ Compose (`compose.yaml`) runs these under three profiles: `backend` (Postgres, s
 1. **Upload**: scene-api stores files under `raw/` in the Scene's Target Workspace. The browser first shrinks photos to the long side ingest expects.
 2. **Process**: `POST /process` inserts a queued Job. The worker claims it, clears earlier Stage outputs (keeping `raw/`), and runs ingest → recon → align → mesh → segment → lift → embed → attributes → graph on the one Target. Each Stage is one Compute Run and leaves a Manifest and a Stage Run.
 3. **Publish**: the worker downloads only `graph/`, `embeddings/` and `mesh/` into `DATA_DIR/scenes/{scene}/{job}/`, then writes Objects, embeddings and Relations to the database and points the Scene at that Publication, in one transaction. Frames and every other intermediate stay on the Target.
-4. **Explore**: the browser loads the mesh, point cloud and Object membership from the Publication, lists Objects, runs Searches (the query is embedded on the Target, then compared in pgvector) and asks questions answered by an LLM through tools.
+4. **Explore**: the browser loads the mesh, point cloud and Object membership from the Publication, lists Objects, and runs Searches (the query is embedded on the Target, then compared in pgvector).
 
 Progress reaches the browser as `scene_events` rows that the store writes with each transition and `GET /events` streams as SSE.
 
@@ -28,11 +28,11 @@ Progress reaches the browser as `scene_events` rows that the store writes with e
 | Path | Holds |
 | --- | --- |
 | `main.py` | project commands (`uv run main.py --help`) |
-| `backend/packages/scene-core/src/scene_core/` | `domain.py` Scene Graph models · `contracts.py` Stages, Workspace paths, Manifests · `ports.py` `StageAlgorithm`, `RelationRule` · `config.py` pipeline and compute config · `executor.py` runs an Algorithm in a Workspace · `registry.py` entry-point lookup · `results.py` Publication files · `membership.py` membership binary · `geometry.py` boxes, distances, directions · `errors.py` `SceneError` |
+| `backend/packages/scene-core/src/scene_core/` | `domain.py` Scene Graph models · `contracts.py` Stages, Workspace paths, Manifests · `ports.py` `StageAlgorithm`, `RelationRule` · `config.py` pipeline and compute config · `executor.py` runs an Algorithm in a Workspace · `registry.py` entry-point lookup · `results.py` Publication files · `membership.py` membership binary · `geometry.py` boxes, planes, distances · `errors.py` `SceneError` |
 | `backend/packages/scene-stages/src/scene_stages/` | `ingest.py` · `gpu.py` recon, align, segment, embed · `mesh.py` · `lift.py` · `attributes.py` · `graph.py` Scene Graph and Relation rules · `fake.py` Fake Algorithms · `arrays.py` NumPy/CuPy choice |
 | `backend/packages/scene-store/` | `SceneStore`: every write, the event stream |
 | `backend/packages/scene-target/` | `TargetWorkspace`, `open_target_workspace`, in-process and HTTP adapters |
-| `backend/services/scene-api/` | `main.py` routes and Search ranking · `models.py` API models · `qa.py` QA agent and tools |
+| `backend/services/scene-api/` | `main.py` routes and Search ranking · `models.py` API models |
 | `backend/services/scene-worker/` | `runner.py` the Job loop |
 | `backend/services/scene-compute/` | `server.py` the compute contract · `download_models.py` |
 | `backend/config/` | pipeline and compute YAML, Vocabularies |
@@ -47,6 +47,6 @@ Progress reaches the browser as `scene_events` rows that the store writes with e
 
 - [pipeline.md](pipeline.md): Stages, Workspace layout, Jobs, publishing
 - [compute.md](compute.md): Targets, the compute contract, the GPU image, Providers
-- [api.md](api.md): endpoints, lifecycle, events, Search, QA, database, membership format
+- [api.md](api.md): endpoints, lifecycle, events, Search, database, membership format
 - [frontend.md](frontend.md): routes, screens, viewer
 - [../extending.md](../extending.md): recipes for common additions

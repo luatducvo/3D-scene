@@ -84,24 +84,6 @@ class SearchHit(BaseModel):
     )
 
 
-class Camera(BaseModel):
-    position: tuple[float, float, float]
-    target: tuple[float, float, float]
-    up: tuple[float, float, float] = (0, 0, 1)
-
-
-class QueryRequest(BaseModel):
-    question: str = Field(min_length=1, max_length=4000)
-    camera: Camera | None = None
-
-
-class Evidence(BaseModel):
-    """The Frame that best shows an Object in an answer; its image is not published."""
-
-    object_id: str
-    frame_id: str
-
-
 class ProgressEvent(BaseModel):
     """`stage` events carry a Stage Run's state, `status` events the Scene's; `progress` events carry done/total/unit
     for one Stage. Replay sends the same shapes as live: each Stage Run's `stage` event, then its `progress` if any."""
@@ -117,12 +99,3 @@ class ProgressEvent(BaseModel):
     done: int | None = None
     total: int | None = None
     unit: str | None = None
-
-
-class QueryEvent(BaseModel):
-    type: Literal["tool", "delta", "final"]
-    tool: str | None = None
-    delta: str | None = None
-    answer: str | None = None
-    object_ids: list[str] = Field(default_factory=list)
-    evidence: list[Evidence] = Field(default_factory=list)

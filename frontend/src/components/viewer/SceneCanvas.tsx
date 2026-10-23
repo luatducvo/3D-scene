@@ -110,21 +110,10 @@ function Controls({ objects }: Pick<SceneLayerProps, "objects">) {
     objectsRef = useRef(objects),
     bounds = useViewer((s) => visibleBounds(s.layers, s.loadedBounds));
   objectsRef.current = objects;
-  /** Remember where the camera is, for questions that depend on the viewpoint. */
-  const remember = () => {
-    if (ref.current)
-      useViewer
-        .getState()
-        .setCamera(
-          ref.current.getPosition(new Vector3()).toArray(),
-          ref.current.getTarget(new Vector3()).toArray(),
-        );
-  };
   const home = () => {
     const { layers, loadedBounds } = useViewer.getState();
     const { position, target } = homePose(visibleBounds(layers, loadedBounds));
     void ref.current?.setLookAt(...position, ...target, false);
-    useViewer.getState().setCamera(position, target);
   };
   const focus = (ids: string[]) => {
     const box = focusBounds(objectsRef.current, ids);
@@ -149,7 +138,7 @@ function Controls({ objects }: Pick<SceneLayerProps, "objects">) {
   }, []);
   // The room's focus changed (a layer loaded or the view mode switched): show all of it.
   useEffect(home, [bounds]);
-  return <CameraControls ref={ref} onRest={remember} onEnd={remember} />;
+  return <CameraControls ref={ref} />;
 }
 function Measurement() {
   const format = useFormatter();

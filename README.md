@@ -1,6 +1,6 @@
 # 3D Scene Understanding
 
-Turn photos or one short video of a room into a metric 3D Scene: a point cloud and mesh, the Objects in it with their sizes and spatial Relations, text Search over those Objects, and answers to questions such as "how far is the sofa from the window?" computed from measurements rather than guessed.
+Turn photos or one short video of a room into a metric 3D Scene: a point cloud and mesh, the Objects in it with their sizes and spatial Relations, and text Search over those Objects.
 
 The pipeline runs Depth Anything 3 for reconstruction, GeoCalib for gravity alignment, TSDF fusion for the mesh, SAM 3 for open-vocabulary segmentation, mask clustering to lift masks into 3D Objects and MetaCLIP 2 for embeddings. Every model Stage also has a fake that runs on a CPU, so the whole system works without a GPU.
 
@@ -18,8 +18,6 @@ uv run main.py up        # Postgres, scene-api, scene-worker and the frontend
 ```
 
 Open http://localhost:3000. On first run `main.py` creates `backend/.env` from `backend/.env.example`; with the defaults every Stage runs as a fake on the CPU.
-
-To ask questions, set `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL` in `backend/.env` to any OpenAI-compatible endpoint.
 
 `uv run main.py --help` lists every command, including `down`, `reset` (deletes all Scenes), `test` and `lint`.
 

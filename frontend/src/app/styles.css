@@ -788,12 +788,6 @@ summary {
   font-size: 12px;
   pointer-events: none;
 }
-.ask-scene {
-  position: absolute;
-  bottom: 36px;
-  right: 24px;
-  min-width: 184px;
-}
 .side-panel {
   flex: 0 0 360px;
   width: 360px;
@@ -870,60 +864,6 @@ summary {
 .dimensions .distance-value {
   font-size: 36px;
   color: var(--brand);
-}
-.chat {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-.messages {
-  flex: 1;
-  overflow: auto;
-  min-height: 0;
-  padding-right: 2px;
-}
-.message {
-  margin-bottom: 20px;
-}
-.message p {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.message.user {
-  padding: 20px 24px;
-  background: var(--soft);
-  border-radius: 16px;
-}
-.message.user p {
-  margin: 0;
-}
-.message.assistant p {
-  font-weight: 700;
-  font-size: 16px;
-}
-.message.assistant button {
-  font-size: 12px;
-}
-.chat-composer {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 20px;
-  margin-top: 16px;
-  border-top: 1px solid var(--border);
-}
-.chat-composer textarea {
-  min-height: 48px;
-  max-height: 180px;
-}
-.chat-composer p {
-  margin: 0;
-}
-.stream-status {
-  color: var(--brand);
-  font-size: 12px;
 }
 .measurement {
   background: var(--soft);
