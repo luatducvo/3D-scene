@@ -232,13 +232,6 @@ small {
   align-items: center;
   gap: 16px;
 }
-.language-switch {
-  min-width: 96px;
-  font-size: 12px;
-}
-.language-switch span:not(.active-language) {
-  color: var(--muted);
-}
 .page {
   max-width: 1440px;
   padding: 44px 64px 48px;

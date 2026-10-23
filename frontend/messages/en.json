@@ -69,7 +69,6 @@
   "ui": {
     "navigation": "Navigation",
     "yourSpaces": "Your spaces",
-    "switchLanguage": "Switch interface language",
     "close": "Close",
     "cancel": "Cancel",
     "library": "Scene library",
@@ -116,7 +115,6 @@
     "deleteForever": "Delete permanently",
     "dimensionOrder": "Width × Depth × Height",
     "focusObject": "Center in view",
-    "showInScene": "Show in 3D",
     "viewerError": "The 3D scene could not be loaded.",
     "viewerLabel": "Interactive 3D scene",
     "noGeometry": "No reconstruction geometry is available for this scene.",
