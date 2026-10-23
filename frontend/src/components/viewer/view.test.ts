@@ -4,6 +4,7 @@ import {
   focusBounds,
   highlightState,
   homePose,
+  labelAnchor,
   showMode,
   viewMode,
   visibleBounds,
@@ -92,4 +93,15 @@ test("focus encloses rotated Object boxes and ignores unknown ids", () => {
   const both = focusBounds(objects, ["table", "chair", "missing"])!;
   expect(both.max[0]).toBeCloseTo(3.25);
   expect(focusBounds(objects, ["missing"])).toBeNull();
+});
+
+test("a Selection's label sits on top of its box, wherever the box is turned", () => {
+  const box: Omit<SceneObject["box"], "yaw"> = {
+    center: [1, 2, 0.4],
+    size: [2, 1, 0.8],
+  };
+  expect(labelAnchor({ ...box, yaw: 0 })).toEqual([1, 2, 0.8]);
+  labelAnchor({ ...box, yaw: Math.PI / 3 }).forEach((v, i) =>
+    expect(v).toBeCloseTo([1, 2, 0.8][i]),
+  );
 });

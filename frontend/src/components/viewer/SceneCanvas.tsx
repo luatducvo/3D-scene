@@ -7,7 +7,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { sceneLayers, type SceneLayerProps } from "./layers";
 import { attachCamera } from "./camera";
 import { pickAt } from "./picking";
-import { focusBounds, homePose, visibleBounds } from "./view";
+import { focusBounds, homePose, labelAnchor, visibleBounds } from "./view";
 import { clickable, useViewer } from "../../lib/store/viewerStore";
 
 /** A press that moves less than this many pixels is a click, not an orbit or pan. */
@@ -99,6 +99,17 @@ function HoverLabel({ objects }: Pick<SceneLayerProps, "objects">) {
     >
       {object.label}
     </div>
+  );
+}
+/** The selected Object's label on top of its box, moving with the camera. */
+function SelectionLabel({ objects }: Pick<SceneLayerProps, "objects">) {
+  const selectedId = useViewer((s) => s.selectedId);
+  const object = selectedId && objects.find((o) => o.id === selectedId);
+  if (!object) return null;
+  return (
+    <Html position={labelAnchor(object.box)} center zIndexRange={[4, 0]}>
+      <span className="selection-label">{object.label}</span>
+    </Html>
   );
 }
 
@@ -215,6 +226,7 @@ export default function SceneCanvas(props: SceneLayerProps) {
           ))}
         </Suspense>
         <Measurement />
+        <SelectionLabel objects={props.objects} />
         <Controls objects={props.objects} />
         <Picker objects={props.objects} membership={props.membership} />
       </Canvas>

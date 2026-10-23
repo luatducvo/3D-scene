@@ -874,6 +874,9 @@ summary {
 .hover-label {
   position: fixed;
   z-index: 5;
+}
+.hover-label,
+.selection-label {
   pointer-events: none;
   background: var(--soft);
   padding: 6px 10px;
@@ -883,6 +886,10 @@ summary {
   font-size: 12px;
   font-weight: 600;
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
+}
+.selection-label {
+  display: block;
+  transform: translateY(-100%);
 }
 .viewer-state {
   position: absolute;

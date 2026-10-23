@@ -86,3 +86,9 @@ export function focusBounds(
   }
   return { min, max };
 }
+
+/** Where a Selection's label sits: the top centre of its box, which turning about Z keeps in place. */
+export function labelAnchor(box: SceneObject["box"]): Point {
+  const [x, y, z] = box.center;
+  return [x, y, z + box.size[2] / 2];
+}
