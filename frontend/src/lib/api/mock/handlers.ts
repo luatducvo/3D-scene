@@ -41,20 +41,7 @@ const scenes = new Map<string, Scene>([
       })),
     },
   ],
-  // Published before Object membership existed: it shows points, and hover and highlight are off.
-  [
-    "legacy",
-    {
-      id: "legacy",
-      name: "Living room - Older publication",
-      status: "ready",
-      created_at: new Date(Date.now() - 86_400_000).toISOString(),
-      assets: { ...demoAssets, membership_url: null },
-      stage_runs: [],
-    },
-  ],
 ]);
-const messages = new Map<string, Schemas["Message"][]>();
 const stages = STAGES;
 const missing = () =>
   HttpResponse.json(
@@ -216,7 +203,6 @@ export const handlers = [
             .filter((o) =>
               [
                 o.label,
-                o.label_vi || "",
                 ...Object.values(o.attributes || {}).flat(),
               ].some((value) => value.toLowerCase().includes(q)),
             )
@@ -228,9 +214,6 @@ export const handlers = [
         : [],
     );
   }),
-  http.get(`${base}/:id/messages`, ({ params }) =>
-    HttpResponse.json(messages.get(String(params.id)) || []),
-  ),
   http.post(`${base}/:id/queries`, async ({ request }) => {
     const body = (await request.json()) as Schemas["QueryRequest"];
     void body.question;

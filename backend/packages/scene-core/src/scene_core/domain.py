@@ -26,7 +26,6 @@ class BestView(BaseModel):
 class SceneObject(BaseModel):
     id: str
     label: str
-    label_vi: str | None = None
     box: OrientedBox
     attributes: dict[str, list[str]] = Field(default_factory=dict)
     best_views: list[BestView] = Field(default_factory=list)

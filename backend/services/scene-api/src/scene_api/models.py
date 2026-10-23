@@ -55,7 +55,7 @@ class SceneAssets(BaseModel):
         default=None,
         description=(
             "Object membership of points and mesh vertices (binary, see docs/architecture/api.md); "
-            "null for a Scene published before membership existed."
+            "null, like the other URLs, only while the Scene has no Publication."
         ),
     )
 
@@ -126,10 +126,3 @@ class QueryEvent(BaseModel):
     answer: str | None = None
     object_ids: list[str] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
-
-
-class Message(BaseModel):
-    id: int
-    role: str
-    content: dict
-    created_at: datetime

@@ -7,7 +7,6 @@ import pytest
 from scene_core.contracts import STAGES
 from scene_core.domain import SceneGraph
 from scene_core.errors import SceneError
-from scene_core.resources import backend_folder
 from scene_core.results import EMBEDDING_DIM, PublishedScene
 from scene_stages.fake import OBJECTS
 from scene_store import SceneStore
@@ -17,9 +16,7 @@ pytestmark = pytest.mark.db
 
 @pytest.fixture
 def store():
-    store = SceneStore(os.environ["TEST_DATABASE_URL"])
-    store.migrate()
-    return store
+    return SceneStore(os.environ["TEST_DATABASE_URL"])
 
 
 def uploaded(store):
@@ -198,35 +195,3 @@ def test_delete_refuses_an_active_job_and_removes_the_scene(store):
     with pytest.raises(SceneError) as missing:
         store.get_scene(scene)
     assert missing.value.code == "SCENE_NOT_FOUND"
-
-
-def test_an_answered_question_is_stored_as_one_exchange(store):
-    scene = uploaded(store)
-    store.save_exchange(
-        scene,
-        {"question": "How many chairs?"},
-        {"answer": "One", "object_ids": ["chair-1"], "evidence": []},
-    )
-    with store.connect() as conn:
-        rows = conn.execute(
-            "SELECT role,content FROM messages WHERE scene_id=%s ORDER BY id", (scene,)
-        ).fetchall()
-    assert [r["role"] for r in rows] == ["user", "assistant"] and rows[1]["content"][
-        "object_ids"
-    ] == ["chair-1"]
-
-
-def test_each_migration_is_applied_once(store):
-    assert store.migrate() == []  # the fixture already migrated this database
-    with store.connect() as conn:
-        names = [
-            row["name"] for row in conn.execute("SELECT name FROM schema_migrations ORDER BY name")
-        ]
-    folder = backend_folder("migrations", "MIGRATIONS_DIR")
-    assert {path.name for path in folder.glob("*.sql")} <= set(names)
-
-
-def test_a_missing_migrations_folder_says_what_to_set(store, tmp_path, monkeypatch):
-    monkeypatch.setenv("MIGRATIONS_DIR", str(tmp_path / "missing"))
-    with pytest.raises(RuntimeError, match="MIGRATIONS_DIR"):
-        store.migrate()

@@ -59,8 +59,6 @@ export const sceneApi = {
       );
     return decodeMembership(await response.arrayBuffer());
   },
-  getMessages: (id: string) =>
-    data(typedClient.GET("/api/v1/scenes/{scene_id}/messages", scene(id))),
   /**
    * Shrinks photos to ingest's size first (the first half of progress), then sends them with
    * XMLHttpRequest, because fetch cannot report upload progress.

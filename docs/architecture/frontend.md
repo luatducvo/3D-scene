@@ -11,8 +11,6 @@
 | `/en/scenes/new` | `src/app/[locale]/scenes/new/page.tsx` | name a Scene, add files, upload |
 | `/en/scenes/{id}` | `src/app/[locale]/scenes/[sceneId]/page.tsx` | depends on the Scene's status (below) |
 
-`src/middleware.ts` redirects old `/vi/...` links to `/en/...`.
-
 The Scene page shows:
 
 - `created` or `uploaded`: `UploadDropzone` (more files) and, once uploaded, a button to process;

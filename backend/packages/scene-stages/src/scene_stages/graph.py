@@ -187,14 +187,11 @@ class GeometricGraph(StageAlgorithm):
         if radius <= 0:
             raise SceneError("INVALID_PARAMETERS", "membership_radius_m must be positive")
         instances = json.loads(workspace.path("instances/instances.json").read_text())
-        attributes_path = workspace.path("attributes/attributes.json")
-        attributes = json.loads(attributes_path.read_text()) if attributes_path.exists() else {}
-        alignment_path = workspace.path("align/manifest.json")
-        alignment = json.loads(alignment_path.read_text()) if alignment_path.exists() else {}
-        context = SceneGraphContext.model_validate(alignment)
-        wall_path = workspace.path("align/walls.json")
-        if wall_path.exists():
-            context.walls = json.loads(wall_path.read_text())
+        attributes = json.loads(workspace.path("attributes/attributes.json").read_text())
+        context = SceneGraphContext.model_validate(
+            json.loads(workspace.path("align/manifest.json").read_text())
+        )
+        context.walls = json.loads(workspace.path("align/walls.json").read_text())
         objects, lifted = [], []
         for instance in instances:
             attribute = attributes.get(instance["id"], {})
@@ -203,7 +200,6 @@ class GeometricGraph(StageAlgorithm):
                 SceneObject(
                     id=instance["id"],
                     label=instance["label"],
-                    label_vi=attribute.get("label_vi"),
                     box=fit_box(lifted[-1]),
                     attributes=attribute.get("attributes", {}),
                     best_views=instance.get("best_views", []),

@@ -1,4 +1,4 @@
-"""Scene Store: every write to Scene, Job, Stage Run, Object and chat state, and the scene_events outbox.
+"""Scene Store: every write to Scene, Job, Stage Run and Object, and the scene_events outbox.
 
 Each transition commits its rows and its events in one transaction. Read queries for the api stay in
 the api; the event stream is read here because the Store owns the event shapes.
@@ -13,11 +13,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from scene_core.contracts import STAGES
 from scene_core.errors import SceneError
-from scene_core.resources import backend_folder
 from scene_core.results import PublishedScene
-
-# Any constant: it only has to be the same in every process migrating this database.
-MIGRATION_LOCK = 7231
 
 
 def stage_event(run):
@@ -48,27 +44,6 @@ class SceneStore:
 
     def connect(self):
         return psycopg.connect(self.url, row_factory=dict_row)
-
-    def migrate(self) -> list[str]:
-        """Apply, in name order, each migration not yet recorded in schema_migrations; return their names.
-
-        The api and the worker both call this at start; an advisory lock lets one apply while the other waits.
-        """
-        folder = backend_folder("migrations", "MIGRATIONS_DIR")
-        applied = []
-        with self.connect() as conn:
-            conn.execute("SELECT pg_advisory_xact_lock(%s)", (MIGRATION_LOCK,))
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS schema_migrations(name text PRIMARY KEY,applied_at timestamptz NOT NULL DEFAULT now())"
-            )
-            done = {row["name"] for row in conn.execute("SELECT name FROM schema_migrations")}
-            for migration in sorted(folder.glob("*.sql")):
-                if migration.name in done:
-                    continue
-                conn.execute(migration.read_text())
-                conn.execute("INSERT INTO schema_migrations(name) VALUES(%s)", (migration.name,))
-                applied.append(migration.name)
-        return applied
 
     def get_scene(self, scene_id, conn=None, lock=False):
         if conn is None:
@@ -117,18 +92,6 @@ class SceneStore:
             self.get_scene(scene_id, conn, True)
             self._assert_idle(scene_id, conn)
             conn.execute("DELETE FROM scenes WHERE id=%s", (scene_id,))
-
-    def save_exchange(self, scene_id, question: dict, answer: dict):
-        """Store one answered question and its answer; unanswered questions are not kept."""
-        with self.connect() as conn:
-            conn.execute(
-                "INSERT INTO messages(scene_id,role,content) VALUES(%s,'user',%s)",
-                (scene_id, Jsonb(question)),
-            )
-            conn.execute(
-                "INSERT INTO messages(scene_id,role,content) VALUES(%s,'assistant',%s)",
-                (scene_id, Jsonb(answer)),
-            )
 
     # Jobs
     def enqueue(self, scene_id) -> str:
@@ -254,12 +217,11 @@ class SceneStore:
             conn.execute("DELETE FROM relations WHERE scene_id=%s", (scene_id,))
             for obj in graph.objects:
                 conn.execute(
-                    "INSERT INTO objects(scene_id,id,label,label_vi,box,attributes,best_views,embedding) VALUES(%s,%s,%s,%s,%s,%s,%s,%s::vector)",
+                    "INSERT INTO objects(scene_id,id,label,box,attributes,best_views,embedding) VALUES(%s,%s,%s,%s,%s,%s,%s::vector)",
                     (
                         scene_id,
                         obj.id,
                         obj.label,
-                        obj.label_vi,
                         Jsonb(obj.box.model_dump()),
                         Jsonb(obj.attributes),
                         Jsonb([v.model_dump() for v in obj.best_views]),

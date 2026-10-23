@@ -460,50 +460,6 @@
         }
       }
     },
-    "/api/v1/scenes/{scene_id}/messages": {
-      "get": {
-        "summary": "List Messages",
-        "operationId": "list_messages_api_v1_scenes__scene_id__messages_get",
-        "parameters": [
-          {
-            "name": "scene_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Scene Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Message"
-                  },
-                  "title": "Response List Messages Api V1 Scenes  Scene Id  Messages Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/scenes/{scene_id}/queries": {
       "post": {
         "summary": "Ask",
@@ -753,36 +709,6 @@
         ],
         "title": "JobCreated"
       },
-      "Message": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "role": {
-            "type": "string",
-            "title": "Role"
-          },
-          "content": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Content"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "role",
-          "content",
-          "created_at"
-        ],
-        "title": "Message"
-      },
       "OrientedBox": {
         "properties": {
           "center": {
@@ -959,7 +885,7 @@
               }
             ],
             "title": "Membership Url",
-            "description": "Object membership of points and mesh vertices (binary, see docs/architecture/api.md); null for a Scene published before membership existed."
+            "description": "Object membership of points and mesh vertices (binary, see docs/architecture/api.md); null, like the other URLs, only while the Scene has no Publication."
           }
         },
         "type": "object",
@@ -1062,17 +988,6 @@
           "label": {
             "type": "string",
             "title": "Label"
-          },
-          "label_vi": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label Vi"
           },
           "box": {
             "$ref": "#/components/schemas/OrientedBox"

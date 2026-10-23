@@ -210,11 +210,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
         )}
         {highlighting !== "available" && (
           <div className="asset-notice" role="status">
-            {t(
-              highlighting === "reprocess"
-                ? "ui.reprocessForHighlight"
-                : "ui.highlightFailed",
-            )}
+            {t("ui.highlightFailed")}
           </div>
         )}
         <div className="viewer-topbar">

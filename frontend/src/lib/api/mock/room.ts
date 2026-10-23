@@ -6,7 +6,6 @@ export const demoObjects: SceneObject[] = [
   {
     id: "sofa-1",
     label: "sofa",
-    label_vi: "Sofa",
     box: { center: [2.3, 3.35, 0.55], size: [2.6, 0.85, 1.1], yaw: 0 },
     attributes: { color: ["green"], material: ["fabric"] },
     best_views: [],
@@ -14,7 +13,6 @@ export const demoObjects: SceneObject[] = [
   {
     id: "table-1",
     label: "coffee table",
-    label_vi: "Bàn cà phê",
     box: { center: [2.55, 1.975, 0.29], size: [1.3, 0.75, 0.58], yaw: 0 },
     attributes: { material: ["wood"] },
     best_views: [],
@@ -22,7 +20,6 @@ export const demoObjects: SceneObject[] = [
   {
     id: "plant-1",
     label: "plant",
-    label_vi: "Chậu cây",
     box: { center: [4.45, 3.55, 0.65], size: [0.7, 0.7, 1.3], yaw: 0 },
     attributes: { color: ["green"] },
     best_views: [],
@@ -31,7 +28,6 @@ export const demoObjects: SceneObject[] = [
   {
     id: "pot-1",
     label: "flower pot",
-    label_vi: "Chậu hoa",
     box: { center: [4.48, 3.58, 0.2], size: [0.36, 0.36, 0.4], yaw: 0 },
     attributes: { material: ["ceramic"] },
     best_views: [],

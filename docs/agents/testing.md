@@ -16,7 +16,7 @@ Without Docker, run `uv run main.py test-unit` instead of `test`, and say in the
 
 - Tests live in `backend/tests/`, one file per module or Stage (`test_<area>.py`).
 - Automated tests never need a GPU, model weights, a network service or an LLM. They select Fake Algorithms through `backend/config/pipeline.fake.yaml` and answer questions with `ScriptedLLM` from `scene_api.qa`, which replays prepared replies.
-- A test that needs Postgres sets `pytestmark = pytest.mark.db` and reads `TEST_DATABASE_URL`. `main.py test` starts the `scene-test-db` container on port 15432 and sets that variable; `test-unit` skips the `db` marker.
+- A test that needs Postgres sets `pytestmark = pytest.mark.db` and reads `TEST_DATABASE_URL`. `main.py test` recreates the `scene-test-db` container on port 15432 from `backend/migrations/001_init.sql` and sets that variable; `test-unit` skips the `db` marker.
 - Build systems under test through their constructor seams rather than patching:
   - `scene_api.main.create_app(database_url, data_dir, pipeline, compute, llm, target)`
   - `scene_worker.runner.Worker(database_url, data_dir, pipeline, compute, target)`

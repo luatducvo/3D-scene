@@ -44,7 +44,7 @@ class SceneResults:
         self.workspace = workspace
 
     def load(self) -> PublishedScene:
-        """Read the Scene Graph and Object embeddings and check they agree, before any transaction opens."""
+        """Read the Scene Graph and Object embeddings, check they agree and that every viewer asset exists, before any transaction opens."""
         try:
             graph = SceneGraph.model_validate_json(
                 self.workspace.path(self.GRAPH).read_text(encoding="utf-8")
@@ -72,16 +72,18 @@ class SceneResults:
             )
         if not np.isfinite(vectors).all():
             raise SceneError("RESULTS_INVALID", "Embeddings contain non-finite values")
+        missing = [path for path in self.ASSETS.values() if not self.workspace.path(path).is_file()]
+        if missing:
+            raise SceneError(
+                "RESULTS_INVALID", f"Published results are missing {', '.join(missing)}"
+            )
         self._check_membership(object_ids)
         return PublishedScene(graph, dict(zip(ids, vectors, strict=True)))
 
     def _check_membership(self, object_ids: list[str]) -> None:
-        """A membership file, when present, must decode and list the Scene Graph's Objects in order."""
-        path = self.workspace.path(self.MEMBERSHIP)
-        if not path.is_file():
-            return
+        """The membership file must decode and list the Scene Graph's Objects in order."""
         try:
-            membership = ObjectMembership.decode(path.read_bytes())
+            membership = ObjectMembership.decode(self.workspace.path(self.MEMBERSHIP).read_bytes())
         except (OSError, ValueError) as exc:
             raise SceneError("RESULTS_INVALID", f"Object membership is unreadable: {exc}") from exc
         if membership.ids != object_ids:
@@ -89,12 +91,9 @@ class SceneResults:
                 "RESULTS_INVALID", "Object membership and the Scene Graph list different Objects"
             )
 
-    def assets(self) -> dict[str, str | None]:
-        """Workspace-relative paths of the viewer assets that exist, keyed as ASSETS; None when absent."""
-        return {
-            key: path if self.workspace.path(path).is_file() else None
-            for key, path in self.ASSETS.items()
-        }
+    def assets(self) -> dict[str, str]:
+        """Workspace-relative paths of the viewer assets, keyed as ASSETS; load() checked each exists."""
+        return dict(self.ASSETS)
 
     @classmethod
     def is_public(cls, file_path: str) -> bool:

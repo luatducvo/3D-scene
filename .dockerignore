@@ -12,8 +12,6 @@ backend/*
 !backend/services/**
 !backend/config/
 !backend/config/**
-!backend/migrations/
-!backend/migrations/**
 !frontend/
 !frontend/**
 

@@ -184,7 +184,7 @@ function useObjectHighlighting(
   );
 }
 
-/** Report whether the membership fits the loaded geometry, so the viewer can ask for a reprocess. */
+/** Report whether the membership fits the loaded geometry, so the viewer can show the mismatch as a failure. */
 function useMembershipFit(
   mode: ViewMode,
   membership: Membership | null,
@@ -194,7 +194,7 @@ function useMembershipFit(
     const mismatch = Boolean(membership && !usable);
     if (mismatch)
       console.warn(
-        `Object membership does not match the ${mode} geometry; reprocess the Scene.`,
+        `Object membership does not match the ${mode} geometry.`,
       );
     useViewer.getState().setMembershipMismatch(mode, mismatch);
     return () => useViewer.getState().setMembershipMismatch(mode, false);

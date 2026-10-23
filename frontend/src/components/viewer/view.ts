@@ -16,19 +16,20 @@ export function showMode(layers: Layers, mode: ViewMode): Layers {
   return { ...layers, points: mode === "points", mesh: mode === "mesh" };
 }
 /**
- * Whether Objects can be hovered and highlighted in the shown view. A Scene published before
- * membership existed, or whose membership does not match the shown geometry, needs reprocessing.
+ * Whether Objects can be hovered and highlighted in the shown view. A Publication without
+ * membership, or whose membership does not match the shown geometry, is a failure.
  */
 export function highlightState(
   assets: Assets,
   membership: "pending" | "error" | "success",
   mismatch: Partial<Record<ViewMode, boolean>>,
   mode: ViewMode | null,
-): "available" | "reprocess" | "failed" {
+): "available" | "failed" {
   // Without geometry there is nothing to highlight, and the viewer says so already.
   if (!mode || !(assets.points_url || assets.mesh_url)) return "available";
-  if (!assets.membership_url || mismatch[mode]) return "reprocess";
-  return membership === "error" ? "failed" : "available";
+  return !assets.membership_url || mismatch[mode] || membership === "error"
+    ? "failed"
+    : "available";
 }
 export function viewMode(layers: Layers): ViewMode | null {
   return layers.points ? "points" : layers.mesh ? "mesh" : null;

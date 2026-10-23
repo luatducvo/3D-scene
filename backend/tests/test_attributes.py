@@ -17,9 +17,7 @@ def test_vlm_records_valid_attributes_and_counts_malformed_output(tmp_path, monk
             )
             label = body["messages"][1]["content"][0]["text"].split()[2].rstrip(".")
             content = (
-                json.dumps({"label_vi": "cốc", "attributes": {"color": ["red"]}})
-                if label == "cup"
-                else "not JSON"
+                json.dumps({"attributes": {"color": ["red"]}}) if label == "cup" else "not JSON"
             )
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -80,7 +78,7 @@ def test_vlm_request_that_never_completes_fails_only_its_object(tmp_path, monkey
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            content = json.dumps({"label_vi": "cốc", "attributes": {"color": ["red"]}})
+            content = json.dumps({"attributes": {"color": ["red"]}})
             self.wfile.write(json.dumps({"choices": [{"message": {"content": content}}]}).encode())
 
         def log_message(self, *args):
@@ -106,7 +104,7 @@ def test_vlm_request_that_never_completes_fails_only_its_object(tmp_path, monkey
     result = json.loads(workspace.path("attributes/attributes.json").read_text(encoding="utf-8"))
     errors = json.loads(workspace.path("attributes/errors.json").read_text(encoding="utf-8"))
     assert result["lamp-1"] == {} and errors[0]["object_id"] == "lamp-1"
-    assert result["cup-1"]["label_vi"] == "cốc"
+    assert result["cup-1"]["attributes"]["color"] == ["red"]
     assert Handler.calls.count("lamp") == 2 and Handler.calls.count("cup") == 2
     assert manifest.invalid_outputs == 1
 
@@ -121,7 +119,7 @@ def test_vlm_requests_run_in_parallel_and_merge_extra_body(tmp_path, monkeypatch
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             Handler.bodies.append(body)
             time.sleep(0.5)
-            content = json.dumps({"label_vi": "ghế", "attributes": {"color": ["blue"]}})
+            content = json.dumps({"attributes": {"color": ["blue"]}})
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -152,7 +150,7 @@ def test_vlm_requests_run_in_parallel_and_merge_extra_body(tmp_path, monkeypatch
     assert time.monotonic() - start < 2  # six 0.5 s answers, sequential would take 3 s
     result = json.loads(workspace.path("attributes/attributes.json").read_text(encoding="utf-8"))
     assert list(result) == [item["id"] for item in instances]
-    assert all(value["label_vi"] == "ghế" for value in result.values())
+    assert all(value["attributes"]["color"] == ["blue"] for value in result.values())
     assert all(
         body["reasoning"] == {"enabled": False}
         and body["max_tokens"] == 200

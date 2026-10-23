@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from scene_api.main import create_app
 from scene_core.config import ComputeConfig, PipelineConfig, TargetConfig
 from scene_core.membership import ObjectMembership
-from scene_core.results import EMBEDDING_DIM, SceneResults
+from scene_core.results import EMBEDDING_DIM
 from scene_target import open_target_workspace
 from scene_worker.runner import Worker
 
@@ -154,7 +154,7 @@ def test_search_keeps_hits_near_the_best_score_and_every_label_match(client):
             ("armchair-1", 0.0, "armchair"),
         ):
             conn.execute(
-                "INSERT INTO objects(scene_id,id,label,label_vi,box,embedding) VALUES(%s,%s,%s,NULL,%s,%s::vector)",
+                "INSERT INTO objects(scene_id,id,label,box,embedding) VALUES(%s,%s,%s,%s,%s::vector)",
                 (
                     scene,
                     object_id,
@@ -201,17 +201,16 @@ def test_qa_counts_are_not_cut_like_get_search(client):
     handles = [f"door-handle-{i}" for i in range(14)]
     stools = [f"stool-{i}" for i in range(11)]
     with client.app.state.store.connect() as conn:
-        for object_id, label, label_vi, similarity in (
-            *((i, "door handle", "tay nắm cửa", 0.0) for i in handles),
-            *((i, "stool", None, 0.5) for i in stools),
+        for object_id, label, similarity in (
+            *((i, "door handle", 0.0) for i in handles),
+            *((i, "stool", 0.5) for i in stools),
         ):
             conn.execute(
-                "INSERT INTO objects(scene_id,id,label,label_vi,box,embedding) VALUES(%s,%s,%s,%s,%s,%s::vector)",
+                "INSERT INTO objects(scene_id,id,label,box,embedding) VALUES(%s,%s,%s,%s,%s::vector)",
                 (
                     scene,
                     object_id,
                     label,
-                    label_vi,
                     Jsonb({"center": [0, 0, 0], "size": [0.1, 0.1, 0.1], "yaw": 0}),
                     embedding(similarity),
                 ),
@@ -235,38 +234,43 @@ def test_qa_counts_are_not_cut_like_get_search(client):
     ] == ["chair-1"]
 
 
-def test_grounded_qa_is_independent_and_preserves_only_old_messages(client):
+def test_grounded_qa_answers_each_question_independently(client):
     from scene_api.qa import ScriptedLLM
 
     prefix = uploaded(client)
     client.post(prefix + "/process", json={})
     worker(client).run_once()
-    scene_id = prefix.rsplit("/", 1)[1]
-    client.app.state.store.save_exchange(
-        scene_id, {"question": "previous-secret-question"}, {"answer": "previous-secret-answer"}
-    )
-    previous = client.get(prefix + "/messages").json()
 
-    class IndependentLLM(ScriptedLLM):
+    class RecordingLLM(ScriptedLLM):
+        def __init__(self, responses):
+            super().__init__(responses)
+            self.seen = []
+
         def complete(self, messages, tools):
-            assert "previous-secret" not in str(messages)
+            self.seen.append(str(messages))
             assert "English" in messages[0]["content"]
             return super().complete(messages, tools)
 
-    for question in ("How many chairs?", "What is here?"):
-        client.app.state.llm = IndependentLLM(
-            [call("count_objects", {"label": "chair"}), {"content": "There is 1 chair."}]
-        )
+    seen = {}
+    for question, answer in (
+        ("How many chairs?", "There is 1 chair."),
+        ("Which chair is it?", "It is chair-1."),
+    ):
+        llm = RecordingLLM([call("count_objects", {"label": "chair"}), {"content": answer}])
+        client.app.state.llm, seen[question] = llm, llm.seen
         response = client.post(prefix + "/queries", json={"question": question})
         assert response.status_code == 200
         assert "event: tool" in response.text and "event: delta" in response.text
         assert "event: final" in response.text and "chair-1" in response.text
-        assert "There is 1 chair." in response.text
-        assert client.get(prefix + "/messages").json() == previous
+        assert answer in response.text
+
+    second = seen["Which chair is it?"]
+    assert second and not any(
+        "How many chairs?" in messages or "There is 1 chair." in messages for messages in second
+    )
 
     client.app.state.llm = ScriptedLLM([])
     assert "event: error" in client.post(prefix + "/queries", json={"question": "fails"}).text
-    assert client.get(prefix + "/messages").json() == previous
 
 
 def call(name, arguments, id="1"):
@@ -624,18 +628,6 @@ def test_stage_progress_is_throttled_stored_and_replayed(client):
         500,
         "step",
     )
-
-
-def test_a_scene_published_before_membership_reports_no_membership_url(client):
-    prefix = uploaded(client)
-    client.post(prefix + "/process", json={})
-    worker(client).run_once()
-    scene = prefix.rsplit("/", 1)[1]
-    [version] = list((client.app.state.data_dir / "scenes" / scene).iterdir())
-    (version / SceneResults.MEMBERSHIP).unlink()
-    assets = client.get(prefix).json()["assets"]
-    assert assets["membership_url"] is None
-    assert assets["mesh_url"] and assets["points_url"]
 
 
 def test_unpublished_scenes_do_not_serve_flat_result_folders(client):

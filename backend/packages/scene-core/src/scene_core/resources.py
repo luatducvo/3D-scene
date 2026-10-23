@@ -1,4 +1,4 @@
-"""Folders the backend reads at run time (backend/migrations, backend/config)."""
+"""Folders the backend reads at run time (backend/config)."""
 
 import os
 from pathlib import Path

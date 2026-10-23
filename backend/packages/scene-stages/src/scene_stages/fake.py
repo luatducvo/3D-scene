@@ -27,7 +27,6 @@ OBJECTS = [
     {
         "id": "chair-1",
         "label": "chair",
-        "label_vi": "ghế",
         "box": {"center": [1, 1, 0.5], "size": [0.5, 0.5, 1], "yaw": 0},
         "attributes": {"color": ["red"], "material": ["wood"]},
         "best_views": [{"frame_id": "0000", "bbox": [0, 0, 16, 16], "score": 1}],
@@ -35,7 +34,6 @@ OBJECTS = [
     {
         "id": "table-1",
         "label": "table",
-        "label_vi": "bàn",
         "box": {"center": [2, 1, 0.4], "size": [1, 1, 0.8], "yaw": 0},
         "attributes": {"color": ["brown"], "material": ["wood"]},
         "best_views": [{"frame_id": "0000", "bbox": [0, 0, 16, 16], "score": 1}],
@@ -104,6 +102,7 @@ class AlignFake(Fake):
         import shutil
 
         shutil.copyfile(w.path("recon/frames/0000.npz"), w.dir("align", "frames") / "0000.npz")
+        w.path("align/walls.json").write_text("[]")
         return AlignManifest(world_to_aligned=np.eye(4).tolist(), floor_z=0, ceiling_height=2.5)
 
 
@@ -280,12 +279,7 @@ class AttributesFake(Fake):
 
     def transform(self, w, p):
         w.dir("attributes").joinpath("attributes.json").write_text(
-            json.dumps(
-                {
-                    o["id"]: {"attributes": o["attributes"], "label_vi": o["label_vi"]}
-                    for o in OBJECTS
-                }
-            )
+            json.dumps({o["id"]: {"attributes": o["attributes"]} for o in OBJECTS})
         )
         return AttributesManifest(num_objects=2)
 

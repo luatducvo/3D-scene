@@ -18,7 +18,6 @@ All under `/api/v1/scenes`.
 | `GET /{scene}/objects`, `GET /{scene}/objects/{object}` | Objects of the current Publication |
 | `GET /{scene}/search?q=` | Search Hits |
 | `POST /{scene}/queries` `{question, camera?}` | SSE answer stream |
-| `GET /{scene}/messages` | stored questions and answers (none are stored today; see below) |
 | `GET /{scene}/publications/{job}/files/{path}` | a public file of a Publication |
 
 ## Scene lifecycle
@@ -63,11 +62,10 @@ The query is embedded on the Target with the embed Stage's Algorithm and compare
 - More than six steps fails with `QA_STEP_LIMIT`.
 - `relative_direction` from the user's viewpoint needs the `camera` sent with the question.
 - The stream sends `tool` events, one `delta`, then `final` with `answer`, `object_ids` and `evidence` (the first Best View Frame id of each Object; Frame images are not published).
-- Answers are not stored: nothing calls `SceneStore.save_exchange`, so `messages` stays empty and `GET /messages` returns `[]`.
 
 ## Database
 
-`backend/migrations/`, applied in name order at API and worker start and recorded in `schema_migrations`.
+`backend/migrations/001_init.sql` is the whole schema. Postgres runs it once, when its data volume is created (Compose mounts the folder as `docker-entrypoint-initdb.d`); the API and the worker never change the schema. A schema change edits this file and resets the database (`uv run main.py reset`).
 
 | Table | Holds |
 | --- | --- |
@@ -76,7 +74,6 @@ The query is embedded on the Target with the embed Stage's Algorithm and compare
 | `stage_runs` | one row per Stage of the latest Job: Algorithm, status, Manifest, error, progress, times |
 | `objects` | the current Publication's Objects with a `vector(1024)` embedding (HNSW cosine index) |
 | `relations` | the current Publication's Relations |
-| `messages` | questions and answers; unused today |
 | `scene_events` | the progress outbox read by `GET /events` |
 
 ## Object membership file

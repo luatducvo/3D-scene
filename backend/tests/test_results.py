@@ -58,17 +58,20 @@ def test_load_reports_missing_results(workspace):
     assert error.value.code == "RESULTS_INVALID"
 
 
-def test_assets_name_existing_viewer_files_only(workspace):
-    results = SceneResults(workspace)
-    assert results.assets() == {
+def test_assets_name_every_viewer_file(workspace):
+    assert SceneResults(workspace).assets() == {
         "mesh": "mesh/mesh.glb",
         "points": "mesh/points.ply",
         "membership": "graph/membership.bin",
     }
-    workspace.path("mesh/points.ply").unlink()
-    workspace.path(SceneResults.MEMBERSHIP).unlink()
-    assert results.assets()["points"] is None
-    assert results.assets()["membership"] is None
+
+
+@pytest.mark.parametrize("path", SceneResults.ASSETS.values())
+def test_load_rejects_a_publication_missing_a_viewer_file(workspace, path):
+    workspace.path(path).unlink()
+    with pytest.raises(SceneError, match=path) as error:
+        SceneResults(workspace).load()
+    assert error.value.code == "RESULTS_INVALID"
 
 
 def test_membership_is_the_only_public_file_outside_mesh(workspace):
@@ -144,7 +147,6 @@ def test_only_mesh_files_and_membership_are_public(workspace, path):
 @pytest.mark.db
 def test_embedding_dim_matches_the_objects_embedding_column():
     store = SceneStore(os.environ["TEST_DATABASE_URL"])
-    store.migrate()
     with store.connect() as conn:
         column = conn.execute(
             "SELECT format_type(atttypid,atttypmod) AS type FROM pg_attribute "

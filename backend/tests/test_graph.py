@@ -64,6 +64,16 @@ def write_instances(workspace, lifted):
             }
         )
     workspace.path("instances/instances.json").write_text(json.dumps(instances))
+    write_graph_inputs(workspace)
+
+
+def write_graph_inputs(workspace):
+    """The attributes and align outputs graph reads besides instances and mesh, all empty."""
+    workspace.dir("attributes").joinpath("attributes.json").write_text("{}")
+    workspace.dir("align").joinpath("manifest.json").write_text(
+        json.dumps({"world_to_aligned": np.eye(4).tolist(), "floor_z": 0})
+    )
+    workspace.path("align/walls.json").write_text("[]")
 
 
 def grid(low, high, step=0.02):
@@ -115,6 +125,15 @@ def test_members_within_matches_a_brute_force_search():
             continue
         distance = np.linalg.norm(targets[:, None] - group[None], axis=-1).min(axis=1)
         assert members.tolist() == np.flatnonzero(distance <= 0.05).tolist()
+
+
+def test_graph_without_walls_fails(tmp_path):
+    workspace = SceneWorkspace(tmp_path, "fixture")
+    write_instances(workspace, {"cup": grid((0, 0, 1), (0.1, 0.1, 1.1))})
+    write_mesh(workspace, np.zeros((1, 3)), np.zeros((3, 3)))
+    workspace.path("align/walls.json").unlink()
+    with pytest.raises(FileNotFoundError, match=r"walls\.json"):
+        GeometricGraph().run(workspace, {"relations": []})
 
 
 def test_a_non_positive_membership_radius_is_invalid_parameters(tmp_path):
@@ -216,6 +235,7 @@ def test_graph_keeps_instance_id_and_writes_only_graph(tmp_path):
         )
     )
     write_mesh(workspace, np.zeros((1, 3)), np.zeros((3, 3)))
+    write_graph_inputs(workspace)
     before = workspace.path("instances/instances.json").read_bytes()
     result = GeometricGraph().run(workspace, {"relations": []})
     graph = json.loads(workspace.path("graph/scene_graph.json").read_text())

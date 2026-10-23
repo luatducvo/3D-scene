@@ -17,10 +17,8 @@ import {
 } from "./viewer/highlight";
 import { PipelineInspector } from "./PipelineInspector";
 import { Header } from "./Header";
-import { SceneExplorer } from "./SceneExplorer";
 import { SearchStatus } from "./SearchStatus";
 import en from "../../messages/en.json";
-import vi from "../../messages/vi.json";
 
 // The mock SceneApi that mock mode serves in the browser.
 const server = setupServer(...handlers);
@@ -31,9 +29,9 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-const render = (node: React.ReactNode, locale = "en", messages: object = en) =>
+const render = (node: React.ReactNode) =>
   renderToStaticMarkup(
-    <NextIntlClientProvider locale={locale} timeZone="UTC" messages={messages}>
+    <NextIntlClientProvider locale="en" timeZone="UTC" messages={en}>
       <QueryClientProvider client={new QueryClient()}>
         {node}
       </QueryClientProvider>
@@ -77,57 +75,31 @@ test("search paints raw semantic similarity on matched geometry and dims the res
   for (let c = 0; c < 3; c++) expect(colors[c]).toBeCloseTo(base[c] * DIM);
 });
 
-test.each([
-  ["en", en],
-  ["vi", vi],
-] as const)(
-  "an unavailable GPU Target shows a localized search message in %s",
-  async (locale, messages) => {
-    server.use(
-      http.get(`${apiOrigin}/api/v1/scenes/:id/search`, () =>
-        HttpResponse.json(
-          {
-            error: {
-              code: "COMPUTE_UNAVAILABLE",
-              message: "Target gpu has no URL",
-            },
+test("an unavailable GPU Target shows a localized search message", async () => {
+  server.use(
+    http.get(`${apiOrigin}/api/v1/scenes/:id/search`, () =>
+      HttpResponse.json(
+        {
+          error: {
+            code: "COMPUTE_UNAVAILABLE",
+            message: "Target gpu has no URL",
           },
-          { status: 503 },
-        ),
+        },
+        { status: 503 },
       ),
-    );
-    const error = await sceneApi.searchObjects("demo", "chair").catch((e) => e);
-    const markup = render(
-      <SearchStatus
-        fetching={false}
-        error={error}
-        count={0}
-        onClear={() => {}}
-      />,
-      locale,
-      messages,
-    );
-    expect(markup).toContain(messages.searchErrors.COMPUTE_UNAVAILABLE);
-    expect(markup).not.toContain("Target gpu has no URL");
-  },
-);
-
-test("a Scene published before membership shows its points and asks for a reprocess", async () => {
-  const legacy = await sceneApi.getScene("legacy");
-  expect(legacy.assets?.points_url).toBeTruthy();
-  expect(render(<SceneExplorer scene={legacy} />)).toContain(
-    en.ui.reprocessForHighlight,
+    ),
   );
-  const current = await sceneApi.getScene("demo");
-  expect(render(<SceneExplorer scene={current} />)).not.toContain(
-    en.ui.reprocessForHighlight,
+  const error = await sceneApi.searchObjects("demo", "chair").catch((e) => e);
+  const markup = render(
+    <SearchStatus fetching={false} error={error} count={0} onClear={() => {}} />,
   );
+  expect(markup).toContain(en.searchErrors.COMPUTE_UNAVAILABLE);
+  expect(markup).not.toContain("Target gpu has no URL");
 });
 
 test("navigation is English-only and offers no language switch", () => {
   const markup = render(<Header />);
   expect(markup).not.toContain("language-switch");
-  expect(markup).not.toContain('href="/vi"');
 });
 
 test("Inspector explains Stage inputs and missing execution facts without a Target", async () => {

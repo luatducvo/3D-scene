@@ -147,17 +147,15 @@ def disk_usage(_):
 
 
 def ensure_test_database():
+    """A fresh test database each run, so it always has the current backend/migrations/001_init.sql."""
     require_docker()
-    state = subprocess.run(
-        ["docker", "inspect", "-f", "{{.State.Running}}", TEST_DB], capture_output=True, text=True
-    )
-    if state.returncode != 0:
-        keys = ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB")
-        credentials = [flag for key in keys for flag in ("-e", f"{key}=scene")]
-        container = ["--name", TEST_DB, "-p", f"127.0.0.1:{TEST_DB_PORT}:5432", *credentials]
-        run("docker", "run", "-d", *container, "pgvector/pgvector:pg16")
-    elif state.stdout.strip() != "true":
-        run("docker", "start", TEST_DB)
+    subprocess.run(["docker", "rm", "-f", TEST_DB], capture_output=True)
+    keys = ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB")
+    credentials = [flag for key in keys for flag in ("-e", f"{key}=scene")]
+    schema = f"{BACKEND / 'migrations'}:/docker-entrypoint-initdb.d:ro"
+    container = ["--name", TEST_DB, "-p", f"127.0.0.1:{TEST_DB_PORT}:5432", "-v", schema]
+    run("docker", "run", "-d", *container, *credentials, "pgvector/pgvector:pg16")
+    # Over TCP: the server that runs initdb.d listens only on its socket, so this waits for the schema.
     ready = ["docker", "exec", TEST_DB, "pg_isready", "-U", "scene", "-h", "127.0.0.1"]
     for _ in range(60):
         if subprocess.run(ready, capture_output=True).returncode == 0:

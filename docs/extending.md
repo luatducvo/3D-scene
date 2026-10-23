@@ -32,7 +32,7 @@ Each recipe lists every file the change touches. Finish with the done check in [
 
 ## A new database column or table
 
-Add the next numbered file to `backend/migrations/`, written so it can run on a database that already has it (`IF NOT EXISTS`), and change the `SceneStore` writes and the API reads that use it.
+Change `backend/migrations/001_init.sql`, the one schema file, and the `SceneStore` writes and the API reads that use it. Existing databases do not pick the change up: reset yours with `uv run main.py reset` (this deletes every Scene); the test database is recreated on each `main.py test`.
 
 ## A new viewer layer
 

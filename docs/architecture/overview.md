@@ -9,7 +9,7 @@ A user creates a Scene, uploads photos or one video of a room, and starts a Job.
 | frontend | `frontend/` | Next.js app; talks only to scene-api |
 | scene-api | `backend/services/scene-api` | REST and SSE API; stores uploads on the Target; serves Publication files; Search and question answering |
 | scene-worker | `backend/services/scene-worker` | claims queued Jobs, runs every Stage on the Target, publishes |
-| Postgres + pgvector | `backend/migrations` | Scenes, Jobs, Stage Runs, Objects with embeddings, Relations, messages, events |
+| Postgres + pgvector | `backend/migrations/001_init.sql` | Scenes, Jobs, Stage Runs, Objects with embeddings, Relations, events |
 | scene-compute | `backend/services/scene-compute` | optional; runs Algorithms on a GPU host behind an HTTP contract |
 
 Compose (`compose.yaml`) runs these under three profiles: `backend` (Postgres, scene-api, scene-worker), `frontend`, and `local-gpu` (scene-compute on this machine). `uv run main.py up` starts the first two.
@@ -30,7 +30,7 @@ Progress reaches the browser as `scene_events` rows that the store writes with e
 | `main.py` | project commands (`uv run main.py --help`) |
 | `backend/packages/scene-core/src/scene_core/` | `domain.py` Scene Graph models · `contracts.py` Stages, Workspace paths, Manifests · `ports.py` `StageAlgorithm`, `RelationRule` · `config.py` pipeline and compute config · `executor.py` runs an Algorithm in a Workspace · `registry.py` entry-point lookup · `results.py` Publication files · `membership.py` membership binary · `geometry.py` boxes, distances, directions · `errors.py` `SceneError` |
 | `backend/packages/scene-stages/src/scene_stages/` | `ingest.py` · `gpu.py` recon, align, segment, embed · `mesh.py` · `lift.py` · `attributes.py` · `graph.py` Scene Graph and Relation rules · `fake.py` Fake Algorithms · `arrays.py` NumPy/CuPy choice |
-| `backend/packages/scene-store/` | `SceneStore`: migrations, every write, the event stream |
+| `backend/packages/scene-store/` | `SceneStore`: every write, the event stream |
 | `backend/packages/scene-target/` | `TargetWorkspace`, `open_target_workspace`, in-process and HTTP adapters |
 | `backend/services/scene-api/` | `main.py` routes and Search ranking · `models.py` API models · `qa.py` QA agent and tools |
 | `backend/services/scene-worker/` | `runner.py` the Job loop |

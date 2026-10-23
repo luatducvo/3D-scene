@@ -3,12 +3,11 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Html, Line } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
-import { useFormatter, useLocale, useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { sceneLayers, type SceneLayerProps } from "./layers";
 import { attachCamera, focus } from "./camera";
 import { pickAt } from "./picking";
 import { focusBounds, homePose, visibleBounds } from "./view";
-import { objectLabel } from "../../lib/api/types";
 import { useViewer } from "../../lib/store/viewerStore";
 
 /** A press that moves less than this many pixels is a click, not an orbit or pan. */
@@ -92,8 +91,7 @@ function Picker({
 }
 /** The hovered Object's label next to the cursor. */
 function HoverLabel({ objects }: Pick<SceneLayerProps, "objects">) {
-  const locale = useLocale(),
-    hovered = useViewer((s) => s.hovered);
+  const hovered = useViewer((s) => s.hovered);
   const object = hovered && objects.find((o) => o.id === hovered.id);
   if (!hovered || !object) return null;
   return (
@@ -102,7 +100,7 @@ function HoverLabel({ objects }: Pick<SceneLayerProps, "objects">) {
       role="tooltip"
       style={{ left: hovered.x + 14, top: hovered.y + 14 }}
     >
-      {objectLabel(object, locale)}
+      {object.label}
     </div>
   );
 }

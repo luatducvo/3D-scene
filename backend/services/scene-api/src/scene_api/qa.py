@@ -163,7 +163,6 @@ class SceneTools:
         return {
             "id": obj["id"],
             "label": obj["label"],
-            "label_vi": obj.get("label_vi"),
             "size_m": [round(v, 3) for v in obj["box"]["size"]],
             "center_m": [round(v, 3) for v in obj["box"]["center"]],
         }

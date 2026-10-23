@@ -31,7 +31,7 @@ test("switching the view mode shows exactly one room layer", () => {
   expect(viewMode(layers)).toBe("mesh");
 });
 
-test("highlighting needs published membership that fits the shown geometry", () => {
+test("highlighting fails without membership, or with membership that does not fit the shown geometry", () => {
   const assets = { points_url: "p.ply", membership_url: "m.bin" };
   expect(highlightState(assets, "success", {}, "points")).toBe("available");
   expect(highlightState(assets, "pending", {}, "points")).toBe("available");
@@ -43,13 +43,13 @@ test("highlighting needs published membership that fits the shown geometry", () 
       {},
       "points",
     ),
-  ).toBe("reprocess");
+  ).toBe("failed");
   // Only the shown layer's fit matters.
   expect(highlightState(assets, "success", { mesh: true }, "points")).toBe(
     "available",
   );
   expect(highlightState(assets, "success", { points: true }, "points")).toBe(
-    "reprocess",
+    "failed",
   );
   // Without geometry the viewer already says there is nothing to show.
   expect(highlightState({}, "pending", {}, "points")).toBe("available");

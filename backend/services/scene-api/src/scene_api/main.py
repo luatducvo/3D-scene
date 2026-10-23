@@ -4,7 +4,6 @@ import os
 import re
 import shutil
 import uuid
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -21,7 +20,6 @@ from scene_target import delete_quietly, open_target_workspace
 
 from .models import (
     JobCreated,
-    Message,
     QueryEvent,
     QueryRequest,
     SceneCreate,
@@ -41,12 +39,9 @@ TOOL_MIN_SCORE = 0.15
 
 
 def label_matches(obj, query):
-    """The query contains the Object's label or Vietnamese label, or the reverse."""
-    query = query.lower()
-    return any(
-        label and (query in label.lower() or label.lower() in query)
-        for label in (obj["label"], obj["label_vi"])
-    )
+    """The query contains the Object's label, or the reverse."""
+    query, label = query.lower(), obj["label"].lower()
+    return query in label or label in query
 
 
 def _best_first(hits):
@@ -91,12 +86,7 @@ def create_app(
     )
     data_dir = Path(data_dir or os.getenv("DATA_DIR", "data"))
 
-    @asynccontextmanager
-    async def lifespan(app):
-        store.migrate()
-        yield
-
-    app = FastAPI(title="Scene Understanding API", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="Scene Understanding API", version="1.0.0")
     app.state.store = store
     app.state.data_dir = data_dir
     app.state.target = target
@@ -162,9 +152,7 @@ def create_app(
             ).fetchall()
         scene["stage_runs"] = sorted(stages, key=lambda s: STAGES.index(s["stage"]))
         assets = SceneResults(published(row)).assets() if row["publication"] else {}
-        scene["assets"] = {
-            f"{key}_url": url(request, row, path) if path else None for key, path in assets.items()
-        }
+        scene["assets"] = {f"{key}_url": url(request, row, path) for key, path in assets.items()}
         scene["ingest_report"] = next(
             (s["manifest"] for s in stages if s["stage"] == "ingest"), None
         )
@@ -243,7 +231,7 @@ def create_app(
         with store.connect() as conn:
             store.get_scene(scene_id, conn)
             return conn.execute(
-                "SELECT id,label,label_vi,box,attributes,best_views FROM objects WHERE scene_id=%s ORDER BY id",
+                "SELECT id,label,box,attributes,best_views FROM objects WHERE scene_id=%s ORDER BY id",
                 (scene_id,),
             ).fetchall()
 
@@ -333,15 +321,6 @@ def create_app(
                 ).fetchall():
                     scores[row["id"]] = float(row["score"] or 0)
         return scores
-
-    @app.get("/api/v1/scenes/{scene_id}/messages", response_model=list[Message])
-    def list_messages(scene_id: uuid.UUID):
-        with store.connect() as conn:
-            store.get_scene(scene_id, conn)
-            return conn.execute(
-                "SELECT id,role,content,created_at FROM messages WHERE scene_id=%s ORDER BY id",
-                (scene_id,),
-            ).fetchall()
 
     @app.post(
         "/api/v1/scenes/{scene_id}/queries",

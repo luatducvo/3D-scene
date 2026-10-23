@@ -162,23 +162,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/scenes/{scene_id}/messages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Messages */
-        get: operations["list_messages_api_v1_scenes__scene_id__messages_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/scenes/{scene_id}/queries": {
         parameters: {
             query?: never;
@@ -280,22 +263,6 @@ export interface components {
             /** Job Id */
             job_id: string;
         };
-        /** Message */
-        Message: {
-            /** Id */
-            id: number;
-            /** Role */
-            role: string;
-            /** Content */
-            content: {
-                [key: string]: unknown;
-            };
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
         /** OrientedBox */
         OrientedBox: {
             /** Center */
@@ -357,7 +324,7 @@ export interface components {
             points_url?: string | null;
             /**
              * Membership Url
-             * @description Object membership of points and mesh vertices (binary, see docs/architecture/api.md); null for a Scene published before membership existed.
+             * @description Object membership of points and mesh vertices (binary, see docs/architecture/api.md); null, like the other URLs, only while the Scene has no Publication.
              */
             membership_url?: string | null;
         };
@@ -398,8 +365,6 @@ export interface components {
             id: string;
             /** Label */
             label: string;
-            /** Label Vi */
-            label_vi?: string | null;
             box: components["schemas"]["OrientedBox"];
             /** Attributes */
             attributes?: {
@@ -891,37 +856,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchHit"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_messages_api_v1_scenes__scene_id__messages_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                scene_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Message"][];
                 };
             };
             /** @description Validation Error */
