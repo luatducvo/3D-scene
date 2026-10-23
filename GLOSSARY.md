@@ -1,6 +1,6 @@
 # 3D Scene Understanding
 
-Turns RGB photos or one short video of a room into a metric 3D Scene whose Objects can be searched, inspected and asked about in plain English.
+Turns RGB photos or one short video of a room into a metric 3D Scene whose Objects can be searched and inspected.
 
 ## Language
 
@@ -21,7 +21,7 @@ _Avoid_: selected image
 ### Processing
 
 **Pipeline**:
-The fixed sequence of nine Stages, each bound to one Algorithm, that turns a Scene's Frames into its Scene Graph.
+The fixed sequence of eight Stages, each bound to one Algorithm, that turns a Scene's Frames into its Objects.
 _Avoid_: workflow
 
 **Job**:
@@ -29,7 +29,7 @@ One request to process a Scene through every Stage of the Pipeline, from its upl
 _Avoid_: run, task, pipeline run
 
 **Stage**:
-One named step of the Pipeline: ingest, recon, align, mesh, segment, lift, embed, attributes, graph.
+One named step of the Pipeline: ingest, recon, align, mesh, segment, lift, embed, objects.
 _Avoid_: step, phase
 
 **Algorithm**:
@@ -81,20 +81,12 @@ A thing recognised as the same across several Frames, with a stable identity.
 _Avoid_: detection, mask, cluster
 
 **Object**:
-An Instance placed in the Scene Graph with its box, label and attributes; it keeps the Instance's identity.
+An Instance placed in the Scene with its box and label; it keeps the Instance's identity.
 _Avoid_: item, entity
 
 **Best View**:
 A Frame region that shows an Object well, ranked by score.
 _Avoid_: thumbnail, crop
-
-**Relation**:
-A spatial fact between two Objects, or between an Object and the room (such as against a wall).
-_Avoid_: edge, link
-
-**Scene Graph**:
-A Scene's Objects, their Relations and the room's floor and ceiling.
-_Avoid_: graph (bare), layout
 
 **Object Membership**:
 Which points of the point cloud and which vertices of the mesh belong to each Object.
@@ -115,7 +107,7 @@ Colouring of one Search's hits by their similarity relative to each other; it is
 _Avoid_: confidence map, probability map
 
 **Highlight**:
-Marking a set of Objects in the viewer as the answer to a Search or a question, dimming everything else.
+Marking a set of Objects in the viewer as the answer to a Search, dimming everything else.
 _Avoid_: selection, focus
 
 **Selection**:
@@ -145,3 +137,4 @@ _Avoid_: ruler
 - "Instance" also names a rented Vast.ai machine; call that a "rented machine".
 - "Workspace" alone means only the folder layout that a **Target Workspace** and a **Publication** share; it is not a domain concept of its own.
 - "Publish" is the verb for turning a successful **Job**'s results into the Scene's **Publication**.
+- "Scene Graph" and "graph" are retired: what a **Publication** serves is the Scene's **Objects**, their embeddings and its mesh.
