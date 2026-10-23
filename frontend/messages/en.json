@@ -122,7 +122,6 @@
     "noGeometry": "No reconstruction geometry is available for this scene.",
     "highlightFailed": "Object highlighting could not be loaded.",
     "viewMode": "3D view mode",
-    "displayLayers": "Display layers",
     "searching": "Searching…",
     "searchCount": "{count, plural, =0 {No matching regions} one {# matching region} other {# matching regions}}",
     "clearSearch": "Clear search",
@@ -138,9 +137,7 @@
     "straightDistance": "Straight-line distance in meters",
     "measureAgain": "Measure again",
     "exitMeasure": "Exit measuring",
-    "layersSubtitle": "Adjust how you see this scene.",
     "pointSize": "Point size",
-    "restoreDefaults": "Restore defaults",
     "inputCount": "Input images",
     "keptCount": "Usable keyframes",
     "rejection": {
@@ -157,8 +154,7 @@
   },
   "appearance": {
     "original": "Original",
-    "instances": "Instances",
-    "clear": "Clear"
+    "instances": "Instances"
   },
   "heatmap": {
     "title": "Relative similarity",

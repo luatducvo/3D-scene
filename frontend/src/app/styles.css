@@ -743,6 +743,15 @@ summary {
   gap: 8px;
   flex-shrink: 0;
 }
+.point-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.point-size input {
+  width: 96px;
+}
 .viewer-search {
   width: 336px;
   max-width: 40%;

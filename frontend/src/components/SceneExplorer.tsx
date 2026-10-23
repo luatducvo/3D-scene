@@ -23,7 +23,7 @@ import { StatusBadge } from "./StatusBadge";
 const SceneCanvas = dynamic(() => import("./viewer/SceneCanvas"), {
   ssr: false,
 });
-type Panel = "object" | "measure" | "layers" | "info" | null;
+type Panel = "object" | "measure" | "info" | null;
 
 class ViewerBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
@@ -168,13 +168,11 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
       ? Math.hypot(...points[0].map((n, i) => n - points[1][i]))
       : null;
   const title =
-    panel === "layers"
-      ? t("ui.displayLayers")
-      : panel === "measure"
-        ? t("measure")
-        : panel === "info"
-          ? t("ui.sceneInfo")
-          : t("ui.objectDetails");
+    panel === "measure"
+      ? t("measure")
+      : panel === "info"
+        ? t("ui.sceneInfo")
+        : t("ui.objectDetails");
   const errorFallback = (
     <div className="viewer-state">
       <p>{t("ui.viewerError")}</p>
@@ -217,16 +215,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
               </button>
             ))}
             <button
-              className="secondary"
-              onClick={() => {
-                setSearch("");
-                setQuery("");
-                useViewer.getState().clearResult();
-              }}
-            >
-              {t("appearance.clear")}
-            </button>
-            <button
               className={viewMode(layers) === "points" ? "" : "secondary"}
               aria-pressed={viewMode(layers) === "points"}
               disabled={!hasPoints}
@@ -246,13 +234,21 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
             >
               {t("layers.mesh")}
             </button>
-            <button
-              className="secondary"
-              aria-expanded={panel === "layers"}
-              onClick={() => openPanel("layers")}
-            >
-              {t("ui.displayLayers")}
-            </button>
+            {viewMode(layers) === "points" && (
+              <label className="point-size">
+                <span>{t("ui.pointSize")}</span>
+                <input
+                  type="range"
+                  min="0.004"
+                  max="0.04"
+                  step="0.002"
+                  value={pointSize}
+                  onChange={(e) =>
+                    useViewer.getState().setPointSize(Number(e.target.value))
+                  }
+                />
+              </label>
+            )}
           </div>
           <div className="viewer-search">
             <input
@@ -300,15 +296,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
             onClick={() => openPanel("measure")}
           >
             <DesignIcon name="measure" />
-          </button>
-          <button
-            className="secondary icon-button"
-            aria-label={t("ui.displayLayers")}
-            title={t("ui.displayLayers")}
-            aria-pressed={panel === "layers"}
-            onClick={() => openPanel("layers")}
-          >
-            <DesignIcon name="layers" />
           </button>
           <button
             className="secondary icon-button"
@@ -403,51 +390,6 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
             </button>
             <button className="secondary full-width" onClick={closePanel}>
               {t("ui.exitMeasure")}
-            </button>
-          </div>
-        )}
-        {panel === "layers" && (
-          <div className="panel-body">
-            <p className="muted">{t("ui.layersSubtitle")}</p>
-            {(["points", "mesh"] as const).map((layer) => (
-              <label className="layer-toggle" key={layer}>
-                <span>{t(`layers.${layer}`)}</span>
-                <input
-                  type="checkbox"
-                  role="switch"
-                  checked={layers[layer]}
-                  disabled={
-                    (layer === "points" && !hasPoints) ||
-                    (layer === "mesh" && !hasMesh)
-                  }
-                  onChange={() => useViewer.getState().toggleLayer(layer)}
-                />
-              </label>
-            ))}
-            <label className="field-label" htmlFor="point-size">
-              {t("ui.pointSize")}
-            </label>
-            <input
-              id="point-size"
-              type="range"
-              min="0.004"
-              max="0.04"
-              step="0.002"
-              value={pointSize}
-              onChange={(e) =>
-                useViewer.getState().setPointSize(Number(e.target.value))
-              }
-            />
-            <button
-              className="secondary full-width"
-              onClick={() => {
-                useViewer
-                  .getState()
-                  .setLayers(defaultLayers(scene.assets ?? {}));
-                useViewer.getState().setPointSize(0.012);
-              }}
-            >
-              {t("ui.restoreDefaults")}
             </button>
           </div>
         )}

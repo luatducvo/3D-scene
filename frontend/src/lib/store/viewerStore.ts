@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import type {
   Bounds,
-  Layer,
   Layers,
   Point,
   ViewMode,
@@ -43,7 +42,6 @@ type ViewerState = {
   clear: () => void;
   /** Forget everything about the current Scene, for leaving it. */
   reset: () => void;
-  toggleLayer: (layer: Layer) => void;
   setLayers: (layers: Layers) => void;
   setPointSize: (size: number) => void;
   setLoadedBounds: (mode: ViewMode, bounds: Bounds) => void;
@@ -112,8 +110,6 @@ export const useViewer = create<ViewerState>((set, get) => ({
       resultVersion: s.resultVersion + 1,
     })),
   reset: () => set((s) => ({ ...initial, resultVersion: s.resultVersion + 1 })),
-  toggleLayer: (layer) =>
-    set((s) => ({ layers: { ...s.layers, [layer]: !s.layers[layer] } })),
   setLayers: (layers) => set({ layers }),
   setPointSize: (pointSize) => set({ pointSize }),
   setLoadedBounds: (mode, bounds) =>
