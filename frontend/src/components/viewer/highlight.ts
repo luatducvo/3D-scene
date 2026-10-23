@@ -161,17 +161,18 @@ export class Painter {
     for (const changed of [previous, next])
       if (changed !== null)
         for (const index of this.list(changed))
-          if (index < this.count) this.plain(index);
+          if (index < this.count) this.paint(index);
   }
   private repaint() {
-    for (let i = 0; i < this.count; i++) this.plain(i);
+    for (let i = 0; i < this.count; i++) this.paint(i);
   }
   private list(object: number) {
     return object >= 0 && object < this.objectCount
       ? this.members(object)
       : EMPTY;
   }
-  private plain(index: number) {
+  /** One element's colour under the current interaction. */
+  private paint(index: number) {
     const object = this.owner[index] - 1;
     const emphasised =
       object >= 0 && (object === this.hovered || object === this.selected);

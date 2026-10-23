@@ -151,6 +151,24 @@ test("overlapping search results retain the smaller Object's similarity color", 
   expect([...colors.slice(0, 3)]).not.toEqual([...colors.slice(6, 9)]);
 });
 
+test("Instance Colors come back identical after being turned off and on", () => {
+  const base = new Float32Array(18).fill(0.2);
+  const colors = new Float32Array(base);
+  const painter = new Painter(colors, base, membership.points, 3);
+  painter.appearance("instances", membership.ids);
+  const instances = new Float32Array(colors);
+  painter.appearance("original", membership.ids);
+  expect(colors).toEqual(base);
+  painter.appearance("instances", membership.ids);
+  expect(colors).toEqual(instances);
+  // A fresh painter, as after reloading the Scene, gives each Object the same colour.
+  const again = new Float32Array(base);
+  new Painter(again, base, membership.points, 3).appearance("instances", [
+    ...membership.ids,
+  ]);
+  expect(again).toEqual(instances);
+});
+
 test("similar Object IDs have distinguishable rendered instance colors", () => {
   const base = new Float32Array(18).fill(0.2),
     colors = new Float32Array(base);

@@ -5,7 +5,8 @@ import type {
   Point,
   ViewMode,
 } from "../../components/viewer/view";
-export type { Layer, Point } from "../../components/viewer/view";
+import type { Appearance } from "../../components/viewer/highlight";
+export type { Point } from "../../components/viewer/view";
 /** The Object under the pointer and where the pointer is, in client pixels. */
 export type Hover = { id: string; x: number; y: number };
 /** What the viewer is doing; exactly one at a time, and only it paints Objects. */
@@ -14,19 +15,21 @@ export type Interaction = "idle" | "search" | "selection";
 type ViewerState = {
   /** The Search box's text; a Search is on while it is not blank. */
   search: string;
-  /** Change the Search text; this drops the Selection. */
+  /** Change the Search text; text that starts a Search drops the Selection. */
   setSearch: (search: string) => void;
-  appearance: "original" | "instances";
-  setAppearance: (appearance: "original" | "instances") => void;
-  similarities: Record<string, number> | null;
+  appearance: Appearance;
+  setAppearance: (appearance: Appearance) => void;
+  /** Each Highlighted Object's similarity relative to the Search's other hits; empty without a Search. */
+  similarities: Record<string, number>;
   resultVersion: number;
   beginResult: () => number;
   showResult: (
     version: number,
     ids: string[],
-    similarities?: Record<string, number>,
+    similarities: Record<string, number>,
   ) => boolean;
-  clearResult: () => void;
+  /** Empty the Search text and drop its Highlight. */
+  endSearch: () => void;
   selectedId: string | null;
   highlightedIds: string[];
   hovered: Hover | null;
@@ -60,7 +63,7 @@ type ViewerState = {
 const initial = {
   search: "",
   appearance: "original" as const,
-  similarities: null,
+  similarities: {},
   resultVersion: 0,
   selectedId: null,
   highlightedIds: [],
@@ -72,33 +75,34 @@ const initial = {
   membershipMismatch: {},
   pointSize: 0.012,
 };
+/** No Search text and no Highlight; the version moves on so a late Search response is dropped. */
+const searchEnded = (s: ViewerState) => ({
+  search: "",
+  highlightedIds: [],
+  similarities: {},
+  resultVersion: s.resultVersion + 1,
+});
 export const useViewer = create<ViewerState>((set, get) => ({
   ...initial,
   setAppearance: (appearance) => set({ appearance }),
-  setSearch: (search) => set({ search, selectedId: null, hovered: null }),
+  setSearch: (search) =>
+    set((s) => ({
+      search,
+      selectedId: search.trim() ? null : s.selectedId,
+      hovered: null,
+    })),
   deselect: () => set({ selectedId: null }),
   click: (id) => {
     const state = get();
     if (id === null) {
       if (interaction(state) === "selection") set({ selectedId: null });
     } else if (clickable(state, id))
-      // Selecting ends the Search; its version moves on so a late response is dropped.
-      set((s) => ({
-        selectedId: id,
-        search: "",
-        highlightedIds: [],
-        similarities: null,
-        resultVersion: s.resultVersion + 1,
-        hovered: null,
-      }));
+      set((s) => ({ ...searchEnded(s), selectedId: id, hovered: null }));
   },
   escape: () => {
     const state = get();
     if (interaction(state) === "selection") set({ selectedId: null });
-    else if (interaction(state) === "search") {
-      set({ search: "" });
-      get().clearResult();
-    }
+    else if (interaction(state) === "search") set(searchEnded);
     get().setMeasuring(false);
   },
   beginResult: () => {
@@ -108,20 +112,10 @@ export const useViewer = create<ViewerState>((set, get) => ({
   },
   showResult: (version, ids, similarities) => {
     if (version !== get().resultVersion) return false;
-    set({
-      highlightedIds: ids,
-      similarities: similarities ?? null,
-      selectedId: null,
-    });
+    set({ highlightedIds: ids, similarities, selectedId: null });
     return true;
   },
-  clearResult: () =>
-    set((s) => ({
-      resultVersion: s.resultVersion + 1,
-      similarities: null,
-      highlightedIds: [],
-      selectedId: null,
-    })),
+  endSearch: () => set(searchEnded),
   hover: (next) =>
     set((s) => {
       const hovered = interaction(s) === "idle" ? next : null;
@@ -138,13 +132,10 @@ export const useViewer = create<ViewerState>((set, get) => ({
     })),
   clear: () =>
     set((s) => ({
-      search: "",
+      ...searchEnded(s),
       points: [],
       measuring: false,
       selectedId: null,
-      highlightedIds: [],
-      similarities: null,
-      resultVersion: s.resultVersion + 1,
     })),
   reset: () => set((s) => ({ ...initial, resultVersion: s.resultVersion + 1 })),
   setLayers: (layers) => set({ layers }),
@@ -175,4 +166,12 @@ export function clickable(
   id: string,
 ): boolean {
   return interaction(state) !== "search" || state.highlightedIds.includes(id);
+}
+
+/** The canvas cursor over this Object, or over nothing: a pointer only where a click does something. */
+export function cursor(
+  state: Pick<ViewerState, "selectedId" | "search" | "highlightedIds">,
+  id: string | null,
+): "pointer" | "" {
+  return id && clickable(state, id) ? "pointer" : "";
 }

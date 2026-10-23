@@ -81,11 +81,10 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     viewMode(layers),
   );
   useEffect(() => {
-    const q = query;
-    if (!q) {
+    if (!query) {
       setResults({ data: [], error: null, isFetching: false });
       if (useViewer.getState().highlightedIds.length)
-        useViewer.getState().clearResult();
+        useViewer.getState().endSearch();
       return;
     }
     const version = useViewer.getState().beginResult();
@@ -93,7 +92,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     setResults({ data: [], error: null, isFetching: true });
     const timer = setTimeout(async () => {
       try {
-        const hits = await sceneApi.searchObjects(scene.id, q);
+        const hits = await sceneApi.searchObjects(scene.id, query);
         if (disposed) return;
         const values = normalizeSimilarities(
           Object.fromEntries(
@@ -112,7 +111,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
       } catch (error) {
         if (!disposed) {
           setResults({ data: [], error, isFetching: false });
-          useViewer.getState().showResult(version, []);
+          useViewer.getState().showResult(version, [], {});
         }
       }
     }, 300);
@@ -199,41 +198,30 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
           </div>
         )}
         <div className="viewer-topbar">
-          <div className="view-modes" aria-label={t("ui.viewMode")}>
-            <label className="instance-colors">
-              <span>{t("appearance.instances")}</span>
-              <input
-                type="checkbox"
-                role="switch"
-                checked={appearance === "instances"}
-                disabled={highlighting !== "available"}
-                onChange={(e) =>
-                  useViewer
-                    .getState()
-                    .setAppearance(e.target.checked ? "instances" : "original")
-                }
-              />
-            </label>
-            <button
-              className={viewMode(layers) === "points" ? "" : "secondary"}
-              aria-pressed={viewMode(layers) === "points"}
-              disabled={!hasPoints}
-              onClick={() =>
-                useViewer.getState().setLayers(showMode(layers, "points"))
-              }
+          <div className="view-modes">
+            <div
+              className="segmented"
+              role="radiogroup"
+              aria-label={t("ui.viewMode")}
             >
-              {t("layers.points")}
-            </button>
-            <button
-              className={viewMode(layers) === "mesh" ? "" : "secondary"}
-              aria-pressed={viewMode(layers) === "mesh"}
-              disabled={!hasMesh}
-              onClick={() =>
-                useViewer.getState().setLayers(showMode(layers, "mesh"))
-              }
-            >
-              {t("layers.mesh")}
-            </button>
+              {(["points", "mesh"] as const).map((mode) => {
+                const shown = viewMode(layers) === mode;
+                return (
+                  <button
+                    key={mode}
+                    role="radio"
+                    aria-checked={shown}
+                    className={shown ? "" : "secondary"}
+                    disabled={mode === "points" ? !hasPoints : !hasMesh}
+                    onClick={() =>
+                      useViewer.getState().setLayers(showMode(layers, mode))
+                    }
+                  >
+                    {t(`layers.${mode}`)}
+                  </button>
+                );
+              })}
+            </div>
             {viewMode(layers) === "points" && (
               <label className="point-size">
                 <span>{t("ui.pointSize")}</span>
@@ -249,6 +237,20 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
                 />
               </label>
             )}
+            <label className="instance-colors">
+              <span>{t("appearance.instances")}</span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={appearance === "instances"}
+                disabled={highlighting !== "available"}
+                onChange={(e) =>
+                  useViewer
+                    .getState()
+                    .setAppearance(e.target.checked ? "instances" : "original")
+                }
+              />
+            </label>
           </div>
           <div className="viewer-search">
             <input
@@ -269,7 +271,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
             )}
           </div>
         </div>
-        {similarities && Object.keys(similarities).length > 0 && (
+        {Object.keys(similarities).length > 0 && (
           <HeatmapLegend values={Object.values(similarities)} />
         )}
         <div className="spatial-tools" aria-label={t("ui.spatialTools")}>

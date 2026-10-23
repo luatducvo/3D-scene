@@ -129,7 +129,7 @@ _Avoid_: ruler
 - A **Scene** has one **Target Workspace** and serves at most one **Publication**; a failed **Job** leaves the current **Publication** untouched.
 - Each **Instance** becomes exactly one **Object** with the same id; nothing merges or splits after lift.
 - A point or vertex may belong to several **Objects** (a handle and the wardrobe around it) or to none; pointing at it picks the smallest.
-- Selecting an Object ends the **Search** and clears its **Highlight**; a new **Search** clears the **Selection**. Only one of a **Search**, a **Selection** or hovering an Object paints the viewer at a time.
+- Selecting an Object ends the **Search** and clears its **Highlight**; a new **Search** clears the **Selection**.
 
 ## Flagged ambiguities
 

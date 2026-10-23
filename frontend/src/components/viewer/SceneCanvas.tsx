@@ -8,7 +8,7 @@ import { sceneLayers, type SceneLayerProps } from "./layers";
 import { attachCamera } from "./camera";
 import { pickAt } from "./picking";
 import { focusBounds, homePose, labelAnchor, visibleBounds } from "./view";
-import { clickable, useViewer } from "../../lib/store/viewerStore";
+import { cursor, useViewer } from "../../lib/store/viewerStore";
 
 /** A press that moves less than this many pixels is a click, not an orbit or pan. */
 const CLICK_SLOP_PX = 4;
@@ -25,6 +25,8 @@ function Picker({
   const pending = useRef<{ x: number; y: number; cx: number; cy: number }>(
     null,
   );
+  /** The Object last picked under the pointer, so the cursor can follow interaction changes. */
+  const under = useRef<string | null>(null);
   const known = useRef(new Set<string>());
   known.current = new Set(objects.map((o) => o.id));
   /** The known Object id drawn at canvas pixel (x, y), or null. */
@@ -45,6 +47,7 @@ function Picker({
     };
     const leave = () => {
       pending.current = null;
+      under.current = null;
       useViewer.getState().hover(null);
       canvas.style.cursor = "";
     };
@@ -63,11 +66,16 @@ function Picker({
       if (Math.hypot(x - start.x, y - start.y) > CLICK_SLOP_PX) return;
       useViewer.getState().click(objectAtRef.current(x, y));
     };
+    // A click, Esc or a Search changes what a click reaches without the pointer moving.
+    const unsubscribe = useViewer.subscribe((state) => {
+      canvas.style.cursor = cursor(state, under.current);
+    });
     canvas.addEventListener("pointermove", move);
     canvas.addEventListener("pointerleave", leave);
     canvas.addEventListener("pointerdown", down);
     canvas.addEventListener("pointerup", up);
     return () => {
+      unsubscribe();
       canvas.removeEventListener("pointermove", move);
       canvas.removeEventListener("pointerleave", leave);
       canvas.removeEventListener("pointerdown", down);
@@ -80,9 +88,9 @@ function Picker({
     if (!at) return;
     pending.current = null;
     const id = objectAt(at.x, at.y);
-    const viewer = useViewer.getState();
-    viewer.hover(id ? { id, x: at.cx, y: at.cy } : null);
-    gl.domElement.style.cursor = id && clickable(viewer, id) ? "pointer" : "";
+    under.current = id;
+    useViewer.getState().hover(id ? { id, x: at.cx, y: at.cy } : null);
+    gl.domElement.style.cursor = cursor(useViewer.getState(), id);
   });
   return null;
 }

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "vitest";
-import { clickable, interaction, useViewer } from "./viewerStore";
+import { clickable, cursor, interaction, useViewer } from "./viewerStore";
 
 const viewer = () => useViewer.getState();
 const at = { x: 10, y: 20 };
@@ -55,7 +55,7 @@ test("clicking a hit selects it, empties the Search box and drops the Highlight"
   expect(viewer().selectedId).toBe("sofa-1");
   expect(viewer().search).toBe("");
   expect(viewer().highlightedIds).toEqual([]);
-  expect(viewer().similarities).toBeNull();
+  expect(viewer().similarities).toEqual({});
 });
 
 test("a Search response that arrives after a Selection is dropped", () => {
@@ -93,8 +93,10 @@ test("Esc drops the Selection without bringing back the Search, then ends a Sear
   expect(viewer().highlightedIds).toEqual([]);
 });
 
-test("typing a Search drops the Selection", () => {
+test("typing a Search drops the Selection, but blank text keeps it", () => {
   viewer().click("chair");
+  viewer().setSearch("  ");
+  expect(interaction(viewer())).toBe("selection");
   viewer().setSearch("s");
   expect(viewer().selectedId).toBeNull();
   expect(interaction(viewer())).toBe("search");
@@ -105,4 +107,22 @@ test("going home clears the Search text with the Selection and Highlight", () =>
   viewer().clear();
   expect(interaction(viewer())).toBe("idle");
   expect(viewer().search).toBe("");
+});
+
+test("Esc when idle stops measuring", () => {
+  viewer().setMeasuring(true);
+  viewer().pick([0, 0, 0]);
+  viewer().escape();
+  expect(viewer().measuring).toBe(false);
+  expect(viewer().points).toEqual([]);
+});
+
+test("the cursor is a pointer only over an Object a click reaches", () => {
+  expect(cursor(viewer(), "chair")).toBe("pointer");
+  expect(cursor(viewer(), null)).toBe("");
+  searched("sofa", ["sofa-1"]);
+  expect(cursor(viewer(), "chair")).toBe("");
+  expect(cursor(viewer(), "sofa-1")).toBe("pointer");
+  viewer().click("sofa-1");
+  expect(cursor(viewer(), "chair")).toBe("pointer");
 });

@@ -27,11 +27,11 @@ The Scene page shows:
 
 ## Scene Explorer
 
-`src/components/SceneExplorer.tsx` holds the 3D canvas, a topbar (the Points/Mesh switch with point size in Points mode, Instance Colors, the Search box) and a side panel that shows one of: `object` (`ObjectDetails` for the Selection), `measure` or `info`.
+`src/components/SceneExplorer.tsx` holds the 3D canvas, a topbar (the Points/Mesh switch with point size in Points mode, Instance Colors, the Search box) and a side panel that shows one of: `object` (`ObjectDetails` for the Selection), `measure` or `info`. Each panel opens from its spatial-tools button; the `object` one only while there is a Selection, which it follows, and it closes when the Selection is dropped.
 
 - The viewer is in one interaction at a time (`interaction` in the viewer store): idle (hover paints the Object under the pointer), Search (while the Search text is not blank) or Selection. The canvas reports hovers and clicks to the store, which applies that interaction's rules; `clickable` says which Objects a click reaches, and drives the cursor.
-- A Search Highlights its hits and colours them as an Object Heatmap (`HeatmapLegend`). `showResult` drops a result whose version is stale, so a slow Search cannot overwrite a newer one or a Selection made meanwhile.
-- The camera moves only through `goHome` (whole room, clears Search, Selection and Highlight) and `focus(ids)` in `viewer/camera.ts`. A Search focuses its hits; a Selection does not move the camera.
+- A Search Highlights its hits and colours them as an Object Heatmap (`HeatmapLegend`). `showResult` drops a Search response whose version is stale, so a slow Search cannot overwrite a newer one or a Selection made meanwhile.
+- The camera moves only through `goHome` (whole room, clears Search, Selection and Highlight) and `focus(ids)` in `viewer/camera.ts`. A Search focuses its hits; a Selection does not move the camera, and is labelled with its Object's name on top of its box.
 
 ## Viewer
 
@@ -39,9 +39,9 @@ The Scene page shows:
 
 | File | Holds |
 | --- | --- |
-| `SceneCanvas.tsx` | the react-three-fiber canvas, controls, picking and hover; renders every entry of `sceneLayers` |
+| `SceneCanvas.tsx` | the react-three-fiber canvas, controls, picking, the cursor, hover and Selection labels; renders every entry of `sceneLayers` |
 | `layers/index.tsx` | `sceneLayers`: `points` (`PointCloudLayer`, `points.ply`) and `mesh` (`MeshLayer`, `mesh.glb`); repaints vertex colours for Highlight, hover and Instance Colors |
-| `view.ts` | which layer shows, room bounds, home and focus poses, whether highlighting is available |
+| `view.ts` | which layer shows, room bounds, home and focus poses, where a Selection's label sits, whether highlighting is available |
 | `highlight.ts` | which Object owns each point (the smallest one), heatmap and dim colours, Instance Colors for hover and Selection, heatmap normalisation |
 | `picking.ts` | a hidden twin of each layer coloured by Object id, read back to pick the Object under the pointer |
 | `camera.ts` | `goHome`, `focus` and the driver the canvas attaches |

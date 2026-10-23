@@ -67,7 +67,8 @@ The viewer shows the room in one of two geometry modes and paints Objects in one
 39. As a user, I want typing a Search while an Object is selected to drop the Selection and close Object Details, so that Search takes over cleanly.
 40. As a user, I want a slow Search not to overwrite a newer one or a Selection I made meanwhile, so that what I see matches what I did last.
 41. As a user, I want no separate "Clear" button in the topbar, so that the Search box is the one place to clear a Search.
-42. As a user, I want Reset view, Measurement and Scene info to work as before, so that the unification changes nothing else.
+42. As a user, I want Reset view to show the whole room and return to Idle, ending any Search or Selection as it already ends Selection and Highlight, so that one press starts over.
+43. As a user, I want Measurement and Scene info to work as before, still dropping the Selection when opened, so that the unification changes nothing else.
 
 ## Implementation Decisions
 
@@ -79,7 +80,7 @@ The viewer shows the room in one of two geometry modes and paints Objects in one
   - A pure "can this Object be clicked now" rule (any Object in Idle and Selection, only Search Hits in Search) drives both the click action and the pointer cursor.
   - Selecting an Object drops the Search: it empties the Search text, clears the Highlight and similarities, and advances the result version so an in-flight Search response is discarded.
   - The panel being open stays component state; opening Object Details no longer follows the Selection automatically, but dropping the Selection still closes it.
-- **Camera**: a Selection no longer calls `focus`. Search still focuses its hits. Reset view only moves the camera, as the code already does.
+- **Camera**: a Selection no longer calls `focus`. Search still focuses its hits. Reset view shows the whole room and, as it already clears Selection and Highlight, also empties the Search text, returning to Idle.
 - **Painter** (`highlight.ts`) paints one interaction state at a time instead of stacking highlight, selection and hover:
   - It always knows every Object's Instance Color, whatever the appearance, because hover and Selection paint with it in original appearance too.
   - Idle with no hover: the appearance as is.
@@ -108,7 +109,7 @@ The viewer shows the room in one of two geometry modes and paints Objects in one
 - Pages other than the Scene viewer.
 - Boxes or labels for every Object under Instance Colors.
 - A list of Search Hits to click from, or any change to how Search ranks Objects or normalises the Object Heatmap.
-- Measurement, Reset view and Scene info behaviour.
+- Measurement and Scene info behaviour, beyond the Search text that Reset view now also clears.
 - Combining Search with Selection or hover; the three states stay exclusive by design.
 - Backend, Pipeline, Publication and API changes.
 

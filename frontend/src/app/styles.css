@@ -743,6 +743,17 @@ summary {
   gap: 8px;
   flex-shrink: 0;
 }
+.segmented {
+  display: flex;
+}
+.segmented button:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.segmented button:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
 .instance-colors,
 .point-size {
   display: flex;

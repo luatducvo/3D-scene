@@ -230,7 +230,7 @@ function usePainting(layer: LayerMembership | null) {
     const indices = objectIndices(layer.membership, highlighted);
     painter.highlight(
       indices,
-      indices.map((i) => similarities?.[layer.membership.ids[i]] ?? 1),
+      indices.map((i) => similarities[layer.membership.ids[i]]),
     );
     painter.selection(
       selected

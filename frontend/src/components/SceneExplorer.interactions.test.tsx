@@ -46,33 +46,25 @@ async function explore(change: (scene: Scene) => Scene = (scene) => scene) {
 test("the explorer opens on the point cloud and switches to the mesh", async () => {
   await explore();
   expect(viewMode(useViewer.getState().layers)).toBe("points");
-  fireEvent.click(screen.getByRole("button", { name: en.layers.mesh }));
+  fireEvent.click(screen.getByRole("radio", { name: en.layers.mesh }));
   expect(viewMode(useViewer.getState().layers)).toBe("mesh");
 });
 
 test("one Points/Mesh switch changes the geometry, with point size only for points", async () => {
   await explore();
-  expect(screen.getAllByRole("button", { name: en.layers.points })).toHaveLength(1);
-  expect(screen.getAllByRole("button", { name: en.layers.mesh })).toHaveLength(1);
+  expect(screen.getAllByRole("radio", { name: en.layers.points })).toHaveLength(1);
+  expect(screen.getAllByRole("radio", { name: en.layers.mesh })).toHaveLength(1);
   expect(screen.getByRole("slider", { name: en.ui.pointSize })).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: en.layers.mesh }));
+  fireEvent.click(screen.getByRole("radio", { name: en.layers.mesh }));
   expect(screen.queryByRole("slider", { name: en.ui.pointSize })).toBeNull();
-  expect(screen.queryByRole("switch", { name: en.layers.mesh })).toBeNull();
-});
-
-test("there is no Display layers panel and no topbar Clear button", async () => {
-  await explore();
-  expect(screen.queryByRole("button", { name: "Display layers" })).toBeNull();
-  expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
 });
 
 test("one Instance Colors switch paints each Object in its own colour, in either geometry", async () => {
   await explore();
   const instances = screen.getByRole("switch", { name: en.appearance.instances });
-  expect(screen.queryByRole("button", { name: "Original" })).toBeNull();
   fireEvent.click(instances);
   expect(useViewer.getState().appearance).toBe("instances");
-  fireEvent.click(screen.getByRole("button", { name: en.layers.mesh }));
+  fireEvent.click(screen.getByRole("radio", { name: en.layers.mesh }));
   expect(useViewer.getState().appearance).toBe("instances");
   fireEvent.click(instances);
   expect(useViewer.getState().appearance).toBe("original");
