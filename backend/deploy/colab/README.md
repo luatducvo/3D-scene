@@ -1,14 +1,14 @@
 # Google Colab GPU Target
 
 Runs `scene-compute` on a Google Colab GPU runtime and exposes it to your machine through a free
-Cloudflare Tunnel. The notebook [scene_compute_colab.ipynb](scene_compute_colab.ipynb) holds every
-command; this guide explains the steps and what to configure locally.
+Cloudflare Tunnel. [scene_compute_colab.py](scene_compute_colab.py) holds every notebook cell as
+text; this guide explains the steps and what to configure locally.
 
 ## How it works
 
 ```
 your machine                                        Google Colab
-web · scene-api · postgres                          scene-compute (uvicorn, port 9000)
+web · scene-api · postgres                          scene-compute (uvicorn, port 9001)
 scene-worker ── HTTPS (tunnel URL, 100 MB chunks) ─> cloudflared → https://<random>.trycloudflare.com
 ```
 
@@ -18,7 +18,8 @@ Every request finishes in under 300 s and bodies stay under 100 MB, so the tunne
 
 ## Run the notebook
 
-Open the notebook in Colab and run its cells in order:
+Create a notebook in Colab, paste each `CELL` block of `scene_compute_colab.py` into its own code
+cell, and run the cells in order:
 
 0. **Download weights.** Once, on any runtime (a CPU runtime is enough), fetch every model's
    weights (over 10 GB) into the Drive cache that step 5 checks, so GPU time is not spent
@@ -36,8 +37,8 @@ Open the notebook in Colab and run its cells in order:
    otherwise, then raises an error and stops if any weight is missing; run step 0 and this cell
    again. When every weight is present it sets `HF_HUB_OFFLINE=1`, so the server never downloads
    at run time.
-6. **Tunnel.** Starts `cloudflared` for port 9000 and prints the public URL.
-7. **Server.** Read `COMPUTE_TOKEN` from Colab secrets, then start uvicorn on port 9000, reusing
+6. **Tunnel.** Starts `cloudflared` for port 9001 and prints the public URL.
+7. **Server.** Read `COMPUTE_TOKEN` from Colab secrets, then start uvicorn on port 9001, reusing
    the cache configuration from step 5 without printing the token. The cell sets
    `CLEAN_ON_START=1`, so every server start empties `/content/data`. Keep this cell running while
    you use the web app.

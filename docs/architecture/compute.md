@@ -60,4 +60,4 @@ Server behaviour:
 
 ## Providers
 
-Each Provider has a README in `backend/deploy/`: `modal/` (with `app.py`, deployed by `uv run main.py deploy-modal`), `runpod/`, `vast/`, `colab/` (with a notebook) and `generic/` (any Docker host, including the local GPU). Point the worker at a new Target with `pipeline.fake-gpu.yaml` first: it checks transport, authentication and file transfer without weights.
+Each Provider has a README in `backend/deploy/`: `modal/` (with `app.py`, deployed by `uv run main.py deploy-modal`), `runpod/`, `vast/`, `colab/` (with the notebook cells as `scene_compute_colab.py`) and `generic/` (any Docker host, including the local GPU). Point the worker at a new Target with `pipeline.fake-gpu.yaml` first: it checks transport, authentication and file transfer without weights.
