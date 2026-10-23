@@ -1,8 +1,14 @@
-"use client";
-import { Component, useEffect, useRef, useState, type ReactNode } from "react";
-import dynamic from "next/dynamic";
+import {
+  Component,
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "use-intl";
 import { sceneApi } from "../lib/api";
 import type { Scene, Schemas } from "../lib/api/types";
 import { useViewer } from "../lib/store/viewerStore";
@@ -13,16 +19,13 @@ import {
   showMode,
   viewMode,
 } from "./viewer/view";
-import { DesignIcon } from "./DesignIcon";
 import { SearchStatus } from "./SearchStatus";
 import { ObjectDetails } from "./ObjectDetails";
 import { normalizeSimilarities } from "./viewer/highlight";
 import { HeatmapLegend } from "./HeatmapLegend";
 import { StatusBadge } from "./StatusBadge";
 
-const SceneCanvas = dynamic(() => import("./viewer/SceneCanvas"), {
-  ssr: false,
-});
+const SceneCanvas = lazy(() => import("./viewer/SceneCanvas"));
 type Panel = "object" | "measure" | "info" | null;
 
 class ViewerBoundary extends Component<
@@ -177,231 +180,264 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     </div>
   );
   return (
-    <main className="explorer">
-      <div className="viewport" aria-label={t("ui.viewerLabel")}>
-        <ViewerBoundary key={attempt} fallback={errorFallback}>
-          <SceneCanvas
-            sceneId={scene.id}
-            assets={scene.assets || {}}
-            objects={objects.data || []}
-            membership={membership.data ?? null}
-          />
-        </ViewerBoundary>
-        {!hasPoints && !hasMesh && (
-          <div className="asset-notice" role="status">
-            {t("ui.noGeometry")}
+    <main id="main-content" className="explorer">
+      <section className="explorer-title">
+        <h1>{scene.name}</h1>
+        <StatusBadge status={scene.status} />
+      </section>
+      <div className="explorer-body">
+        <div className="viewport" aria-label={t("ui.viewerLabel")}>
+          <div className="canvas-surface">
+            <ViewerBoundary key={attempt} fallback={errorFallback}>
+              <Suspense
+                fallback={
+                  <div className="viewer-state" role="status">
+                    {t("loading")}
+                  </div>
+                }
+              >
+                <SceneCanvas
+                  sceneId={scene.id}
+                  assets={scene.assets || {}}
+                  objects={objects.data || []}
+                  membership={membership.data ?? null}
+                />
+              </Suspense>
+            </ViewerBoundary>
+            {!hasPoints && !hasMesh && (
+              <div className="asset-notice" role="status">
+                {t("ui.noGeometry")}
+              </div>
+            )}
+            {highlighting !== "available" && (
+              <div className="asset-notice" role="status">
+                {t("ui.highlightFailed")}
+              </div>
+            )}
+            {Object.keys(similarities).length > 0 && (
+              <HeatmapLegend values={Object.values(similarities)} />
+            )}
           </div>
-        )}
-        {highlighting !== "available" && (
-          <div className="asset-notice" role="status">
-            {t("ui.highlightFailed")}
-          </div>
-        )}
-        <div className="viewer-topbar">
-          <div className="view-modes">
-            <div
-              className="segmented"
-              role="radiogroup"
-              aria-label={t("ui.viewMode")}
-            >
-              {(["points", "mesh"] as const).map((mode) => {
-                const shown = viewMode(layers) === mode;
-                return (
-                  <button
-                    key={mode}
-                    role="radio"
-                    aria-checked={shown}
-                    className={shown ? "" : "secondary"}
-                    disabled={mode === "points" ? !hasPoints : !hasMesh}
-                    onClick={() =>
-                      useViewer.getState().setLayers(showMode(layers, mode))
+          <div className="viewer-topbar">
+            <div className="view-modes">
+              <div
+                className="segmented"
+                role="radiogroup"
+                aria-label={t("ui.viewMode")}
+              >
+                {(["points", "mesh"] as const).map((mode) => {
+                  const shown = viewMode(layers) === mode;
+                  return (
+                    <button
+                      key={mode}
+                      role="radio"
+                      aria-checked={shown}
+                      className={shown ? "" : "secondary"}
+                      disabled={mode === "points" ? !hasPoints : !hasMesh}
+                      onClick={() =>
+                        useViewer.getState().setLayers(showMode(layers, mode))
+                      }
+                    >
+                      {t(`layers.${mode}`)}
+                    </button>
+                  );
+                })}
+              </div>
+              {viewMode(layers) === "points" && (
+                <label className="point-size">
+                  <span>{t("ui.pointSize")}</span>
+                  <input
+                    type="range"
+                    min="0.004"
+                    max="0.04"
+                    step="0.002"
+                    value={pointSize}
+                    onChange={(e) =>
+                      useViewer.getState().setPointSize(Number(e.target.value))
                     }
-                  >
-                    {t(`layers.${mode}`)}
-                  </button>
-                );
-              })}
-            </div>
-            {viewMode(layers) === "points" && (
-              <label className="point-size">
-                <span>{t("ui.pointSize")}</span>
+                  />
+                </label>
+              )}
+              <label className="instance-colors">
+                <span>{t("appearance.instances")}</span>
                 <input
-                  type="range"
-                  min="0.004"
-                  max="0.04"
-                  step="0.002"
-                  value={pointSize}
+                  type="checkbox"
+                  role="switch"
+                  checked={appearance === "instances"}
+                  disabled={highlighting !== "available"}
                   onChange={(e) =>
-                    useViewer.getState().setPointSize(Number(e.target.value))
+                    useViewer
+                      .getState()
+                      .setAppearance(
+                        e.target.checked ? "instances" : "original",
+                      )
                   }
                 />
               </label>
-            )}
-            <label className="instance-colors">
-              <span>{t("appearance.instances")}</span>
+            </div>
+            <div className="viewer-search">
               <input
-                type="checkbox"
-                role="switch"
-                checked={appearance === "instances"}
-                disabled={highlighting !== "available"}
-                onChange={(e) =>
-                  useViewer
-                    .getState()
-                    .setAppearance(e.target.checked ? "instances" : "original")
-                }
+                type="search"
+                aria-label={t("search")}
+                title={t("englishInput")}
+                placeholder={t("search")}
+                value={search}
+                onChange={(e) => useViewer.getState().setSearch(e.target.value)}
               />
-            </label>
-          </div>
-          <div className="viewer-search">
-            <input
-              type="search"
-              aria-label={t("search")}
-              title={t("englishInput")}
-              placeholder={t("search")}
-              value={search}
-              onChange={(e) => useViewer.getState().setSearch(e.target.value)}
-            />
-            {query && (
-              <SearchStatus
-                fetching={results.isFetching}
-                error={results.error}
-                count={results.data?.length || 0}
-                onClear={() => useViewer.getState().setSearch("")}
-              />
-            )}
-          </div>
-        </div>
-        {Object.keys(similarities).length > 0 && (
-          <HeatmapLegend values={Object.values(similarities)} />
-        )}
-        <div className="spatial-tools" aria-label={t("ui.spatialTools")}>
-          <button
-            className="secondary icon-button"
-            aria-label={t("ui.resetView")}
-            title={t("ui.resetView")}
-            onClick={() => {
-              goHome();
-              setPanel(null);
-            }}
-          >
-            <DesignIcon name="home" />
-          </button>
-          <button
-            className="secondary icon-button"
-            aria-label={t("measure")}
-            title={t("measure")}
-            aria-pressed={measuring}
-            onClick={() => openPanel("measure")}
-          >
-            <DesignIcon name="measure" />
-          </button>
-          <button
-            className="secondary icon-button"
-            aria-label={t("ui.objectDetails")}
-            title={t("ui.objectDetails")}
-            aria-pressed={panel === "object"}
-            disabled={!selectedId}
-            onClick={() => openPanel("object")}
-          >
-            <DesignIcon name="details" />
-          </button>
-          <button
-            className="secondary icon-button"
-            aria-label={t("ui.sceneInfo")}
-            title={t("ui.sceneInfo")}
-            aria-pressed={panel === "info"}
-            onClick={() => openPanel("info")}
-          >
-            <DesignIcon name="info" />
-          </button>
-        </div>
-        <div className="navigation-hints" aria-hidden="true">
-          <span>{t("ui.orbitHint")}</span>
-          <span>{t("ui.zoomHint")}</span>
-          <span>{t("ui.panHint")}</span>
-        </div>
-        {objects.error && (
-          <p className="viewer-error" role="alert">
-            {String(objects.error)}
-          </p>
-        )}
-      </div>
-      <aside
-        className="side-panel"
-        aria-label={title}
-        hidden={!panel}
-        style={{ display: panel ? undefined : "none" }}
-      >
-        <div className="panel-heading">
-          {panel !== "object" && <h2>{title}</h2>}
-          <button
-            ref={closeRef}
-            className="quiet close-panel"
-            onClick={closePanel}
-          >
-            {t("ui.close")}
-          </button>
-        </div>
-        {panel === "object" && selected && <ObjectDetails object={selected} />}
-        {panel === "info" && (
-          <div className="panel-body">
-            <h3>{scene.name}</h3>
-            <StatusBadge status={scene.status} />
-            <dl className="scene-facts">
-              <dt>{t("ui.createdOn")}</dt>
-              <dd>
-                {format.dateTime(new Date(scene.created_at), {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </dd>
-              <dt>{t("ui.sceneUnits")}</dt>
-              <dd>{t("ui.meters")}</dd>
-              <dt>{t("ui.upAxis")}</dt>
-              <dd>Z ↑</dd>
-            </dl>
-          </div>
-        )}
-        {panel === "measure" && (
-          <div className="panel-body">
-            <p className="muted">
-              {t(
-                points.length === 0
-                  ? "ui.pickA"
-                  : points.length === 1
-                    ? "ui.pickB"
-                    : "ui.measured",
-              )}
-            </p>
-            <div className="dimensions">
-              {distance !== null ? (
-                <>
-                  <strong className="distance-value">
-                    {format.number(distance, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 3,
-                    })}{" "}
-                    m
-                  </strong>
-                  <span>{t("ui.straightDistance")}</span>
-                </>
-              ) : (
-                <strong>{points.length ? "A ✓  →  B" : "A  →  B"}</strong>
+              {query && (
+                <SearchStatus
+                  fetching={results.isFetching}
+                  error={results.error}
+                  count={results.data?.length || 0}
+                  onClear={() => useViewer.getState().setSearch("")}
+                />
               )}
             </div>
+          </div>
+          <div className="spatial-tools" aria-label={t("ui.spatialTools")}>
             <button
-              className="full-width"
-              onClick={() => useViewer.getState().setMeasuring(true)}
+              className="secondary tool-button"
+              aria-label={t("ui.resetView")}
+              title={t("ui.resetView")}
+              onClick={() => {
+                goHome();
+                setPanel(null);
+              }}
             >
-              {t("ui.measureAgain")}
+              {t("ui.resetView")}
             </button>
-            <button className="secondary full-width" onClick={closePanel}>
-              {t("ui.exitMeasure")}
+            <button
+              className="secondary tool-button"
+              aria-label={t("measure")}
+              title={t("measure")}
+              aria-pressed={measuring}
+              onClick={() => openPanel("measure")}
+            >
+              {t("measure")}
+            </button>
+            <button
+              className="secondary tool-button"
+              aria-label={t("ui.objectDetails")}
+              title={t("ui.objectDetails")}
+              aria-pressed={panel === "object"}
+              disabled={!selectedId}
+              onClick={() => openPanel("object")}
+            >
+              {t("ui.objectDetails")}
+            </button>
+            <button
+              className="secondary tool-button"
+              aria-label={t("ui.sceneInfo")}
+              title={t("ui.sceneInfo")}
+              aria-pressed={panel === "info"}
+              onClick={() => openPanel("info")}
+            >
+              {t("ui.sceneInfo")}
             </button>
           </div>
+          <div className="navigation-hints" aria-hidden="true">
+            <span>{t("ui.orbitHint")}</span>
+            <span>{t("ui.zoomHint")}</span>
+            <span>{t("ui.panHint")}</span>
+          </div>
+          {objects.error && (
+            <p className="viewer-error" role="alert">
+              {String(objects.error)}
+            </p>
+          )}
+        </div>
+        {!panel && (
+          <aside className="explorer-guide card">
+            <p className="eyebrow">{t("ui.exploreEyebrow")}</p>
+            <h2>{t("ui.exploreTitle")}</h2>
+            <p className="muted">{t("ui.exploreBody")}</p>
+            <div className="guide-hints">
+              <p>{t("ui.orbitHint")}</p>
+              <p>{t("ui.zoomHint")}</p>
+              <p>{t("ui.panHint")}</p>
+            </div>
+          </aside>
         )}
-      </aside>
+        <aside
+          className="side-panel"
+          aria-label={title}
+          hidden={!panel}
+          tabIndex={0}
+          style={{ display: panel ? undefined : "none" }}
+        >
+          <div className="panel-heading">
+            {panel !== "object" && <h2>{title}</h2>}
+            <button
+              ref={closeRef}
+              className="quiet close-panel"
+              onClick={closePanel}
+            >
+              {t("ui.close")}
+            </button>
+          </div>
+          {panel === "object" && selected && (
+            <ObjectDetails object={selected} />
+          )}
+          {panel === "info" && (
+            <div className="panel-body">
+              <h3>{scene.name}</h3>
+              <StatusBadge status={scene.status} />
+              <dl className="scene-facts">
+                <dt>{t("ui.createdOn")}</dt>
+                <dd>
+                  {format.dateTime(new Date(scene.created_at), {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </dd>
+                <dt>{t("ui.sceneUnits")}</dt>
+                <dd>{t("ui.meters")}</dd>
+                <dt>{t("ui.upAxis")}</dt>
+                <dd>Z ↑</dd>
+              </dl>
+            </div>
+          )}
+          {panel === "measure" && (
+            <div className="panel-body">
+              <p className="muted">
+                {t(
+                  points.length === 0
+                    ? "ui.pickA"
+                    : points.length === 1
+                      ? "ui.pickB"
+                      : "ui.measured",
+                )}
+              </p>
+              <div className="dimensions">
+                {distance !== null ? (
+                  <>
+                    <strong className="distance-value">
+                      {format.number(distance, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 3,
+                      })}{" "}
+                      m
+                    </strong>
+                    <span>{t("ui.straightDistance")}</span>
+                  </>
+                ) : (
+                  <strong>{points.length ? "A ✓  →  B" : "A  →  B"}</strong>
+                )}
+              </div>
+              <button
+                className="full-width"
+                onClick={() => useViewer.getState().setMeasuring(true)}
+              >
+                {t("ui.measureAgain")}
+              </button>
+              <button className="secondary full-width" onClick={closePanel}>
+                {t("ui.exitMeasure")}
+              </button>
+            </div>
+          )}
+        </aside>
+      </div>
     </main>
   );
 }

@@ -89,12 +89,10 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-        NEXT_PUBLIC_API_MODE: ${NEXT_PUBLIC_API_MODE:-http}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_API_MODE: ${VITE_API_MODE:-http}
     env_file:
       - frontend/.env
-    environment:
-      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://scene-api:8000}
     ports:
       - "127.0.0.1:3000:3000"
 

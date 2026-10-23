@@ -1,6 +1,5 @@
-"use client";
 import { useEffect, useState } from "react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "use-intl";
 import { STAGES as stages, type StageState } from "../lib/api/types";
 import type { StageStates } from "../lib/sceneProgress";
 const units = ["image", "frame", "mask", "object", "step"];

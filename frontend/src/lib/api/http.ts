@@ -6,10 +6,7 @@ import { consumeSSE } from "./sse";
 import { decodeMembership } from "./membership";
 import { shrinkAll } from "../upload/shrink";
 export { ApiError } from "./errors";
-export const apiOrigin =
-  (typeof window === "undefined"
-    ? process.env.API_INTERNAL_URL
-    : process.env.NEXT_PUBLIC_API_URL) || "http://localhost:8000";
+export const apiOrigin = import.meta.env.VITE_API_URL || "http://localhost:8000";
 // fetch is looked up per request, so MSW can intercept it after this module loads.
 export const typedClient = createClient<paths>({
   baseUrl: apiOrigin,

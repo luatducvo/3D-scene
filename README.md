@@ -26,10 +26,12 @@ Open http://localhost:3000. On first run `main.py` creates `backend/.env` from `
 ```bash
 cd frontend
 npm install
-NEXT_PUBLIC_API_MODE=mock npm run dev
+VITE_API_MODE=mock npm run dev
 ```
 
-Mock mode serves a demo Scene from the browser; no backend is needed.
+Mock mode serves a demo Scene from the browser; no backend is needed. In PowerShell, use `$env:VITE_API_MODE="mock"; npm run dev`.
+
+The frontend is a React SPA built with Vite, React Router and Three.js through React Three Fiber. `npm run build` produces `frontend/dist/`; the production container serves it through Nginx. Set `VITE_API_URL` and `VITE_API_MODE` before building.
 
 ## Real models on a GPU
 

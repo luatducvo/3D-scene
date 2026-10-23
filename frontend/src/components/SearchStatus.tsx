@@ -1,5 +1,4 @@
-"use client";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 import { ApiError } from "../lib/api";
 
 /** The result line of a viewer search: searching, a hit count, or the error in the user's language. */

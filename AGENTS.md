@@ -1,6 +1,6 @@
 # 3D Scene Understanding
 
-Turns photos or one short video of a room into a metric 3D Scene whose Objects can be searched and inspected: a Python backend in `backend/` and a Next.js frontend in `frontend/`.
+Turns photos or one short video of a room into a metric 3D Scene whose Objects can be searched and inspected: a Python backend in `backend/` and a React frontend in `frontend/`.
 
 ## Tooling
 

@@ -25,6 +25,7 @@ import type { ViewMode } from "../view";
 import type { Membership } from "../../../lib/api/membership";
 import type { SceneObject, Schemas } from "../../../lib/api/types";
 import { useViewer } from "../../../lib/store/viewerStore";
+import { visibleBounds } from "../view";
 export type SceneLayerProps = {
   sceneId: string;
   assets: Schemas["SceneAssets"];
@@ -193,9 +194,7 @@ function useMembershipFit(
   useEffect(() => {
     const mismatch = Boolean(membership && !usable);
     if (mismatch)
-      console.warn(
-        `Object membership does not match the ${mode} geometry.`,
-      );
+      console.warn(`Object membership does not match the ${mode} geometry.`);
     useViewer.getState().setMembershipMismatch(mode, mismatch);
     return () => useViewer.getState().setMembershipMismatch(mode, false);
   }, [mode, membership, usable]);
@@ -377,7 +376,31 @@ export function MeshLayer({ assets, membership }: SceneLayerProps) {
     ) : null;
   return null;
 }
+/** A non-pickable reference grid below the loaded Scene, on the metric XY plane. */
+function FloorGridLayer() {
+  const layers = useViewer((s) => s.layers);
+  const loaded = useViewer((s) => s.loadedBounds);
+  const bounds = visibleBounds(layers, loaded);
+  if (!bounds) return null;
+  const size =
+    Math.ceil(
+      Math.max(bounds.max[0] - bounds.min[0], bounds.max[1] - bounds.min[1]),
+    ) + 6;
+  return (
+    <gridHelper
+      args={[size, size * 2, "#b6ad97", "#d8d0be"]}
+      rotation={[Math.PI / 2, 0, 0]}
+      position={[
+        (bounds.min[0] + bounds.max[0]) / 2,
+        (bounds.min[1] + bounds.max[1]) / 2,
+        bounds.min[2] - 0.03,
+      ]}
+      raycast={() => {}}
+    />
+  );
+}
+
 export const sceneLayers: Record<
   string,
   React.ComponentType<SceneLayerProps>
-> = { points: PointCloudLayer, mesh: MeshLayer };
+> = { points: PointCloudLayer, mesh: MeshLayer, grid: FloorGridLayer };

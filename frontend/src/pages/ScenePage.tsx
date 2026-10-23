@@ -1,29 +1,24 @@
-"use client";
-import { use, useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocale, useTranslations } from "next-intl";
-import { Header } from "../../../../components/Header";
-import { UploadDropzone } from "../../../../components/UploadDropzone";
-import { StageStepper } from "../../../../components/StageStepper";
-import { SceneExplorer } from "../../../../components/SceneExplorer";
-import { StatusBadge } from "../../../../components/StatusBadge";
-import { IngestReport } from "../../../../components/IngestReport";
-import { Modal } from "../../../../components/Modal";
-import { sceneApi } from "../../../../lib/api";
-import { useSceneProgress } from "../../../../lib/sceneProgress";
-import { useViewer } from "../../../../lib/store/viewerStore";
+import { useLocale, useTranslations } from "use-intl";
+import { Header } from "../components/Header";
+import { UploadDropzone } from "../components/UploadDropzone";
+import { StageStepper } from "../components/StageStepper";
+import { SceneExplorer } from "../components/SceneExplorer";
+import { StatusBadge } from "../components/StatusBadge";
+import { IngestReport } from "../components/IngestReport";
+import { Modal } from "../components/Modal";
+import { sceneApi } from "../lib/api";
+import { useSceneProgress } from "../lib/sceneProgress";
+import { useViewer } from "../lib/store/viewerStore";
 
-export default function ScenePage({
-  params,
-}: {
-  params: Promise<{ sceneId: string }>;
-}) {
-  const { sceneId } = use(params),
+export default function ScenePage() {
+  const { sceneId = "" } = useParams<{ sceneId: string }>(),
     t = useTranslations(),
     locale = useLocale(),
-    router = useRouter(),
+    navigate = useNavigate(),
     client = useQueryClient();
   const scene = useQuery({
     queryKey: ["scene", sceneId],
@@ -53,14 +48,14 @@ export default function ScenePage({
     mutationFn: () => sceneApi.deleteScene(sceneId),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ["scenes"] });
-      router.push(`/${locale}`);
+      navigate(`/${locale}`);
     },
   });
   if (scene.isLoading)
     return (
       <>
         <Header />
-        <main className="page loading-state" role="status">
+        <main id="main-content" className="page loading-state" role="status">
           {t("loading")}
         </main>
       </>
@@ -69,7 +64,7 @@ export default function ScenePage({
     return (
       <>
         <Header />
-        <main className="page">
+        <main id="main-content" className="page route-state">
           <p role="alert">{String(scene.error)}</p>
           <button onClick={() => void scene.refetch()}>{t("ui.retry")}</button>
         </main>
@@ -96,7 +91,7 @@ export default function ScenePage({
       {data.status === "ready" ? (
         <SceneExplorer key={sceneId} scene={data} />
       ) : (
-        <main className="page">
+        <main id="main-content" className="page scene-page">
           <div className="page-heading">
             <p className="eyebrow">{data.name}</p>
             <h1>
@@ -120,7 +115,15 @@ export default function ScenePage({
             <StatusBadge status={data.status} />
           </div>
           <div className="processing-layout">
-            <section className="card work-card">
+            <section
+              className="card work-card"
+              aria-label={t(
+                data.status === "created" || data.status === "uploaded"
+                  ? "ui.captureForm"
+                  : "progress",
+              )}
+              tabIndex={0}
+            >
               {(data.status === "created" || data.status === "uploaded") && (
                 <UploadDropzone
                   sceneId={sceneId}
@@ -157,7 +160,7 @@ export default function ScenePage({
               )}
               {data.status === "failed" && (
                 <div className="process-actions">
-                  <Link className="button" href={`/${locale}/scenes/new`}>
+                  <Link className="button" to={`/${locale}/scenes/new`}>
                     {t("newScene")}
                   </Link>
                   <button
@@ -170,10 +173,11 @@ export default function ScenePage({
               )}
               {process.error && <p role="alert">{String(process.error)}</p>}
             </section>
-            <aside className="card processing-summary">
-              <div className="summary-illustration">
-                <img src="/design/capture.svg" alt="" />
-              </div>
+            <aside
+              className="card processing-summary"
+              aria-label={t("ui.sceneInfo")}
+              tabIndex={0}
+            >
               <h2>{data.name}</h2>
               <StatusBadge status={data.status} />
               {data.ingest_report && (
@@ -187,9 +191,6 @@ export default function ScenePage({
               )}
             </aside>
           </div>
-          <Link className="button secondary back-library" href={`/${locale}`}>
-            {t("ui.backLibrary")}
-          </Link>
         </main>
       )}
       {settings && (

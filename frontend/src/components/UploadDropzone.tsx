@@ -1,9 +1,7 @@
-"use client";
 import { useEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 import { sceneApi } from "../lib/api";
 import type { Quality } from "../lib/quality/score";
-import { DesignIcon } from "./DesignIcon";
 
 type Item = {
   id: string;
@@ -40,6 +38,7 @@ export function UploadDropzone({
   useEffect(() => {
     const w = new Worker(
       new URL("../lib/quality/blurWorker.ts", import.meta.url),
+      { type: "module" },
     );
     worker.current = w;
     w.onmessage = ({ data: { thumb, ...data } }) => {
@@ -109,7 +108,6 @@ export function UploadDropzone({
           add(Array.from(e.dataTransfer.files));
         }}
       >
-        <DesignIcon name="upload" />
         <h2>{t("drop")}</h2>
         <p className="muted">{t("ui.fileFormats")}</p>
         <label className="button secondary file-picker" aria-disabled={busy}>

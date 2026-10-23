@@ -28,4 +28,4 @@ Without Docker, run `uv run main.py test-unit` instead of `test`, and say in the
 
 - Vitest, with each test beside its module as `*.test.ts(x)`.
 - Keep rules testable without WebGL: viewer logic lives in plain modules (`view.ts`, `highlight.ts`, `picking.ts`) with unit tests; components get tests for behaviour, not markup.
-- To see the UI without a backend, run `NEXT_PUBLIC_API_MODE=mock npm run dev`: MSW serves the API's paths, including SSE, from `src/lib/api/mock/`.
+- To see the UI without a backend, run `VITE_API_MODE=mock npm run dev`: MSW serves the API's paths, including SSE, from `src/lib/api/mock/`.

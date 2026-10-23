@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NextIntlClientProvider } from "next-intl";
+import { IntlProvider } from "use-intl";
 import { ObjectDetails } from "./ObjectDetails";
 import type { SceneObject } from "../lib/api/types";
 import en from "../../messages/en.json";
@@ -20,9 +20,9 @@ const object: SceneObject = {
 
 test("selected object details expose label and geometry without evidence or suggestions", () => {
   const markup = renderToStaticMarkup(
-    <NextIntlClientProvider locale="en" timeZone="UTC" messages={en}>
+    <IntlProvider locale="en" timeZone="UTC" messages={en}>
       <ObjectDetails object={object} />
-    </NextIntlClientProvider>,
+    </IntlProvider>,
   );
   expect(markup).toContain("sofa");
   expect(markup).toContain("2.10 × 0.86 × 0.82 m");

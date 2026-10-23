@@ -12,7 +12,7 @@ Choosing an Algorithm, its params or a Target is a configuration change, not a c
 | `backend/config/compute.yaml` | every Target: `inprocess` or `http` with URL, token, chunk size, timeouts |
 | `backend/config/vocabularies/*.txt` | Vocabularies for the segment Stage, one concept per line |
 | `backend/.env.example` | every backend environment variable, with a comment |
-| `frontend/.env.example` | `NEXT_PUBLIC_API_URL`, `API_INTERNAL_URL`, `NEXT_PUBLIC_API_MODE` (`http` or `mock`) |
+| `frontend/.env.example` | `VITE_API_URL`, `VITE_API_MODE` (`http` or `mock`) |
 
 ## Rules
 

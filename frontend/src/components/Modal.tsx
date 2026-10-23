@@ -1,6 +1,5 @@
-"use client";
 import { useEffect, useRef, type ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 
 export function Modal({
   title,

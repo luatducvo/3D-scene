@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
-import { NextIntlClientProvider } from "next-intl";
+import { IntlProvider } from "use-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 import { sceneApi } from "../lib/api";
@@ -15,6 +15,7 @@ import {
   objectIndices,
   Painter,
 } from "./viewer/highlight";
+import { MemoryRouter } from "react-router-dom";
 import { Header } from "./Header";
 import { SearchStatus } from "./SearchStatus";
 import en from "../../messages/en.json";
@@ -30,11 +31,11 @@ afterAll(() => server.close());
 
 const render = (node: React.ReactNode) =>
   renderToStaticMarkup(
-    <NextIntlClientProvider locale="en" timeZone="UTC" messages={en}>
+    <IntlProvider locale="en" timeZone="UTC" messages={en}>
       <QueryClientProvider client={new QueryClient()}>
-        {node}
+        <MemoryRouter>{node}</MemoryRouter>
       </QueryClientProvider>
-    </NextIntlClientProvider>,
+    </IntlProvider>,
   );
 
 test("search paints raw semantic similarity on matched geometry and dims the rest of the room", async () => {

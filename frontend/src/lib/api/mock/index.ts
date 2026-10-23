@@ -1,4 +1,4 @@
-/** Mock mode (NEXT_PUBLIC_API_MODE=mock): MSW serves the API's paths in the browser. */
+/** Mock mode (VITE_API_MODE=mock): MSW serves the API's paths in the browser. */
 export async function startMockWorker() {
   const { setupWorker } = await import("msw/browser");
   const { handlers } = await import("./handlers");

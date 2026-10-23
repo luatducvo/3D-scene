@@ -9,7 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { setupServer } from "msw/node";
-import { NextIntlClientProvider } from "next-intl";
+import { IntlProvider } from "use-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sceneApi } from "../lib/api";
 import type { Scene } from "../lib/api/types";
@@ -20,7 +20,7 @@ import { SceneExplorer } from "./SceneExplorer";
 import en from "../../messages/en.json";
 
 // The WebGL canvas is the only dynamic import; canvas hovers and clicks go through the store.
-vi.mock("next/dynamic", () => ({ default: () => () => null }));
+vi.mock("./viewer/SceneCanvas", () => ({ default: () => null }));
 
 const server = setupServer(...handlers);
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -34,11 +34,11 @@ afterAll(() => server.close());
 async function explore(change: (scene: Scene) => Scene = (scene) => scene) {
   const scene = change(await sceneApi.getScene("demo"));
   render(
-    <NextIntlClientProvider locale="en" timeZone="UTC" messages={en}>
+    <IntlProvider locale="en" timeZone="UTC" messages={en}>
       <QueryClientProvider client={new QueryClient()}>
         <SceneExplorer scene={scene} />
       </QueryClientProvider>
-    </NextIntlClientProvider>,
+    </IntlProvider>,
   );
   return scene;
 }

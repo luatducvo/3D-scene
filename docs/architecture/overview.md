@@ -6,7 +6,7 @@ A user creates a Scene, uploads photos or one video of a room, and starts a Job.
 
 | Process | Code | Role |
 | --- | --- | --- |
-| frontend | `frontend/` | Next.js app; talks only to scene-api |
+| frontend | `frontend/` | React SPA; talks only to scene-api |
 | scene-api | `backend/services/scene-api` | REST and SSE API; stores uploads on the Target; serves Publication files; Search |
 | scene-worker | `backend/services/scene-worker` | claims queued Jobs, runs every Stage on the Target, publishes |
 | Postgres + pgvector | `backend/migrations/001_init.sql` | Scenes, Jobs, Stage Runs, Objects with embeddings, events |
@@ -38,7 +38,7 @@ Progress reaches the browser as `scene_events` rows that the store writes with e
 | `backend/config/` | pipeline and compute YAML, Vocabularies |
 | `backend/deploy/` | one README per Provider; Modal app; Colab notebook cells |
 | `backend/tests/` | pytest suite |
-| `frontend/src/app/` | routes |
+| `frontend/src/pages/` | route screens |
 | `frontend/src/components/` | screens and panels; `viewer/` for the 3D canvas |
 | `frontend/src/lib/` | `api/` client, types, mock · `sceneProgress.ts` · `store/viewerStore.ts` · `upload/` · `quality/` |
 | `docs/diagrams/` | rendered architecture diagrams |

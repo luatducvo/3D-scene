@@ -1,5 +1,4 @@
-"use client";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 import { heatmapColor } from "./viewer/highlight";
 
 export function HeatmapLegend({ values }: { values: number[] }) {

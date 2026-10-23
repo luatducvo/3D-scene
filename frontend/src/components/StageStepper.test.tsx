@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NextIntlClientProvider } from "next-intl";
+import { IntlProvider } from "use-intl";
 import { StageStepper } from "./StageStepper";
 import messages from "../../messages/en.json";
 import { stageState, type Stage, type StageState } from "../lib/api/types";
@@ -11,7 +11,7 @@ const event = (
 ): StageState => stageState({ stage, status, error });
 test("progress shows done, active and failed stages with the actionable error", () => {
   const markup = renderToStaticMarkup(
-    <NextIntlClientProvider locale="en" timeZone="UTC" messages={messages}>
+    <IntlProvider locale="en" timeZone="UTC" messages={messages}>
       <StageStepper
         events={{
           ingest: event("ingest", "done"),
@@ -19,7 +19,7 @@ test("progress shows done, active and failed stages with the actionable error", 
           mesh: event("mesh", "failed", { message: "No surface" }),
         }}
       />
-    </NextIntlClientProvider>,
+    </IntlProvider>,
   );
   expect(markup).toContain("Done");
   expect(markup).toContain("Running");
@@ -29,7 +29,7 @@ test("progress shows done, active and failed stages with the actionable error", 
 test("progress shows the Job bar, the running Stage count, elapsed time and an estimate", () => {
   const start = "2026-10-14T13:00:00Z";
   const markup = renderToStaticMarkup(
-    <NextIntlClientProvider locale="en" timeZone="UTC" messages={messages}>
+    <IntlProvider locale="en" timeZone="UTC" messages={messages}>
       <StageStepper
         now={Date.parse("2026-10-14T13:10:00Z")}
         events={{
@@ -48,7 +48,7 @@ test("progress shows the Job bar, the running Stage count, elapsed time and an e
           },
         }}
       />
-    </NextIntlClientProvider>,
+    </IntlProvider>,
   );
   expect(markup).toContain('aria-label="Processing progress"');
   expect(markup).toContain("4.3 of 8 stages");
@@ -60,7 +60,7 @@ test("progress shows the Job bar, the running Stage count, elapsed time and an e
 
 test("a running Stage without counts shows an indeterminate bar", () => {
   const markup = renderToStaticMarkup(
-    <NextIntlClientProvider locale="en" timeZone="UTC" messages={messages}>
+    <IntlProvider locale="en" timeZone="UTC" messages={messages}>
       <StageStepper
         now={Date.parse("2026-10-14T13:00:05Z")}
         events={{
@@ -70,7 +70,7 @@ test("a running Stage without counts shows an indeterminate bar", () => {
           },
         }}
       />
-    </NextIntlClientProvider>,
+    </IntlProvider>,
   );
   expect(markup).toMatch(
     /<progress aria-label="Reconstruct the room"><\/progress>/,

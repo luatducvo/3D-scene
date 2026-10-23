@@ -1,9 +1,8 @@
-"use client";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Html, Line } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "use-intl";
 import { sceneLayers, type SceneLayerProps } from "./layers";
 import { attachCamera } from "./camera";
 import { pickAt } from "./picking";
@@ -225,7 +224,7 @@ export default function SceneCanvas(props: SceneLayerProps) {
           raycaster.params.Points.threshold = 0.02;
         }}
       >
-        <color attach="background" args={["#142326"]} />
+        <color attach="background" args={["#f0ead8"]} />
         <ambientLight intensity={1.3} />
         <directionalLight position={[3, -3, 8]} intensity={2} />
         <Suspense fallback={<LoadingSignal onChange={setLoading} />}>

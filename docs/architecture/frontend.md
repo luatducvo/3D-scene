@@ -1,15 +1,15 @@
 # Frontend
 
-`frontend/`: Next.js App Router (standalone output), React, TanStack Query for server state, Zustand for viewer state, react-three-fiber for 3D, next-intl for strings. English is the only locale.
+`frontend/`: React SPA with Vite and React Router, TanStack Query for server state, Zustand for viewer state, react-three-fiber for 3D, use-intl for strings. English is the only locale.
 
 ## Routes
 
 | Route | File | Shows |
 | --- | --- | --- |
-| `/` | `src/app/page.tsx` | redirects to `/en` |
-| `/en` | `src/app/[locale]/page.tsx` | the Scene library |
-| `/en/scenes/new` | `src/app/[locale]/scenes/new/page.tsx` | name a Scene, add files, upload |
-| `/en/scenes/{id}` | `src/app/[locale]/scenes/[sceneId]/page.tsx` | depends on the Scene's status (below) |
+| `/` | `src/App.tsx` | redirects to `/en` |
+| `/en` | `src/pages/SceneList.tsx` | the Scene library |
+| `/en/scenes/new` | `src/pages/NewScene.tsx` | name a Scene, add files, upload |
+| `/en/scenes/{id}` | `src/pages/ScenePage.tsx` | depends on the Scene's status (below) |
 
 The Scene page shows:
 
@@ -52,4 +52,18 @@ Object Membership (`src/lib/api/membership.ts`) maps each Object to its points a
 
 ## Mock mode
 
-With `NEXT_PUBLIC_API_MODE=mock`, `src/app/providers.tsx` starts MSW (`public/mockServiceWorker.js`) before rendering. `src/lib/api/mock/handlers.ts` serves every API path, including the SSE progress stream, with a demo Scene built in `mock/room.ts` and its membership in `mock/membership.ts`.
+With `VITE_API_MODE=mock`, `src/Providers.tsx` starts MSW (`public/mockServiceWorker.js`) before rendering. `src/lib/api/mock/handlers.ts` serves every API path, including the SSE progress stream, with a demo Scene built in `mock/room.ts` and its membership in `mock/membership.ts`.
+
+## Build and deployment
+
+`src/main.tsx` mounts `App` inside React Router. The routes and Three.js canvas are lazy-loaded. `use-intl` reads the existing English message catalog. The visual style uses a warm canvas, navy typography, teal controls and a metric floor grid registered in `sceneLayers`.
+
+Vite serves development on port 3000 and builds static files into `dist/`. The production container uses Nginx with an `index.html` rewrite, so direct links and reloads of `/en/scenes/{id}` work. `VITE_API_URL` and `VITE_API_MODE` are browser build-time variables; rebuild the container after changing them. There is no server-side API origin.
+
+The editable desktop design is indexed in [the complete desktop screen set](https://www.figma.com/design/s0m5M8f2bvU2JaUEuNGnhH/Untitled?node-id=66-2533). Static capture illustrations and Scene previews have been removed; the viewer loads Publication geometry, and uploaded Frame previews come only from the selected files.
+
+## Fixed viewport and application shell
+
+`AppShell` owns the viewport (`100dvh`), the route slot and the shared navigation. Each route supplies its Header and main content. Header and navigation stay visible while the content changes. The desktop shell has a minimum width of 1024 pixels; there is no separate mobile layout.
+
+The document does not scroll vertically. The library reserves rows for its introduction and filters, then scrolls the Scene collection. Capture and processing screens reserve their heading and give each content panel its own scroll region. In the explorer, the toolbar, canvas, spatial tools and hints occupy separate grid rows; the canvas gets the remaining height and the inspector scrolls independently. All shrinking grid boundaries use `min-height: 0` so long content cannot push the navigation out of the viewport. Native dialogs scroll within the viewport as well.
