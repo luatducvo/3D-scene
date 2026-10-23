@@ -201,7 +201,7 @@ function useMembershipFit(
   }, [mode, membership, usable]);
 }
 
-/** Highlighted and selected Objects in the highlight colour, the rest dimmed, the hovered one tinted. */
+/** Highlighted and selected Objects in the highlight colour, the rest dimmed, the hovered one in its Instance Color. */
 function usePainting(layer: LayerMembership | null) {
   const highlighted = useViewer((s) => s.highlightedIds),
     appearance = useViewer((s) => s.appearance),

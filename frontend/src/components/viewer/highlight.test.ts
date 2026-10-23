@@ -60,26 +60,39 @@ test("highlighting paints Objects green and dims the rest; clearing returns real
   expect(colors).toEqual(base);
 });
 
-test("hover tints only the hovered Object and restores it when the pointer moves on", () => {
+test("hover paints the hovered Object in its Instance Color and leaves the rest as captured", () => {
   const base = new Float32Array(18).fill(0.5);
   const colors = new Float32Array(base);
   const painter = new Painter(colors, base, membership.points, 3);
-  painter.highlight([]);
+  const color = (i: number) => [...colors.subarray(3 * i, 3 * i + 3)];
+  painter.appearance("instances", membership.ids);
+  const handle = color(2),
+    chair = color(5);
+  painter.appearance("original", membership.ids);
   painter.hover(1);
-  expect(colors[6]).not.toBeCloseTo(0.5);
-  expect(colors[3]).toBe(0.5); // the rest of the wardrobe keeps its colour
+  expect(color(2)).toEqual(handle);
+  expect(color(3)).toEqual([0.5, 0.5, 0.5]); // the rest of the wardrobe keeps its colour
   painter.hover(2);
-  expect(colors[6]).toBe(0.5);
-  expect(colors[15]).not.toBeCloseTo(0.5);
+  expect(color(2)).toEqual([0.5, 0.5, 0.5]);
+  expect(color(5)).toEqual(chair);
   painter.hover(null);
   expect(colors).toEqual(base);
-  // A hovered, highlighted Object stays distinct from the highlight and returns to it.
-  painter.highlight([2]);
-  const highlighted = colors[15];
-  painter.hover(2);
-  expect(colors[15]).not.toBe(highlighted);
+});
+
+test("under Instance Colors, hover keeps the hovered Object's colour and dims everything else", () => {
+  const base = new Float32Array(18).fill(0.5);
+  const colors = new Float32Array(base);
+  const painter = new Painter(colors, base, membership.points, 3);
+  const color = (i: number) => [...colors.subarray(3 * i, 3 * i + 3)];
+  painter.appearance("instances", membership.ids);
+  const instances = new Float32Array(colors);
+  painter.hover(1);
+  expect(color(2)).toEqual([...instances.subarray(6, 9)]);
+  color(0).forEach((v, c) => expect(v).toBeCloseTo(instances[c] * DIM));
+  color(4).forEach((v) => expect(v).toBeCloseTo(0.5 * DIM)); // bare wall
+  color(5).forEach((v, c) => expect(v).toBeCloseTo(instances[15 + c] * DIM));
   painter.hover(null);
-  expect(colors[15]).toBe(highlighted);
+  expect(colors).toEqual(instances);
 });
 
 test("instance appearance survives selection, result highlights and clearing", () => {
