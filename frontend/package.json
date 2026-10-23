@@ -25,10 +25,13 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/three": "^0.175.0",
+    "jsdom": "^30.1.3",
     "msw": "^2.0.0",
     "openapi-typescript": "^7.0.0",
     "prettier": "^3.9.10",
