@@ -29,7 +29,7 @@ Turns photos or one short video of a room into a metric 3D Scene whose Objects c
 - Choosing an Algorithm or Target, or adding an environment variable: [docs/agents/configuration.md](docs/agents/configuration.md)
 - Committing: [docs/agents/git-workflow.md](docs/agents/git-workflow.md)
 - How the system fits together, and where code lives: [docs/architecture/overview.md](docs/architecture/overview.md)
-- Adding an Algorithm, Relation, viewer layer, endpoint or Target: [docs/extending.md](docs/extending.md)
+- Adding an Algorithm, viewer layer, endpoint or Target: [docs/extending.md](docs/extending.md)
 
 `backend/` and `frontend/` each have an AGENTS.md with their own rules.
 

@@ -4,7 +4,6 @@ from typing import Any, ClassVar
 from pydantic import BaseModel
 
 from .contracts import SceneWorkspace
-from .domain import Relation, SceneGraphContext, SceneObject
 
 
 class StageAlgorithm(ABC):
@@ -33,15 +32,3 @@ class StageAlgorithm(ABC):
 
     @abstractmethod
     def run(self, workspace: SceneWorkspace, params: dict[str, Any]) -> BaseModel: ...
-
-
-class RelationRule(ABC):
-    predicate: ClassVar[str]
-    # The widest horizontal gap in meters between two Objects' footprints at which the rule can
-    # hold. The graph skips pairs that are certainly farther apart; None evaluates every pair.
-    reach: ClassVar[float | None] = None
-
-    @abstractmethod
-    def evaluate(
-        self, a: SceneObject, b: SceneObject, context: SceneGraphContext
-    ) -> Relation | None: ...

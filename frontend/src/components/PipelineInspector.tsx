@@ -12,7 +12,7 @@ const METRICS: Record<Stage, string[]> = {
   segment: ["num_masks", "vocabulary_size"],
   lift: ["num_instances"],
   embed: ["model_id", "dim"],
-  graph: ["num_objects", "num_relations"],
+  graph: ["num_objects"],
 };
 
 export function PipelineInspector({ scene }: { scene: Scene }) {

@@ -10,13 +10,6 @@ Each recipe lists every file the change touches. Finish with the done check in [
 4. Select it in `backend/config/pipeline.yaml` with its params.
 5. Test it on small synthetic inputs in `backend/tests/test_<stage>.py`.
 
-## A new Relation
-
-1. Subclass `RelationRule` in `scene_stages/graph.py` with `predicate`, `reach` (the widest footprint gap in metres at which it can hold, or `None`) and `evaluate(a, b, context)`.
-2. Register it under `[project.entry-points.scene_relations]` in `scene-stages/pyproject.toml`.
-3. Add the predicate to `graph.params.relations` in `config/pipeline.yaml`.
-4. Test it in `backend/tests/test_graph.py`.
-
 ## A new API endpoint
 
 1. Add the route to `scene_api/main.py` and its models to `scene_api/models.py`; writes go through a `SceneStore` method.

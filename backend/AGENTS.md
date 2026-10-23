@@ -9,7 +9,7 @@ Libraries in `packages/`, processes in `services/`. Dependencies point one way: 
 | Package | Holds |
 | --- | --- |
 | `scene-core` | domain models, Stage contracts and Manifests, ports, config, errors, Publication files, membership format, geometry |
-| `scene-stages` | every Algorithm (real and fake) and Relation rule |
+| `scene-stages` | every Algorithm, real and fake |
 | `scene-store` | every database write, the `scene_events` outbox |
 | `scene-target` | `TargetWorkspace`, the only way to reach a Target Workspace |
 | `scene-api` | FastAPI app: routes, read queries, Search ranking |

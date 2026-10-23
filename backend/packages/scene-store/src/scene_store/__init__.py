@@ -208,13 +208,12 @@ class SceneStore:
         return failures
 
     def publish(self, job, published: PublishedScene):
-        """Replace the Scene's Objects, Relations and room, point it at this Job's publication and mark Job and
+        """Replace the Scene's Objects, point it at this Job's publication and mark Job and
         Scene ready, in one transaction. The publication folder must already be complete."""
         scene_id = job["scene_id"]
         graph = published.graph
         with self.connect() as conn:
             conn.execute("DELETE FROM objects WHERE scene_id=%s", (scene_id,))
-            conn.execute("DELETE FROM relations WHERE scene_id=%s", (scene_id,))
             for obj in graph.objects:
                 conn.execute(
                     "INSERT INTO objects(scene_id,id,label,box,best_views,embedding) VALUES(%s,%s,%s,%s,%s,%s::vector)",
@@ -227,18 +226,9 @@ class SceneStore:
                         str(published.embeddings[obj.id].tolist()),
                     ),
                 )
-            for rel in graph.relations:
-                conn.execute(
-                    "INSERT INTO relations(scene_id,subject_id,predicate,object_id,value) VALUES(%s,%s,%s,%s,%s)",
-                    (scene_id, rel.subject_id, rel.predicate, rel.object_id, rel.value),
-                )
             conn.execute(
-                "UPDATE scenes SET room=%s,publication=%s,status='ready',failure=NULL WHERE id=%s",
-                (
-                    Jsonb(graph.model_dump(exclude={"objects", "relations"})),
-                    str(job["id"]),
-                    scene_id,
-                ),
+                "UPDATE scenes SET publication=%s,status='ready',failure=NULL WHERE id=%s",
+                (str(job["id"]), scene_id),
             )
             conn.execute(
                 "UPDATE jobs SET status='done',finished_at=now() WHERE id=%s", (job["id"],)

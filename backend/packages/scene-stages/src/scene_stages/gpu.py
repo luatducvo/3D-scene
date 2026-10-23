@@ -252,17 +252,6 @@ class GeoCalibAlignment(StageAlgorithm):
                 frame = dict(data)
             frame["pose"] = transform @ frame["pose"]
             np.savez_compressed(workspace.dir("align/frames") / path.name, **frame)
-        walls = [
-            {
-                "normal": (rotation @ normal).tolist(),
-                "offset": float(offset - (rotation @ normal) @ transform[:3, 3]),
-                "support": weight,
-            }
-            for normal, offset, weight in vertical
-        ]
-        workspace.dir("align").joinpath("walls.json").write_text(
-            json.dumps(walls), encoding="utf-8"
-        )
         return AlignManifest(
             world_to_aligned=transform.tolist(),
             floor_z=0,

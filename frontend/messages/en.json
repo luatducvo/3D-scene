@@ -45,7 +45,7 @@
     "segment": "Find objects in photos",
     "lift": "Locate objects in 3D",
     "embed": "Index objects for search",
-    "graph": "Build spatial relations"
+    "graph": "Measure objects"
   },
   "stagesCompleted": "{done} of {total} stages",
   "etaSoon": "less than a minute left",
@@ -198,7 +198,7 @@
         "title": "Metric alignment",
         "purpose": "Align the room with a level floor and a vertical Z axis.",
         "inputs": "Reconstruction and calibration",
-        "outputs": "Metric aligned geometry and room planes"
+        "outputs": "Metric aligned geometry, floor and ceiling heights"
       },
       "mesh": {
         "title": "Geometry",
@@ -226,8 +226,8 @@
       },
       "graph": {
         "title": "Scene Graph",
-        "purpose": "Publish Objects, spatial Relations and Object Membership.",
-        "inputs": "Instances, alignment and geometry",
+        "purpose": "Publish Objects with their boxes and Object Membership.",
+        "inputs": "Instances and geometry",
         "outputs": "Scene Graph and Object Membership"
       }
     },
@@ -260,8 +260,7 @@
         "dim": "Embedding dimensions"
       },
       "graph": {
-        "num_objects": "Objects",
-        "num_relations": "Relations"
+        "num_objects": "Objects"
       }
     }
   }

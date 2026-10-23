@@ -35,22 +35,7 @@ def claimed(store, scene):
 
 
 def published(scene):
-    graph = SceneGraph.model_validate(
-        {
-            "scene_id": scene,
-            "floor_z": 0,
-            "ceiling_height": 2.5,
-            "objects": OBJECTS,
-            "relations": [
-                {
-                    "subject_id": "chair-1",
-                    "predicate": "near",
-                    "object_id": "table-1",
-                    "value": 0.25,
-                }
-            ],
-        }
-    )
+    graph = SceneGraph.model_validate({"objects": OBJECTS})
     return PublishedScene(
         graph, {o["id"]: np.full(EMBEDDING_DIM, 0.1, dtype=np.float32) for o in OBJECTS}
     )
@@ -80,12 +65,6 @@ def test_a_job_runs_every_stage_publishes_and_replays_as_it_happened(store):
             r["id"]
             for r in conn.execute("SELECT id FROM objects WHERE scene_id=%s ORDER BY id", (scene,))
         ] == ["chair-1", "table-1"]
-        assert (
-            conn.execute(
-                "SELECT count(*) AS n FROM relations WHERE scene_id=%s", (scene,)
-            ).fetchone()["n"]
-            == 1
-        )
     assert store.get_scene(scene)["status"] == "ready"
     events = live(store, scene)
     assert events[0] == ("status", {"status": "processing"}) and events[-1] == (

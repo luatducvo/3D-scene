@@ -30,23 +30,5 @@ class SceneObject(BaseModel):
     best_views: list[BestView] = Field(default_factory=list)
 
 
-class Relation(BaseModel):
-    subject_id: str
-    predicate: str
-    object_id: str | None = None
-    value: float | None = None
-
-
 class SceneGraph(BaseModel):
-    scene_id: str
-    floor_z: float = 0
-    ceiling_height: float | None = None
-    floor_area: float | None = None
     objects: list[SceneObject] = Field(default_factory=list)
-    relations: list[Relation] = Field(default_factory=list)
-
-
-class SceneGraphContext(BaseModel):
-    floor_z: float = 0
-    ceiling_height: float | None = None
-    walls: list[dict] = Field(default_factory=list)

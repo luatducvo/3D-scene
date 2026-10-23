@@ -99,7 +99,6 @@ class AlignFake(Fake):
         import shutil
 
         shutil.copyfile(w.path("recon/frames/0000.npz"), w.dir("align", "frames") / "0000.npz")
-        w.path("align/walls.json").write_text("[]")
         return AlignManifest(world_to_aligned=np.eye(4).tolist(), floor_z=0, ceiling_height=2.5)
 
 
@@ -277,25 +276,11 @@ class GraphFake(Fake):
     name = "graph.fake"
     stage = "graph"
     manifest_type = GraphManifest
-    reads = ["instances", "align", "mesh"]
+    reads = ["instances", "mesh"]
     writes = ["graph"]
 
     def transform(self, w, p):
-        relations = [
-            {"subject_id": "chair-1", "predicate": "near", "object_id": "table-1", "value": 1}
-        ]
-        w.dir("graph").joinpath("scene_graph.json").write_text(
-            json.dumps(
-                {
-                    "scene_id": w.scene_id,
-                    "floor_z": 0,
-                    "ceiling_height": 2.5,
-                    "floor_area": 12,
-                    "objects": OBJECTS,
-                    "relations": relations,
-                }
-            )
-        )
+        w.dir("graph").joinpath("scene_graph.json").write_text(json.dumps({"objects": OBJECTS}))
         # Members are the room's points and vertices inside each Object's box: floor points under
         # the chair and the table. The fake mesh has only the room's corners, so no vertex is inside.
         write_membership(
@@ -303,4 +288,4 @@ class GraphFake(Fake):
             [o["id"] for o in OBJECTS],
             lambda positions: [inside_box(positions, o["box"]) for o in OBJECTS],
         )
-        return GraphManifest(num_objects=2, num_relations=1)
+        return GraphManifest(num_objects=2)

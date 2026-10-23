@@ -1,88 +1,12 @@
-"""Metric geometry for gravity-aligned oriented boxes; NumPy only."""
+"""Box and plane fitting for gravity-aligned geometry; NumPy only."""
 
 import numpy as np
 
 from .domain import OrientedBox
 
 
-def _box(value):
-    return value.box if hasattr(value, "box") else value
-
-
-def footprint(box):
-    box = _box(box)
-    half = np.asarray(box.size[:2]) / 2
-    corners = np.array([[-1, -1], [1, -1], [1, 1], [-1, 1]]) * half
-    c, s = np.cos(box.yaw), np.sin(box.yaw)
-    return corners @ np.array([[c, s], [-s, c]]) + box.center[:2]
-
-
 def _cross(a, b):
     return float(a[0] * b[1] - a[1] * b[0])
-
-
-def _clip(subject, clip):
-    output = list(subject)
-    for a, b in zip(clip, np.roll(clip, -1, axis=0), strict=True):
-        source, output = output, []
-        if not source:
-            break
-        previous = source[-1]
-        for current in source:
-            inside = _cross(b - a, current - a) >= -1e-10
-            previous_inside = _cross(b - a, previous - a) >= -1e-10
-            if inside != previous_inside:
-                direction = current - previous
-                denominator = _cross(direction, b - a)
-                if abs(denominator) > 1e-12:
-                    output.append(previous + _cross(a - previous, b - a) / denominator * direction)
-            if inside:
-                output.append(current)
-            previous = current
-    return np.asarray(output)
-
-
-def footprint_overlap(a, b):
-    polygon = _clip(footprint(a), footprint(b))
-    if len(polygon) < 3:
-        return 0.0
-    return (
-        abs(
-            float(
-                np.sum(
-                    polygon[:, 0] * np.roll(polygon[:, 1], -1)
-                    - polygon[:, 1] * np.roll(polygon[:, 0], -1)
-                )
-            )
-        )
-        / 2
-    )
-
-
-def _point_segment_distance(point, a, b):
-    edge = b - a
-    length = np.dot(edge, edge)
-    t = np.clip(np.dot(point - a, edge) / length, 0, 1) if length else 0
-    return float(np.linalg.norm(point - (a + t * edge)))
-
-
-def box_surface_distance(a, b):
-    a, b = _box(a), _box(b)
-    pa, pb = footprint(a), footprint(b)
-    # Convex clipping handles touching footprints, including edge intersections.
-    overlap = _clip(pa, pb)
-    xy = (
-        0.0
-        if len(overlap)
-        else min(
-            _point_segment_distance(point, edge_a, edge_b)
-            for points, polygon in ((pa, pb), (pb, pa))
-            for point in points
-            for edge_a, edge_b in zip(polygon, np.roll(polygon, -1, axis=0), strict=True)
-        )
-    )
-    z = max(0, abs(a.center[2] - b.center[2]) - (a.size[2] + b.size[2]) / 2)
-    return float(np.hypot(xy, z))
 
 
 def _convex_hull(points):

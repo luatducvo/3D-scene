@@ -29,4 +29,4 @@ stages:
   graph:
     algorithm: graph.geometric
     # membership_radius_m: a point or mesh vertex within it of an Object's lift points belongs to it.
-    params: {relations: ["on", under, above, inside, next_to, near, against_wall], membership_radius_m: 0.02}
+    params: {membership_radius_m: 0.02}

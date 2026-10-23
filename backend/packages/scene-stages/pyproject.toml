@@ -37,14 +37,5 @@ scene-core={workspace=true}
 "lift.maskclustering"="scene_stages.lift:MaskClustering"
 "embed.metaclip2"="scene_stages.gpu:MetaClipEmbeddings"
 "graph.geometric"="scene_stages.graph:GeometricGraph"
-
-[project.entry-points.scene_relations]
-"on"="scene_stages.graph:On"
-"under"="scene_stages.graph:Under"
-"above"="scene_stages.graph:Above"
-"inside"="scene_stages.graph:Inside"
-"next_to"="scene_stages.graph:NextTo"
-"near"="scene_stages.graph:Near"
-"against_wall"="scene_stages.graph:AgainstWall"
 [tool.hatch.metadata]
 allow-direct-references=true

@@ -57,11 +57,10 @@ The query is embedded on the Target with the embed Stage's Algorithm and compare
 
 | Table | Holds |
 | --- | --- |
-| `scenes` | name, status, `failure`, `room` (floor, ceiling, area), `publication` (Job id) |
+| `scenes` | name, status, `failure`, `publication` (Job id) |
 | `jobs` | status `queued`, `running`, `done`, `failed`; at most one queued or running per Scene |
 | `stage_runs` | one row per Stage of the latest Job: Algorithm, status, Manifest, error, progress, times |
 | `objects` | the current Publication's Objects with a `vector(1024)` embedding (HNSW cosine index) |
-| `relations` | the current Publication's Relations |
 | `scene_events` | the progress outbox read by `GET /events` |
 
 ## Object membership file

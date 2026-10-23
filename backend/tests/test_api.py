@@ -87,6 +87,8 @@ def test_pipeline_publish_and_rerun(client):
     objects = client.get(prefix + "/objects").json()
     assert [o["id"] for o in objects] == ["chair-1", "table-1"]
     assert all("attributes" not in o for o in objects)
+    graph = next(s for s in detail["stage_runs"] if s["stage"] == "graph")
+    assert graph["manifest"] == {"num_objects": 2}
     assert objects[0]["best_views"][0]["frame_id"] == "0000"
     assert "image_url" not in objects[0]["best_views"][0]
     assert client.get(detail["assets"]["mesh_url"]).content.startswith(b"glTF")

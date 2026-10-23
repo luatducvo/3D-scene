@@ -34,7 +34,6 @@ const scenes = new Map<string, Scene>([
           num_inputs: 24,
           num_keyframes: 20,
           num_objects: 4,
-          num_relations: 3,
           num_points: 12000,
         },
       })),

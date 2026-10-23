@@ -82,4 +82,3 @@ class EmbedManifest(BaseModel):
 
 class GraphManifest(BaseModel):
     num_objects: int
-    num_relations: int
