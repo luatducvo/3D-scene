@@ -3,7 +3,6 @@ import { Color } from "three";
 import {
   normalizeSimilarities,
   DIM,
-  HIGHLIGHT_COLOR,
   objectIndices,
   owners,
   Painter,
@@ -47,17 +46,29 @@ test("picking names the smallest Object where Objects overlap, and nothing on ba
   expect(pickedObject(many[0], many[1], many[2])).toBe(69_999);
 });
 
-test("highlighting paints Objects green and dims the rest; clearing returns real colours", () => {
+const HOT = [0.9325, 0.1675, 0.1675].map(Math.fround);
+
+test("a Search paints its hits as a heatmap and dims the rest; clearing returns real colours", () => {
   const base = Float32Array.from({ length: 18 }, (_, i) => (i + 1) / 20);
   const colors = new Float32Array(base);
   const painter = new Painter(colors, base, membership.points, 3);
-  const green = new Color(HIGHLIGHT_COLOR).toArray();
   const color = (i: number) => [...colors.subarray(3 * i, 3 * i + 3)];
-  painter.highlight([2]);
-  expect(color(5)).toEqual(green.map((v) => Math.fround(v)));
+  painter.highlight([2], [1]);
+  expect(color(5)).toEqual(HOT);
   color(4).forEach((v, c) => expect(v).toBeCloseTo(base[12 + c] * DIM));
-  painter.highlight([]);
+  painter.highlight([], []);
   expect(colors).toEqual(base);
+});
+
+test("under Instance Colors, a Search dims the other Objects in their own colours", () => {
+  const base = new Float32Array(18).fill(0.2);
+  const colors = new Float32Array(base);
+  const painter = new Painter(colors, base, membership.points, 3);
+  painter.appearance("instances", membership.ids);
+  const instances = new Float32Array(colors);
+  painter.highlight([2], [1]);
+  expect([...colors.subarray(15, 18)]).toEqual(HOT);
+  for (let k = 0; k < 15; k++) expect(colors[k]).toBeCloseTo(instances[k] * DIM);
 });
 
 test("hover paints the hovered Object in its Instance Color and leaves the rest as captured", () => {
@@ -95,25 +106,28 @@ test("under Instance Colors, hover keeps the hovered Object's colour and dims ev
   expect(colors).toEqual(instances);
 });
 
-test("instance appearance survives selection, result highlights and clearing", () => {
+test("a Selection paints like hover: its Instance Color, the rest dimmed only under Instance Colors", () => {
   const base = new Float32Array(18).fill(0.2);
   const colors = new Float32Array(base);
   const painter = new Painter(colors, base, membership.points, 3);
+  const color = (i: number) => [...colors.subarray(3 * i, 3 * i + 3)];
   painter.appearance("instances", membership.ids);
   const instances = new Float32Array(colors);
-  expect([...colors.slice(0, 3)]).not.toEqual([...colors.slice(6, 9)]);
-  expect([...colors.slice(0, 3)]).not.toEqual([...colors.slice(15, 18)]);
-  expect([...colors.slice(12, 15)]).toEqual([...base.slice(12, 15)]);
-  painter.highlight([2]);
-  painter.selection(1);
-  expect([...colors.slice(6, 9)]).not.toEqual([...instances.slice(6, 9)]);
+  expect(color(0)).not.toEqual(color(2));
+  expect(color(0)).not.toEqual(color(5));
+  expect(color(4)).toEqual([...base.subarray(12, 15)]); // bare wall keeps its colour
+  painter.selection(2);
+  expect(color(5)).toEqual([...instances.subarray(15, 18)]);
+  color(0).forEach((v, c) => expect(v).toBeCloseTo(instances[c] * DIM));
   painter.selection(null);
-  painter.highlight([]);
   expect(colors).toEqual(instances);
   painter.appearance("original", membership.ids);
   expect(colors).toEqual(base);
-  painter.appearance("instances", membership.ids);
-  expect(colors).toEqual(instances);
+  painter.selection(1);
+  expect(color(2)).toEqual([...instances.subarray(6, 9)]);
+  expect(color(3)).toEqual([...base.subarray(9, 12)]);
+  painter.selection(null);
+  expect(colors).toEqual(base);
 });
 
 test("heatmaps normalize raw cosine per query, with one hot level for ties", () => {
@@ -133,9 +147,7 @@ test("overlapping search results retain the smaller Object's similarity color", 
     colors = new Float32Array(base);
   const painter = new Painter(colors, base, membership.points, 3);
   painter.highlight([1, 0], [1, 0]);
-  expect([...colors.slice(6, 9)]).toEqual(
-    [0.9325, 0.1675, 0.1675].map(Math.fround),
-  );
+  expect([...colors.slice(6, 9)]).toEqual(HOT);
   expect([...colors.slice(0, 3)]).not.toEqual([...colors.slice(6, 9)]);
 });
 

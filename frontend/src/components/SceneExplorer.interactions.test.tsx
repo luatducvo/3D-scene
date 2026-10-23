@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { setupServer } from "msw/node";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -82,4 +88,17 @@ test("Instance Colors is disabled, with the notice, when the Scene has no Object
       .hasAttribute("disabled"),
   ).toBe(true);
   expect(screen.getByText(en.ui.highlightFailed)).toBeTruthy();
+});
+
+test("clicking a Search Hit selects it and empties the Search box", async () => {
+  await explore();
+  const box = screen.getByRole("searchbox", { name: en.search }) as HTMLInputElement;
+  fireEvent.change(box, { target: { value: "sofa" } });
+  await waitFor(() =>
+    expect(useViewer.getState().highlightedIds).toEqual(["sofa-1"]),
+  );
+  useViewer.getState().click("sofa-1");
+  await waitFor(() => expect(box.value).toBe(""));
+  expect(useViewer.getState().selectedId).toBe("sofa-1");
+  expect(useViewer.getState().highlightedIds).toEqual([]);
 });

@@ -5,10 +5,10 @@ import { CameraControls, Html, Line } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
 import { useFormatter, useTranslations } from "next-intl";
 import { sceneLayers, type SceneLayerProps } from "./layers";
-import { attachCamera, focus } from "./camera";
+import { attachCamera } from "./camera";
 import { pickAt } from "./picking";
 import { focusBounds, homePose, visibleBounds } from "./view";
-import { useViewer } from "../../lib/store/viewerStore";
+import { clickable, useViewer } from "../../lib/store/viewerStore";
 
 /** A press that moves less than this many pixels is a click, not an orbit or pan. */
 const CLICK_SLOP_PX = 4;
@@ -61,11 +61,7 @@ function Picker({
       if (!start || e.button !== 0 || useViewer.getState().measuring) return;
       const { x, y } = local(e);
       if (Math.hypot(x - start.x, y - start.y) > CLICK_SLOP_PX) return;
-      const id = objectAtRef.current(x, y);
-      if (id) {
-        useViewer.getState().select(id);
-        focus([id]);
-      } else useViewer.getState().deselect();
+      useViewer.getState().click(objectAtRef.current(x, y));
     };
     canvas.addEventListener("pointermove", move);
     canvas.addEventListener("pointerleave", leave);
@@ -84,8 +80,9 @@ function Picker({
     if (!at) return;
     pending.current = null;
     const id = objectAt(at.x, at.y);
-    useViewer.getState().hover(id ? { id, x: at.cx, y: at.cy } : null);
-    gl.domElement.style.cursor = id ? "pointer" : "";
+    const viewer = useViewer.getState();
+    viewer.hover(id ? { id, x: at.cx, y: at.cy } : null);
+    gl.domElement.style.cursor = id && clickable(viewer, id) ? "pointer" : "";
   });
   return null;
 }

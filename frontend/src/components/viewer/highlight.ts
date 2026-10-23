@@ -1,14 +1,12 @@
 /**
  * Object highlighting rules, free of WebGL: which Object owns a point for picking, how points are
- * coloured for highlight and hover. Points and mesh vertices work the same way: an element index
+ * coloured for a Search, a Selection and hover. Points and mesh vertices work the same way: an element index
  * is a point of `points.ply` or a vertex of `mesh.glb`, and `members(i)` lists Object `i`'s ones.
  */
 import { Color } from "three";
 import type { Membership } from "../../lib/api/membership";
 
 export type Members = (object: number) => Uint32Array;
-/** The app's highlight green, for highlighted and selected Objects. */
-export const HIGHLIGHT_COLOR = "#9ee8c4";
 /** Share of an element's real (linear) colour kept while other Objects are highlighted. */
 export const DIM = 0.15;
 export type Appearance = "original" | "instances";
@@ -67,16 +65,15 @@ export function objectIndices(membership: Membership, ids: string[]): number[] {
 }
 
 /**
- * Paints an element colour array (linear RGB, 3 floats per element) from real colours: highlighted
- * Objects in `HIGHLIGHT_COLOR` and the rest dimmed, or real colours when nothing is highlighted.
- * The hovered Object takes its Instance Color; under Instance Colors everything else dims too.
- * Outside Instance Colors a hover change repaints only the two Objects involved.
+ * Paints an element colour array (linear RGB, 3 floats per element) from real colours, for one
+ * interaction at a time: a Search's hits as an Object Heatmap with the rest dimmed, or the hovered
+ * or selected Object in its Instance Color, or just the appearance. Under Instance Colors an
+ * emphasised Object dims everything else; otherwise an emphasis change repaints only its Objects.
  */
 export class Painter {
   private readonly count: number;
   private readonly marked: Uint8Array;
   private readonly owner: Uint32Array;
-  private readonly highlightRgb: number[];
   private dimmed = false;
   private appearanceBase: Float32Array;
   /** Each element in its owner's Instance Color, or its real colour when it has no owner. */
@@ -84,7 +81,7 @@ export class Painter {
   private resultColors: Float32Array;
   private appearanceMode: Appearance | null = null;
   private appearanceIds: string[] | null = null;
-  private selectedMembers = new Set<number>();
+  private selected: number | null = null;
   private hovered: number | null = null;
   constructor(
     readonly colors: Float32Array,
@@ -95,7 +92,6 @@ export class Painter {
     this.count = Math.floor(base.length / 3);
     this.marked = new Uint8Array(this.count);
     this.owner = owners(this.count, this.objectCount, this.members);
-    this.highlightRgb = new Color(HIGHLIGHT_COLOR).toArray();
     this.appearanceBase = base;
     this.instanceColors = new Float32Array(base);
     this.resultColors = new Float32Array(base.length);
@@ -133,25 +129,22 @@ export class Painter {
       mode === "instances" ? this.instanceColors : this.base;
     this.repaint();
   }
-  /** Selection is feedback on top of the current result, not a replacement result. */
+  /** Paint the selected Object as hover paints it. */
   selection(object: number | null) {
-    this.selectedMembers = new Set(
-      object === null
-        ? []
-        : this.list(object).filter((index) => this.owner[index] === object + 1),
-    );
-    this.repaint();
+    const previous = this.selected;
+    this.selected = object;
+    this.emphasisChanged(previous, object);
   }
-  private repaint() {
-    for (let i = 0; i < this.count; i++) this.plain(i);
+  hover(object: number | null) {
+    const previous = this.hovered;
+    this.hovered = object;
+    this.emphasisChanged(previous, object);
   }
-  /** Highlight these Objects and dim the rest; an empty list returns real colours. */
-  highlight(objects: number[], strengths?: number[]) {
+  /** Paint these Objects by their heatmap strengths and dim the rest; an empty list returns real colours. */
+  highlight(objects: number[], strengths: number[]) {
     this.marked.fill(0);
     objects.forEach((object, position) => {
-      const rgb = strengths
-        ? heatmapColor(strengths[position]).toArray()
-        : this.highlightRgb;
+      const rgb = heatmapColor(strengths[position]).toArray();
       for (const index of this.list(object))
         if (index < this.count && this.owner[index] === object + 1) {
           this.marked[index] = 1;
@@ -161,19 +154,17 @@ export class Painter {
     this.dimmed = objects.length > 0;
     this.repaint();
   }
-  hover(object: number | null) {
-    if (object === this.hovered) return;
-    const previous = this.hovered;
-    this.hovered = object;
-    // Under Instance Colors a hover dims or restores everything else.
-    if (this.appearanceMode === "instances") {
-      for (let i = 0; i < this.count; i++) this.plain(i);
-      return;
-    }
-    for (const changed of [previous, object])
+  private emphasisChanged(previous: number | null, next: number | null) {
+    if (previous === next) return;
+    // Under Instance Colors an emphasis dims or restores everything else.
+    if (this.appearanceMode === "instances") return this.repaint();
+    for (const changed of [previous, next])
       if (changed !== null)
         for (const index of this.list(changed))
           if (index < this.count) this.plain(index);
+  }
+  private repaint() {
+    for (let i = 0; i < this.count; i++) this.plain(i);
   }
   private list(object: number) {
     return object >= 0 && object < this.objectCount
@@ -181,22 +172,21 @@ export class Painter {
       : EMPTY;
   }
   private plain(index: number) {
-    const hovered =
-      this.hovered !== null && this.owner[index] === this.hovered + 1;
+    const object = this.owner[index] - 1;
+    const emphasised =
+      object >= 0 && (object === this.hovered || object === this.selected);
+    const anyEmphasis = this.hovered !== null || this.selected !== null;
     const dimmed =
-      this.dimmed ||
-      (this.hovered !== null && this.appearanceMode === "instances");
+      this.dimmed || (anyEmphasis && this.appearanceMode === "instances");
     for (let c = 0; c < 3; c++) {
       const k = 3 * index + c;
-      this.colors[k] = this.selectedMembers.has(index)
-        ? [1, 0.55, 0.12][c]
-        : hovered
-          ? this.instanceColors[k]
-          : this.marked[index]
-            ? this.resultColors[k]
-            : dimmed
-              ? this.appearanceBase[k] * DIM
-              : this.appearanceBase[k];
+      this.colors[k] = emphasised
+        ? this.instanceColors[k]
+        : this.marked[index]
+          ? this.resultColors[k]
+          : dimmed
+            ? this.appearanceBase[k] * DIM
+            : this.appearanceBase[k];
     }
   }
 }

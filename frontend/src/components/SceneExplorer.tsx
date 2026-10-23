@@ -42,9 +42,9 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
   const t = useTranslations(),
     format = useFormatter();
   const [panel, setPanel] = useState<Panel>(null),
-    [search, setSearch] = useState(""),
-    [query, setQuery] = useState(""),
     [attempt, setAttempt] = useState(0);
+  const search = useViewer((s) => s.search),
+    query = search.trim();
   const appearance = useViewer((s) => s.appearance);
   const selectedId = useViewer((s) => s.selectedId),
     measuring = useViewer((s) => s.measuring),
@@ -81,8 +81,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
     viewMode(layers),
   );
   useEffect(() => {
-    const q = search.trim();
-    setQuery(q);
+    const q = query;
     if (!q) {
       setResults({ data: [], error: null, isFetching: false });
       if (useViewer.getState().highlightedIds.length)
@@ -121,7 +120,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
       disposed = true;
       clearTimeout(timer);
     };
-  }, [search, scene.id]);
+  }, [query, scene.id]);
   useEffect(() => {
     if (selectedId) {
       useViewer.getState().setMeasuring(false);
@@ -147,8 +146,7 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
   useEffect(() => {
     function escape(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      useViewer.getState().deselect();
-      useViewer.getState().setMeasuring(false);
+      useViewer.getState().escape();
       setPanel(null);
     }
     window.addEventListener("keydown", escape);
@@ -261,18 +259,14 @@ export function SceneExplorer({ scene }: { scene: Scene }) {
               title={t("englishInput")}
               placeholder={t("search")}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => useViewer.getState().setSearch(e.target.value)}
             />
             {query && (
               <SearchStatus
                 fetching={results.isFetching}
                 error={results.error}
                 count={results.data?.length || 0}
-                onClear={() => {
-                  setSearch("");
-                  setQuery("");
-                  useViewer.getState().clearResult();
-                }}
+                onClear={() => useViewer.getState().setSearch("")}
               />
             )}
           </div>

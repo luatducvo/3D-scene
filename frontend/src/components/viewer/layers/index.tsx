@@ -201,7 +201,7 @@ function useMembershipFit(
   }, [mode, membership, usable]);
 }
 
-/** Highlighted and selected Objects in the highlight colour, the rest dimmed, the hovered one in its Instance Color. */
+/** A Search's hits as an Object Heatmap with the rest dimmed, or the hovered or selected Object in its Instance Color. */
 function usePainting(layer: LayerMembership | null) {
   const highlighted = useViewer((s) => s.highlightedIds),
     appearance = useViewer((s) => s.appearance),
@@ -230,9 +230,7 @@ function usePainting(layer: LayerMembership | null) {
     const indices = objectIndices(layer.membership, highlighted);
     painter.highlight(
       indices,
-      similarities
-        ? indices.map((i) => similarities[layer.membership.ids[i]])
-        : undefined,
+      indices.map((i) => similarities?.[layer.membership.ids[i]] ?? 1),
     );
     painter.selection(
       selected
