@@ -21,6 +21,15 @@ Open http://localhost:3000. On first run `main.py` creates `backend/.env` from `
 
 `uv run main.py --help` lists every command, including `down`, `reset` (deletes all Scenes), `test` and `lint`.
 
+To remove generated files on the host, run either command from the repository root:
+
+```bash
+uv run main.py clean python  # Python/tool caches and bytecode; also clears the global uv cache
+uv run main.py clean react   # Frontend build output, Vite/Next.js caches and TypeScript build metadata
+```
+
+These commands keep `.venv`, installed dependencies in `node_modules`, source files, environment files and project data. They do not clean Docker images, containers or volumes.
+
 ## Frontend only
 
 ```bash

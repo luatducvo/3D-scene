@@ -15,6 +15,15 @@ backend/*
 !frontend/
 !frontend/**
 
+# Development-only files are not needed by any production image.
+**/AGENTS.md
+**/CLAUDE.md
+frontend/src/**/*.test.ts
+frontend/src/**/*.test.tsx
+frontend/vitest.config.ts
+frontend/openapi/
+frontend/scripts/
+
 # Never send local artifacts or secrets nested inside the included directories.
 **/.env
 **/.env.*

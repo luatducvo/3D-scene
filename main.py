@@ -201,28 +201,86 @@ def openapi(_):
     python("scene_api.export_openapi", env={"DATABASE_URL": "postgresql://unused@localhost/unused"})
 
 
-@command("remove all caches (Python, uv, frontend .next)")
-def clean(_):
-    skip = {".venv", "venv", "node_modules", ".git"}
-    caches = {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".cache"}
+def remove_artifact(path):
+    """Delete a generated path only when its resolved target stays in the repository."""
+    if not path.resolve().is_relative_to(ROOT.resolve()):
+        raise ValueError(f"Refusing to clean a path outside the repository: {path}")
+    if path.is_symlink() or path.is_junction():
+        return 0
+    if path.is_dir():
+        shutil.rmtree(path)
+    elif path.is_file():
+        path.unlink()
+    else:
+        return 0
+    print(f"Removed {path.relative_to(ROOT)}")
+    return 1
+
+
+def clean_tree(root, caches, suffixes, *, skip=()):
+    """Walk source folders without entering dependencies, data or linked directories."""
+
+    def raise_walk_error(error):
+        raise error
+
+    if root.is_symlink() or root.is_junction():
+        raise ValueError(f"Refusing to traverse a linked directory: {root}")
     removed = 0
-    for folder, dirs, files in os.walk(ROOT):
-        dirs[:] = [d for d in dirs if d not in skip]
-        for d in [d for d in dirs if d in caches]:
-            shutil.rmtree(Path(folder) / d, ignore_errors=True)
-            dirs.remove(d)
-            removed += 1
-        for f in files:
-            if f.endswith((".pyc", ".pyo")):
-                (Path(folder) / f).unlink(missing_ok=True)
-                removed += 1
-    for cache in (ROOT / "frontend/.next", ROOT / "frontend/node_modules/.cache"):
-        if cache.exists():
-            shutil.rmtree(cache, ignore_errors=True)
-            removed += 1
-    if shutil.which("uv"):
-        run("uv", "cache", "clean", "--force", check=False)
-    print(f"Cleaned {removed} cache locations and cleared uv cache.")
+    protected = {".venv", "venv", "env", "ENV", "node_modules", ".git", *skip}
+    for folder, dirs, files in os.walk(root, onerror=raise_walk_error):
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in protected
+            and not (Path(folder) / d).is_symlink()
+            and not (Path(folder) / d).is_junction()
+        ]
+        for directory in [d for d in dirs if d in caches]:
+            removed += remove_artifact(Path(folder) / directory)
+            dirs.remove(directory)
+        for filename in files:
+            if filename.endswith(suffixes):
+                removed += remove_artifact(Path(folder) / filename)
+    return removed
+
+
+@command(
+    "remove local Python or React caches and build artifacts",
+    (["target"], {"choices": ("python", "react"), "help": "which toolchain to clean"}),
+)
+def clean(args):
+    try:
+        if args.target == "python":
+            removed = clean_tree(
+                ROOT,
+                {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".cache"},
+                (".pyc", ".pyo"),
+                skip={"frontend", "models", "data"},
+            )
+            if shutil.which("uv"):
+                run("uv", "cache", "clean", "--force")
+            else:
+                print("uv was not found on PATH; its cache was not cleaned.")
+        else:
+            frontend = ROOT / "frontend"
+            outputs = {"dist", "build", "out", ".next", ".vite", ".cache"}
+            removed = clean_tree(
+                frontend,
+                set(),
+                (".tsbuildinfo",),
+                skip=outputs,
+            )
+            for artifact in (
+                *sorted(outputs),
+                "node_modules/.cache",
+                "node_modules/.vite",
+                "node_modules/.vite-temp",
+                "next-env.d.ts",
+            ):
+                removed += remove_artifact(frontend / artifact)
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        sys.exit(f"Could not finish cleaning {args.target}: {error}")
+    print(f"Cleaned {removed} {args.target} artifact locations.")
 
 
 # GPU image
