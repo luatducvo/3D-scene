@@ -1,6 +1,6 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
-import type { ProgressEvent, Schemas } from "./types";
+import type { ProgressEvent } from "./types";
 import { ApiError, toApiError } from "./errors";
 import { consumeSSE } from "./sse";
 import { decodeMembership } from "./membership";

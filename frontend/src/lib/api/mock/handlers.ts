@@ -4,7 +4,6 @@ import {
   progressEvent,
   type Scene,
   type ProgressEvent,
-  type Schemas,
 } from "../types";
 import { apiOrigin } from "../http";
 import { demoObjects, roomMembership, roomPointCloud, roomMesh } from "./room";

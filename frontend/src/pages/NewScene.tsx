@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useLocale, useTranslations } from "use-intl";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { sceneApi } from "../lib/api";
 import { Header } from "../components/Header";

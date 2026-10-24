@@ -197,20 +197,6 @@ small {
   width: 220px;
   flex-shrink: 0;
 }
-.design-icon {
-  display: block;
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-.design-icon.icon-brand {
-  width: 28px;
-  height: 28px;
-}
-.design-icon.icon-upload {
-  width: 40px;
-  height: 40px;
-}
 .breadcrumb {
   display: flex;
   align-items: center;
@@ -1192,9 +1178,6 @@ body,
 }
 .dropzone h2 {
   font-size: 24px;
-}
-.dropzone .design-icon {
-  display: none;
 }
 .upload-actions {
   position: sticky;

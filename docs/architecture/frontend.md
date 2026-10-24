@@ -40,7 +40,7 @@ The Scene page shows:
 | File | Holds |
 | --- | --- |
 | `SceneCanvas.tsx` | the react-three-fiber canvas, controls, picking, the cursor, hover and Selection labels; renders every entry of `sceneLayers` |
-| `layers/index.tsx` | `sceneLayers`: `points` (`PointCloudLayer`, `points.ply`) and `mesh` (`MeshLayer`, `mesh.glb`); repaints vertex colours for Highlight, hover and Instance Colors |
+| `layers/index.tsx` | `sceneLayers`: `points` (`PointCloudLayer`, `points.ply`), `mesh` (`MeshLayer`, `mesh.glb`) and the metric floor `grid` (`FloorGridLayer`); repaints vertex colours for Highlight, hover and Instance Colors |
 | `view.ts` | which layer shows, room bounds, home and focus poses, where a Selection's label sits, whether highlighting is available |
 | `highlight.ts` | which Object owns each point (the smallest one), heatmap and dim colours, Instance Colors for hover and Selection, heatmap normalisation |
 | `picking.ts` | a hidden twin of each layer coloured by Object id, read back to pick the Object under the pointer |
@@ -59,6 +59,8 @@ With `VITE_API_MODE=mock`, `src/Providers.tsx` starts MSW (`public/mockServiceWo
 `src/main.tsx` mounts `App` inside React Router. The routes and Three.js canvas are lazy-loaded. `use-intl` reads the existing English message catalog. The visual style uses a warm canvas, navy typography, teal controls and a metric floor grid registered in `sceneLayers`.
 
 Vite serves development on port 3000 and builds static files into `dist/`. The production container uses Nginx with an `index.html` rewrite, so direct links and reloads of `/en/scenes/{id}` work. `VITE_API_URL` and `VITE_API_MODE` are browser build-time variables; rebuild the container after changing them. There is no server-side API origin.
+
+For local Vite development, copy `frontend/.env.example` to `frontend/.env` and edit its values. Compose passes the build variables through `build.args`, using the shell environment or the `backend/.env` file selected by `main.py`. The frontend container needs no runtime environment file.
 
 The editable desktop design is indexed in [the complete desktop screen set](https://www.figma.com/design/s0m5M8f2bvU2JaUEuNGnhH/Untitled?node-id=66-2533). Static capture illustrations and Scene previews have been removed; the viewer loads Publication geometry, and uploaded Frame previews come only from the selected files.
 

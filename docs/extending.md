@@ -25,7 +25,7 @@ Change `backend/migrations/001_init.sql`, the one schema file, and the `SceneSto
 
 1. If it needs a new Publication file, write it from a Stage into `mesh/` or `objects/`, add it to `SceneResults.PUBLIC` and `ASSETS` in `scene_core/results.py` and to `SceneAssets` in `scene_api/models.py`, then regenerate the contract.
 2. Write a component taking `SceneLayerProps` in `frontend/src/components/viewer/layers/index.tsx` and add it to `sceneLayers`.
-3. Put its show and hide rules in `viewer/view.ts` with tests in `view.test.ts`, and its toggle in the `layers` panel of `SceneExplorer.tsx`, with strings in `messages/en.json`.
+3. Put its show and hide rules in `viewer/view.ts` with tests in `view.test.ts`. Geometry layers must preserve the single Points/Mesh choice; always-visible overlays can follow the `FloorGridLayer` example. If the layer needs a control, add it to the toolbar or spatial tools in `SceneExplorer.tsx`, with strings in `messages/en.json`. Add interaction tests in `SceneExplorer.interactions.test.tsx` when the control changes viewer state.
 
 ## A new Target or Provider
 

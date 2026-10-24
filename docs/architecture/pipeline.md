@@ -62,7 +62,7 @@ A Scene has at most one queued or running Job (a unique index enforces it). Stag
 
 `TargetWorkspace.replace_results` and `SceneStore.publish`:
 
-1. Download `objects/`, `embeddings/` and `mesh/` from the Target into `DATA_DIR/staging/{scene}/{job}`, checking each file's SHA-256.
+1. Download `objects/`, `embeddings/` and `mesh/` from the Target into `DATA_DIR/staging/scenes/{scene}/{job}`, checking each file's SHA-256.
 2. Rename the staging folder to `DATA_DIR/scenes/{scene}/{job}`. It is never modified again.
 3. `SceneResults.load` checks the Objects, embeddings and membership agree (same Object ids, 1024-d finite vectors) or raises `RESULTS_INVALID`.
 4. In one transaction: replace the Scene's Objects, set `scenes.publication` to the Job id, mark the Job done and the Scene ready.

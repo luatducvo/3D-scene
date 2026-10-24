@@ -117,6 +117,7 @@ so the worker reports the missing Target instead of waiting 900 s on a dead URL.
 - Free-text Search embeds the query on `GPU_TARGET`. Without a running GPU instance it
   fails with `COMPUTE_UNAVAILABLE` (HTTP 503); the viewer, Object list and measurements
   still work.
-- A new instance has a new URL; Stages already completed are not rerun after switching, because the
-  config hash excludes the Target.
+- A new rented machine has a new URL. Update `VAST_URL` and recreate the API and worker
+  containers before starting another Job. Every new Job clears previous Stage outputs and runs
+  all eight Stages again; interrupted Jobs are marked failed when the worker restarts.
 - A container restart during a Compute Run fails that Job.
