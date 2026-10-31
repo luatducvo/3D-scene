@@ -22,14 +22,17 @@ def requests(*ids):
 
 
 class ScriptedVLM:
-    """Answers each Object's prompts in turn from a script, and records every batch it was given."""
+    """Answers each Object's prompts in turn from a script, and records every batch it was given
+    and whether it was asked to sample."""
 
     def __init__(self, answers):
         self.answers = {key: list(value) for key, value in answers.items()}
         self.batches = []
+        self.sampled = []
 
-    def __call__(self, batch):
+    def __call__(self, batch, sample):
         self.batches.append([request.id for request in batch])
+        self.sampled.append(sample)
         return [self.answers[request.id].pop(0) for request in batch]
 
 
@@ -68,18 +71,31 @@ def test_a_malformed_answer_is_asked_again_for_that_object_only(malformed):
     assert set(descriptions) == {"chair-1", "chair-2"}
 
 
+def test_the_first_answer_is_greedy_and_a_retry_samples_so_it_can_differ():
+    vlm = ScriptedVLM({"chair-1": ["no", "still no", VALID]})
+    describe(requests("chair-1"), vlm)
+    assert vlm.sampled == [False, True, True]
+
+
 def test_a_third_malformed_answer_is_invalid_model_output_naming_the_object():
     vlm = ScriptedVLM({"chair-1": ["no", "still no", "never"], "chair-2": [VALID]})
     with pytest.raises(SceneError, match="chair-1") as error:
         describe(requests("chair-1", "chair-2"), vlm)
     assert error.value.code == "INVALID_MODEL_OUTPUT"
     assert len(vlm.batches) == 3
+    assert error.value.details == {"objects": ["chair-1"], "answer": "never"}
 
 
 def test_a_vlm_returning_the_wrong_number_of_answers_is_invalid_model_output():
     with pytest.raises(SceneError) as error:
-        describe(requests("chair-1", "chair-2"), lambda batch: [VALID])
+        describe(requests("chair-1", "chair-2"), lambda batch, sample: [VALID])
     assert error.value.code == "INVALID_MODEL_OUTPUT"
+
+
+def test_the_prompt_asks_for_no_double_quotes_inside_the_sentences():
+    prompt = requests("chair-1")[0].prompt()
+    assert '"chair"' not in prompt
+    assert "no double quotes" in prompt
 
 
 def test_placement_facts_are_told_with_the_labels_of_the_objects_they_name():

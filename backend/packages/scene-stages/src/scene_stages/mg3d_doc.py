@@ -22,15 +22,18 @@ from .mesh import read_glb_positions
 from .placement import DEFAULTS as PLACEMENT_DEFAULTS
 from .placement import Placement, placement_facts
 
-# A malformed answer is asked for again this many times before the Stage fails.
+# A malformed answer is asked for again this many times before the Stage fails. The first answer
+# is greedy; a retry samples, since a greedy retry would repeat the same answer.
 RETRIES = 2
-PROMPT = """These images show one object from a scan of a room. Its label is "{label}".
+# Sampling temperature of a retry.
+RETRY_TEMPERATURE = 0.7
+PROMPT = """These images show one object from a scan of a room. Its label is: {label}.
 Measured facts about where it is: {facts}
 Answer with a JSON object and nothing else, with three keys:
 "appearance": one English sentence on how it looks (colour, material, shape),
 "use": one English sentence on what it is used for,
 "placement": one English sentence on where it is, using the measured facts.
-Each value must be exactly one sentence."""
+Each value must be exactly one sentence, with no double quotes inside it."""
 FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 SENTENCE_BREAK = re.compile(r"[.!?]\s+\S")
 
@@ -89,16 +92,17 @@ def parse_description(answer: str) -> ObjectDescription:
 
 def describe(
     requests: list[DescriptionRequest],
-    generate: Callable[[list[DescriptionRequest]], list[str]],
+    generate: Callable[[list[DescriptionRequest], bool], list[str]],
     on_round: Callable[[int, int], None] | None = None,
 ) -> dict[str, ObjectDescription]:
-    """Each request's Object Description by id. `generate` answers a batch of requests in order;
-    an Object whose answer is malformed is asked again, RETRIES times at most."""
-    descriptions, pending, errors = {}, list(requests), {}
-    for _ in range(1 + RETRIES):
+    """Each request's Object Description by id. `generate(batch, sample)` answers a batch of
+    requests in order, sampling when `sample` is set; an Object whose answer is malformed is asked
+    again, with sampling, RETRIES times at most."""
+    descriptions, pending, errors, last = {}, list(requests), {}, {}
+    for attempt in range(1 + RETRIES):
         if not pending:
             break
-        answers = generate(pending)
+        answers = generate(pending, attempt > 0)
         if len(answers) != len(pending):
             raise SceneError(
                 "INVALID_MODEL_OUTPUT",
@@ -109,7 +113,7 @@ def describe(
             try:
                 descriptions[request.id] = parse_description(answer)
             except ValueError as exc:
-                errors[request.id] = str(exc)
+                errors[request.id], last[request.id] = str(exc), answer
                 retry.append(request)
         pending = retry
         if on_round:
@@ -118,7 +122,7 @@ def describe(
         raise SceneError(
             "INVALID_MODEL_OUTPUT",
             f"The VLM gave no valid Object Description for {pending[0].id}: {errors[pending[0].id]}",
-            details={"objects": [request.id for request in pending]},
+            details={"objects": [request.id for request in pending], "answer": last[pending[0].id]},
         )
     return descriptions
 
@@ -226,7 +230,7 @@ class MG3DDocEmbeddings(StageAlgorithm):
             raise SceneError("INVALID_MODEL_OUTPUT", "Invalid reranker score")
         return scores
 
-    def _generate(self, requests, batch_size, max_new_tokens):
+    def _generate(self, requests, batch_size, max_new_tokens, sample):
         torch = _cuda()
         from transformers import AutoModelForImageTextToText, AutoProcessor
 
@@ -260,7 +264,10 @@ class MG3DDocEmbeddings(StageAlgorithm):
                 padding=True,
             ).to(self.vlm.device)
             with torch.inference_mode():
-                output = self.vlm.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+                sampling = {"temperature": RETRY_TEMPERATURE} if sample else {}
+                output = self.vlm.generate(
+                    **inputs, max_new_tokens=max_new_tokens, do_sample=sample, **sampling
+                )
             answers.extend(
                 self.processor.batch_decode(
                     output[:, inputs["input_ids"].shape[1] :], skip_special_tokens=True
@@ -313,7 +320,9 @@ class MG3DDocEmbeddings(StageAlgorithm):
         self.progress(0, len(objects), "object")
         descriptions = describe(
             requests,
-            lambda batch: self._generate(batch, sizes["vlm_batch_size"], sizes["max_new_tokens"]),
+            lambda batch, sample: self._generate(
+                batch, sizes["vlm_batch_size"], sizes["max_new_tokens"], sample
+            ),
             on_round=lambda done, total: self.progress(done, total, "object"),
         )
         # Search needs only the embedder and the reranker; the VLM's memory goes back to the GPU.
