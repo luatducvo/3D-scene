@@ -14,7 +14,8 @@ align-geocalib=["torch", "geocalib @ git+https://github.com/cvg/GeoCalib.git"]
 # timm and clip: required by Ultralytics' SAM 3 but not declared, so Ultralytics would install them at runtime.
 segment-sam3=["torch>=2.7", "huggingface_hub", "ultralytics>=8.4.19", "timm", "clip @ git+https://github.com/ultralytics/CLIP.git"]
 # Qwen3-VL needs transformers 4.57.
-embed-mg3d-doc=["torch", "transformers>=4.57,<5", "huggingface_hub"]
+# accelerate: transformers needs it to load the VLM straight onto the GPU (device_map).
+embed-mg3d-doc=["torch", "transformers>=4.57,<5", "huggingface_hub", "accelerate"]
 [build-system]
 requires=["hatchling"]
 build-backend="hatchling.build"
