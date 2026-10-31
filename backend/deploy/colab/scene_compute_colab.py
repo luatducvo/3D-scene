@@ -115,10 +115,16 @@ print(f"All weights cached in {MODELS_DIR}")
 import os
 
 REPO_URL = "https://github.com/luatducvo/3D-scene.git"
+# The branch whose code this host runs: it must register every Algorithm the local
+# backend/config/pipeline.yaml names, or a Stage fails with "found 0" entry points.
+REPO_BRANCH = "vdluat"
 if not os.path.exists("/content/3D-scene"):
-    !git clone $REPO_URL /content/3D-scene
+    !git clone --branch $REPO_BRANCH $REPO_URL /content/3D-scene
 
 %cd /content/3D-scene
+# An existing clone is brought up to date too; run Step 4 again afterwards so new Algorithms'
+# entry points are registered.
+!git fetch origin $REPO_BRANCH && git checkout $REPO_BRANCH && git reset --hard origin/$REPO_BRANCH
 
 
 # ==================================================================================================
