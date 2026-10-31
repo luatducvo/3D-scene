@@ -22,7 +22,8 @@ Create a notebook in Colab, paste each `CELL` block of `scene_compute_colab.py` 
 cell, and run the cells in order:
 
 0. **Download weights.** Once, on any runtime (a CPU runtime is enough), fetch every model's
-   weights (over 10 GB) into the Drive cache that step 5 checks, so GPU time is not spent
+   weights (over 25 GB, of which the embed Stage's Qwen3-VL, bge-m3 and bge-reranker-v2-m3 take
+   about 22 GB, so a free 15 GB Drive is not enough) into the Drive cache that step 5 checks, so GPU time is not spent
    downloading. It needs only `HF_TOKEN` in Colab secrets: no clone or install. It downloads to
    the runtime SSD and then copies each file to Drive, because the Drive mount mishandles the
    chunked writes of large Hugging Face downloads.

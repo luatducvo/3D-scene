@@ -132,6 +132,8 @@ class MG3DDocEmbeddings(StageAlgorithm):
     vlm_id = "Qwen/Qwen3-VL-8B-Instruct"
     embedder_id = "BAAI/bge-m3"
     reranker_id = "BAAI/bge-reranker-v2-m3"
+    # Files of these repos PyTorch never loads: bge-m3's ONNX export and README images.
+    IGNORE_PATTERNS = ("onnx/*", "imgs/*", "assets/*", "*.jpg", "*.png", "*.webp")
 
     def setup(self):
         _cache()
@@ -144,7 +146,7 @@ class MG3DDocEmbeddings(StageAlgorithm):
         from huggingface_hub import snapshot_download
 
         for model_id in (self.vlm_id, self.embedder_id, self.reranker_id):
-            snapshot_download(model_id)
+            snapshot_download(model_id, ignore_patterns=list(self.IGNORE_PATTERNS))
 
     def _load_embedder(self):
         torch = _cuda()

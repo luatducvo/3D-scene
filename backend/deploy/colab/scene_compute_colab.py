@@ -59,14 +59,20 @@ def copy_to_drive(snapshot):
 
 # Mirrors download_weights() in backend/packages/scene-stages/src/scene_stages/gpu.py and mg3d_doc.py;
 # keep the model ids in sync with backend/config/pipeline.yaml.
-for repo_id in [
-    "depth-anything/DA3NESTED-GIANT-LARGE-1.1",
-    "Qwen/Qwen3-VL-8B-Instruct",
-    "BAAI/bge-m3",
-    "BAAI/bge-reranker-v2-m3",
+# The embed Stage's files that PyTorch never loads (ONNX exports, README images); mirrors
+# MG3DDocEmbeddings.IGNORE_PATTERNS and is skipped by the check in Step 5 too.
+EMBED_IGNORE = ["onnx/*", "imgs/*", "assets/*", "*.jpg", "*.png", "*.webp"]
+for repo_id, ignore in [
+    ("depth-anything/DA3NESTED-GIANT-LARGE-1.1", None),
+    # The embed Stage: the VLM that writes Object Descriptions (about 17.5 GB), the embedder and
+    # the reranker (about 2.3 GB each).
+    ("Qwen/Qwen3-VL-8B-Instruct", EMBED_IGNORE),
+    ("BAAI/bge-m3", EMBED_IGNORE),
+    ("BAAI/bge-reranker-v2-m3", EMBED_IGNORE),
 ]:
     print(f"download {repo_id}", flush=True)
-    copy_to_drive(Path(snapshot_download(repo_id, cache_dir=LOCAL_CACHE, token=HF_TOKEN)))
+    snapshot = snapshot_download(repo_id, cache_dir=LOCAL_CACHE, token=HF_TOKEN, ignore_patterns=ignore)
+    copy_to_drive(Path(snapshot))
 print("download facebook/sam3 sam3.pt", flush=True)
 copy_to_drive(Path(hf_hub_download("facebook/sam3", "sam3.pt", cache_dir=LOCAL_CACHE, token=HF_TOKEN)).parent)
 
@@ -136,6 +142,7 @@ if not os.path.exists("/content/3D-scene"):
 # Paste everything below, up to the next CELL banner, into one code cell.
 
 import os
+from fnmatch import fnmatch
 from pathlib import Path
 
 import yaml
@@ -160,10 +167,19 @@ hf_api = HfApi(token=os.environ["HF_TOKEN"])
 missing = []
 
 
-def check_hf(repo_id, filenames=None):
+# The same patterns Step 0 skipped for the embed Stage's models.
+EMBED_IGNORE = ["onnx/*", "imgs/*", "assets/*", "*.jpg", "*.png", "*.webp"]
+
+
+def check_hf(repo_id, filenames=None, ignore=()):
     info = hf_api.model_info(repo_id, files_metadata=True)
     snapshot = Path(os.environ["HF_HOME"]) / "hub" / f"models--{repo_id.replace('/', '--')}" / "snapshots" / info.sha
-    files = [s for s in info.siblings if filenames is None or s.rfilename in filenames]
+    files = [
+        s
+        for s in info.siblings
+        if (filenames is None or s.rfilename in filenames)
+        and not any(fnmatch(s.rfilename, pattern) for pattern in ignore)
+    ]
     incomplete = [
         s.rfilename
         for s in files
@@ -182,7 +198,7 @@ stages = yaml.safe_load(Path(os.environ["MODELS_PIPELINE_CONFIG"]).read_text())[
 check_hf(stages["recon"]["params"]["model_id"])
 check_hf("facebook/sam3", ["sam3.pt"])
 for key in ("vlm_model_id", "embedder_model_id", "reranker_model_id"):
-    check_hf(stages["embed"]["params"][key])
+    check_hf(stages["embed"]["params"][key], ignore=EMBED_IGNORE)
 geocalib = Path(os.environ["TORCH_HOME"]) / "hub" / "geocalib" / "pinhole.tar"
 if geocalib.is_file():
     print(f"cached   GeoCalib pinhole: {geocalib}")
