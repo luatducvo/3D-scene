@@ -32,7 +32,7 @@ def configuration():
 
 
 class TargetWorkspace:
-    """Scene inputs, Stage execution, results and query embedding on the pipeline's Target, by scene_id."""
+    """Scene inputs, Stage execution, results, query embedding and reranking on the pipeline's Target, by scene_id."""
 
     def __init__(self, pipeline: PipelineConfig, data_dir, adapter):
         # SOLID review (DIP): both adapters satisfy an implicit interface. A typed Protocol would
@@ -98,8 +98,16 @@ class TargetWorkspace:
                     other.unlink(missing_ok=True)
 
     def embed_text(self, texts: list[str]) -> list[list[float]]:
-        """Embed query text with the embed Stage's Algorithm, in the same space as Object embeddings."""
-        return self._adapter.embed(self.pipeline.stages["embed"].algorithm, texts)
+        """Embed query text with the embed Stage's Algorithm and params, in the same space as Object embeddings."""
+        config = self.pipeline.stages["embed"]
+        return self._adapter.embed(config.algorithm, texts, config.params)
+
+    def rerank(self, query: str, descriptions: list[str]) -> list[float]:
+        """Score how well each Object Description answers the query, in 0..1, with the embed Stage's Algorithm and params."""
+        if not descriptions:
+            return []
+        config = self.pipeline.stages["embed"]
+        return self._adapter.rerank(config.algorithm, query, descriptions, config.params)
 
     def delete(self, scene_id: str):
         """Remove the Scene's Target Workspace; its published results are the api's to remove."""

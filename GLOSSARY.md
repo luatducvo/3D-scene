@@ -29,7 +29,7 @@ One request to process a Scene through every Stage of the Pipeline, from its upl
 _Avoid_: run, task, pipeline run
 
 **Stage**:
-One named step of the Pipeline: ingest, recon, align, mesh, segment, lift, embed, objects.
+One named step of the Pipeline: ingest, recon, align, mesh, segment, lift, objects, embed.
 _Avoid_: step, phase
 
 **Algorithm**:
@@ -84,6 +84,10 @@ _Avoid_: detection, mask, cluster
 An Instance placed in the Scene with its box and label; it keeps the Instance's identity.
 _Avoid_: item, entity
 
+**Object Description**:
+Three sentences describing an Object by its appearance, its use and its physical place in the Scene; the Object's embedding is made from them.
+_Avoid_: document, caption, doc
+
 **Best View**:
 A Frame region that shows an Object well, ranked by score.
 _Avoid_: thumbnail, crop
@@ -95,11 +99,11 @@ _Avoid_: labels, segmentation (for this)
 ### Exploring
 
 **Search**:
-Finding a Scene's Objects that match a free-text query, by label and by embedding similarity.
+Finding a Scene's Objects that match a free-text query: the Objects whose embeddings are most similar to the query's are re-judged against their Object Descriptions, with a bonus for a label match.
 _Avoid_: query (for this), lookup
 
 **Search Hit**:
-One Object returned by a Search, with a ranking score that adds a bonus for a label match on top of its raw similarity.
+One Object returned by a Search, with a ranking score that adds a bonus for a label match on top of how well its Object Description answers the query.
 _Avoid_: match, result
 
 **Object Heatmap**:
@@ -128,6 +132,7 @@ _Avoid_: ruler
 - Each **Stage** is performed by exactly one configured **Algorithm** and leaves one **Manifest** and one **Stage Run**.
 - A **Scene** has one **Target Workspace** and serves at most one **Publication**; a failed **Job** leaves the current **Publication** untouched.
 - Each **Instance** becomes exactly one **Object** with the same id; nothing merges or splits after lift.
+- Each **Object** has exactly one **Object Description**, written once its box exists, and its embedding is made from that Description alone.
 - A point or vertex may belong to several **Objects** (a handle and the wardrobe around it) or to none; pointing at it picks the smallest.
 - Selecting an Object ends the **Search** and clears its **Highlight**; a new **Search** clears the **Selection**.
 

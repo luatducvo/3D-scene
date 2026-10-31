@@ -2,7 +2,7 @@
 
 Turn photos or one short video of a room into a metric 3D Scene: a point cloud and mesh, the Objects in it with their sizes, and text Search over those Objects.
 
-The pipeline runs Depth Anything 3 for reconstruction, GeoCalib for gravity alignment, TSDF fusion for the mesh, SAM 3 for open-vocabulary segmentation, mask clustering to lift masks into 3D Objects and MetaCLIP 2 for embeddings. Every model Stage also has a fake that runs on a CPU, so the whole system works without a GPU.
+The pipeline runs Depth Anything 3 for reconstruction, GeoCalib for gravity alignment, TSDF fusion for the mesh, SAM 3 for open-vocabulary segmentation, mask clustering to lift masks into 3D Objects, Qwen3-VL to write each Object's Object Description, bge-m3 to embed it and bge-reranker-v2-m3 to rerank Search Hits. Every model Stage also has a fake that runs on a CPU, so the whole system works without a GPU.
 
 ## Requirements
 

@@ -9,7 +9,7 @@ def _cross(a, b):
     return float(a[0] * b[1] - a[1] * b[0])
 
 
-def _convex_hull(points):
+def convex_hull(points):
     points = sorted(set(map(tuple, points)))
     if len(points) <= 2:
         return np.asarray(points)
@@ -31,7 +31,7 @@ def fit_box(points):
     points = np.asarray(points, dtype=float)
     if points.ndim != 2 or points.shape[1] != 3 or not len(points) or not np.isfinite(points).all():
         raise ValueError("Box points must be a nonempty finite N x 3 array")
-    hull = _convex_hull(points[:, :2])
+    hull = convex_hull(points[:, :2])
     edges = np.roll(hull, -1, axis=0) - hull
     angles = np.unique(np.mod(np.arctan2(edges[:, 1], edges[:, 0]), np.pi / 2))
     best = None

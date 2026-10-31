@@ -29,7 +29,9 @@ from .models import (
 )
 
 QUERY_READY_TIMEOUT_S = 10
-# GET /search keeps Objects whose similarity is within SEARCH_MARGIN of the best one, SEARCH_MAX_HITS in all.
+# GET /search reranks the SEARCH_CANDIDATES Objects nearest the query embedding and every label
+# match, then keeps those whose relevance is within SEARCH_MARGIN of the best, SEARCH_MAX_HITS in all.
+SEARCH_CANDIDATES = 20
 SEARCH_MARGIN = 0.05
 SEARCH_MAX_HITS = 10
 
@@ -44,19 +46,19 @@ def _best_first(hits):
     return sorted(hits, key=lambda hit: hit["score"], reverse=True)
 
 
-def rank_search_hits(objects, similarities, query, margin, limit=SEARCH_MAX_HITS):
-    """The GET /search cut: every label match, then the other Objects within `margin` of the best
-    similarity, best first, while fewer than `limit` hits are kept. A label match scores its
-    similarity plus 1."""
-    best = max(similarities.values(), default=0.0)
-    labelled, similar = [], []
+def rank_search_hits(objects, relevance, query, margin, limit=SEARCH_MAX_HITS):
+    """The GET /search cut over the reranked Objects: every label match, then the others within
+    `margin` of the best relevance, best first, while fewer than `limit` hits are kept. A label
+    match scores its relevance plus 1."""
+    best = max(relevance.values(), default=0.0)
+    labelled, relevant = [], []
     for obj in objects:
-        similarity = similarities.get(obj["id"], 0.0)
+        score = relevance.get(obj["id"], 0.0)
         if label_matches(obj, query):
-            labelled.append({"object": obj, "score": similarity + 1, "raw_similarity": similarity})
-        elif similarity > 0 and similarity >= best - margin:
-            similar.append({"object": obj, "score": similarity, "raw_similarity": similarity})
-    return _best_first(labelled) + _best_first(similar)[: max(0, limit - len(labelled))]
+            labelled.append({"object": obj, "score": score + 1, "raw_similarity": score})
+        elif score > 0 and score >= best - margin:
+            relevant.append({"object": obj, "score": score, "raw_similarity": score})
+    return _best_first(labelled) + _best_first(relevant)[: max(0, limit - len(labelled))]
 
 
 def create_app(database_url=None, data_dir=None, pipeline=None, compute=None, target=None):
@@ -74,6 +76,7 @@ def create_app(database_url=None, data_dir=None, pipeline=None, compute=None, ta
     app.state.data_dir = data_dir
     app.state.target = target
     app.state.search_margin = float(os.getenv("SEARCH_MARGIN", SEARCH_MARGIN))
+    app.state.search_candidates = int(os.getenv("SEARCH_CANDIDATES", SEARCH_CANDIDATES))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000").split(","),
@@ -276,12 +279,20 @@ def create_app(database_url=None, data_dir=None, pipeline=None, compute=None, ta
     def search_objects(scene_id: uuid.UUID, q: str):
         if not q.strip():
             return []
+        objects = public_objects(scene_id)
+        descriptions = candidates(scene_id, q, objects)
+        scores = target_workspace().rerank(q, list(descriptions.values()))
+        relevance = dict(zip(descriptions, scores, strict=True))
         return rank_search_hits(
-            public_objects(scene_id), similarities(scene_id, q), q, app.state.search_margin
+            [obj for obj in objects if obj["id"] in relevance],
+            relevance,
+            q,
+            app.state.search_margin,
         )
 
-    def similarities(scene_id, q):
-        """Cosine similarity of the query embedding, made on the Target, to each Object's."""
+    def candidates(scene_id, q, objects):
+        """The Object Descriptions to rerank, by Object id: the search_candidates Objects whose
+        embeddings are most similar to the query's, made on the Target, and every label match."""
         import numpy as np
 
         vector = target_workspace().embed_text([q])[0]
@@ -289,15 +300,22 @@ def create_app(database_url=None, data_dir=None, pipeline=None, compute=None, ta
             raise SceneError(
                 "EMBEDDING_DIMENSION_MISMATCH", "Query vector dimension differs from database", 500
             )
-        scores = {}
-        if np.linalg.norm(vector) > 0:
-            with store.connect() as conn:
-                for row in conn.execute(
-                    "SELECT id,1-(embedding <=> %s::vector) AS score FROM objects WHERE scene_id=%s",
-                    (str(vector), scene_id),
-                ).fetchall():
-                    scores[row["id"]] = float(row["score"] or 0)
-        return scores
+        labelled = {obj["id"] for obj in objects if label_matches(obj, q)}
+        with store.connect() as conn:
+            rows = conn.execute(
+                "SELECT id,description,1-(embedding <=> %s::vector) AS similarity FROM objects"
+                " WHERE scene_id=%s ORDER BY similarity DESC NULLS LAST,id",
+                (str(vector), scene_id),
+            ).fetchall()
+        # A zero query embedding is similar to nothing; only label matches are then reranked.
+        nearest = [
+            row["id"] for row in rows if np.linalg.norm(vector) > 0 and (row["similarity"] or 0) > 0
+        ][: app.state.search_candidates]
+        return {
+            row["id"]: row["description"]
+            for row in rows
+            if row["id"] in labelled or row["id"] in nearest
+        }
 
     return app
 

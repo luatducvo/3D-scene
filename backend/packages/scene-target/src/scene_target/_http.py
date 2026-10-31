@@ -44,13 +44,18 @@ class HttpAdapter:
         if response.is_error:
             try:
                 error = response.json()["error"]
-                code, message = (
+                code, message, details = (
                     error.get("code", "COMPUTE_FAILED"),
                     error.get("message", str(error)),
+                    error.get("details"),
                 )
             except (ValueError, KeyError, TypeError, AttributeError):
-                code, message = "COMPUTE_FAILED", f"Compute HTTP {response.status_code}"
-            raise SceneError(code, message, 502)
+                code, message, details = (
+                    "COMPUTE_FAILED",
+                    f"Compute HTTP {response.status_code}",
+                    None,
+                )
+            raise SceneError(code, message, 502, details)
         return response
 
     def _wait_until_ready(self):
@@ -208,11 +213,15 @@ class HttpAdapter:
                 "COMPUTE_FAILED", f"Downloaded file {relative} has a different checksum", 502
             )
 
-    def embed(self, algorithm, texts):
+    def embed(self, algorithm, texts, params):
         self._wait_until_ready()
-        return self._call("POST", f"/invoke/{algorithm}/embed_text", json={"texts": texts}).json()[
-            "vectors"
-        ]
+        payload = {"texts": texts, "params": params}
+        return self._call("POST", f"/invoke/{algorithm}/embed_text", json=payload).json()["vectors"]
+
+    def rerank(self, algorithm, query, descriptions, params):
+        self._wait_until_ready()
+        payload = {"query": query, "descriptions": descriptions, "params": params}
+        return self._call("POST", f"/invoke/{algorithm}/rerank", json=payload).json()["scores"]
 
     def delete(self, scene_id):
         self._call("DELETE", f"/workspaces/{scene_id}")

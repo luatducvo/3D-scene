@@ -20,10 +20,13 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
+# The Executor's optional Algorithm capabilities reachable through POST /invoke.
+INVOKE_METHODS = ("embed_text", "rerank")
+
 
 class ContractError(Exception):
-    def __init__(self, code: str, message: str, status: int = 400):
-        self.code, self.message, self.status = code, message, status
+    def __init__(self, code: str, message: str, status: int = 400, details: dict | None = None):
+        self.code, self.message, self.status, self.details = code, message, status, details
 
 
 def digest_file(path: Path) -> str:
@@ -142,9 +145,10 @@ def create_app(
 
     @app.exception_handler(ContractError)
     async def error_handler(request, exc):
-        return JSONResponse(
-            {"error": {"code": exc.code, "message": exc.message}}, status_code=exc.status
-        )
+        error = {"code": exc.code, "message": exc.message}
+        if exc.details:
+            error["details"] = exc.details
+        return JSONResponse({"error": error}, status_code=exc.status)
 
     @app.middleware("http")
     async def bounds(request: Request, call_next):
@@ -353,8 +357,8 @@ def create_app(
 
     @app.post("/invoke/{algorithm}/{method}")
     async def invoke(algorithm: str, method: str, payload: dict):
-        if method != "embed_text":
-            raise ContractError("UNKNOWN_METHOD", "Only embed_text is supported", 404)
+        if method not in INVOKE_METHODS:
+            raise ContractError("UNKNOWN_METHOD", "Only embed_text and rerank are supported", 404)
         # Share the same queue as Stage execution so GPU model caches are not accessed concurrently.
         future = pool.submit(get_executor().invoke, algorithm, method, payload)
         try:
@@ -363,11 +367,16 @@ def create_app(
             )
         except TimeoutError:
             future.cancel()
+            raise ContractError("REQUEST_TIMEOUT", "Invocation exceeded time limit", 504) from None
+        except Exception as exc:
+            # The Algorithm's own code reaches the caller, as for a failed Compute Run.
+            if not hasattr(exc, "code"):
+                raise
             raise ContractError(
-                "REQUEST_TIMEOUT", "Embedding invocation exceeded time limit", 504
-            ) from None
+                exc.code, getattr(exc, "message", str(exc)), 422, getattr(exc, "details", None)
+            ) from exc
         if len(json.dumps(result).encode()) > limit:
-            raise ContractError("BODY_TOO_LARGE", "Embedding response exceeds chunk limit", 413)
+            raise ContractError("BODY_TOO_LARGE", "Invocation response exceeds chunk limit", 413)
         return result
 
     return app

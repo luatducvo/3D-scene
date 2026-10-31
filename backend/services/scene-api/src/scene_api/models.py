@@ -80,7 +80,8 @@ class SearchHit(BaseModel):
     score: float
     raw_similarity: float = Field(
         allow_inf_nan=False,
-        description="Unbonused cosine similarity; distinct from the label-boosted ranking score.",
+        description="Unbonused relevance in 0..1 of the Object's Description to the query, from the"
+        " reranker; distinct from the label-boosted ranking score.",
     )
 
 

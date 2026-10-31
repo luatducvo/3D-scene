@@ -1,13 +1,17 @@
+import json
 import os
 
 import numpy as np
 import pytest
 from scene_core.contracts import STAGES, SceneWorkspace
+from scene_core.domain import ObjectDescription
 from scene_core.errors import SceneError
 from scene_core.membership import ObjectMembership
 from scene_core.registry import Registry
 from scene_core.results import EMBEDDING_DIM, SceneResults
 from scene_store import SceneStore
+
+SENTENCES = {"appearance": "A thing.", "use": "It is used.", "placement": "It is here."}
 
 
 @pytest.fixture
@@ -28,11 +32,47 @@ def write_embeddings(workspace, ids, vectors):
     )
 
 
-def test_load_returns_objects_with_one_embedding_each(workspace):
+def write_descriptions(workspace, descriptions):
+    workspace.path(SceneResults.DESCRIPTIONS).write_text(json.dumps(descriptions))
+
+
+def test_load_returns_objects_with_one_embedding_and_description_each(workspace):
     published = SceneResults(workspace).load()
     assert [o.id for o in published.objects] == ["chair-1", "table-1"]
     assert set(published.embeddings) == {"chair-1", "table-1"}
     assert all(v.shape == (EMBEDDING_DIM,) for v in published.embeddings.values())
+    assert set(published.descriptions) == {"chair-1", "table-1"}
+    assert published.descriptions["chair-1"].startswith("A ")
+
+
+def test_a_description_reads_appearance_use_then_placement():
+    description = ObjectDescription(
+        appearance="A red chair.", use="It is for sitting.", placement="It stands on the floor."
+    )
+    assert description.text() == "A red chair. It is for sitting. It stands on the floor."
+
+
+@pytest.mark.parametrize(
+    "descriptions,message",
+    [
+        ({"chair-1": SENTENCES}, "different ids"),
+        ({"chair-1": SENTENCES, "table-1": SENTENCES, "lamp-1": SENTENCES}, "different ids"),
+        ({"chair-1": SENTENCES, "table-1": {**SENTENCES, "use": ""}}, "unreadable"),
+        ({"chair-1": SENTENCES, "table-1": {"appearance": "A table."}}, "unreadable"),
+    ],
+)
+def test_load_rejects_descriptions_that_disagree_with_the_objects(workspace, descriptions, message):
+    write_descriptions(workspace, descriptions)
+    with pytest.raises(SceneError, match=message) as error:
+        SceneResults(workspace).load()
+    assert error.value.code == "RESULTS_INVALID"
+
+
+def test_load_rejects_a_publication_without_descriptions(workspace):
+    workspace.path(SceneResults.DESCRIPTIONS).unlink()
+    with pytest.raises(SceneError) as error:
+        SceneResults(workspace).load()
+    assert error.value.code == "RESULTS_INVALID"
 
 
 @pytest.mark.parametrize(

@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from scene_core.contracts import AlignManifest, EmbedManifest, ReconManifest, SegmentManifest
+from scene_core.contracts import AlignManifest, ReconManifest, SegmentManifest
 from scene_core.errors import SceneError
 from scene_core.geometry import fit_plane
 from scene_core.ports import StageAlgorithm
-from scene_core.results import EMBEDDING_DIM
 
 
 def _cache():
@@ -389,114 +387,3 @@ class Sam3Segmentation(StageAlgorithm):
             total += len(kept)
         self.progress(len(selected), len(selected), "frame")
         return SegmentManifest(num_masks=total, vocabulary_size=len(vocabulary))
-
-
-class MetaClipEmbeddings(StageAlgorithm):
-    name = "embed.metaclip2"
-    stage = "embed"
-    manifest_type = EmbedManifest
-    reads = ["instances"]
-    writes = ["embeddings"]
-    model_id = "facebook/metaclip-2-worldwide-huge-quickgelu"
-
-    def setup(self):
-        _cache()
-        self.model = None
-
-    def download_weights(self):
-        _cache()
-        from huggingface_hub import snapshot_download
-
-        snapshot_download(self.model_id)
-
-    def _load(self, model_id=None):
-        torch = _cuda()
-        from transformers import AutoModel, AutoProcessor
-
-        model_id = model_id or self.model_id
-        if self.model is None or self.model_id != model_id:
-            self.processor = AutoProcessor.from_pretrained(model_id)
-            self.model = AutoModel.from_pretrained(model_id).to("cuda").eval()
-            self.model_id = model_id
-        if self.model.config.projection_dim != EMBEDDING_DIM:
-            raise SceneError(
-                "EMBEDDING_DIMENSION_MISMATCH",
-                f"Expected the database's {EMBEDDING_DIM} dimensions",
-            )
-        return torch
-
-    def _normalized(self, features):
-        array = _numpy(features)
-        norms = np.linalg.norm(array, axis=-1, keepdims=True)
-        if (
-            array.ndim != 2
-            or array.shape[1] != EMBEDDING_DIM
-            or not np.isfinite(array).all()
-            or (norms <= 0).any()
-        ):
-            raise SceneError("INVALID_MODEL_OUTPUT", "Invalid MetaCLIP embedding")
-        return array / norms
-
-    def embed_text(self, texts):
-        torch = self._load()
-        if not texts:
-            return np.empty((0, EMBEDDING_DIM), dtype=np.float32)
-        batches = []
-        for start in range(0, len(texts), 32):
-            inputs = self.processor(
-                text=texts[start : start + 32], padding=True, truncation=True, return_tensors="pt"
-            ).to("cuda")
-            with torch.inference_mode():
-                batches.append(self._normalized(self.model.get_text_features(**inputs)))
-        return np.concatenate(batches)
-
-    def run(self, workspace, params):
-        torch = self._load(params.get("model_id"))
-        instances = json.loads(
-            workspace.path("instances/instances.json").read_text(encoding="utf-8")
-        )
-        batch_size = int(params.get("batch_size", 64))
-        if batch_size < 1:
-            raise SceneError("INVALID_PARAMETERS", "batch_size must be positive")
-        # Every Object's crops go through the model in shared batches, not one call per Object.
-        crops, owners, weights = [], [], []
-        for number, instance in enumerate(instances):
-            scored = []
-            for index, view in enumerate(instance["best_views"]):
-                path = workspace.path(f"instances/crops/{instance['id']}_{index}.jpg")
-                with Image.open(path) as source:
-                    crops.append(source.convert("RGB"))
-                owners.append(number)
-                scored.append(max(0, float(view["score"])))
-            if not scored or sum(scored) <= 0:
-                raise SceneError("MISSING_EVIDENCE", f"No scored crops for {instance['id']}")
-            weights.extend(scored)
-        features = []
-        for start in range(0, len(crops), batch_size):
-            self.progress(start, len(crops), "image")
-            inputs = self.processor(
-                images=crops[start : start + batch_size], return_tensors="pt"
-            ).to("cuda")
-            with torch.inference_mode():
-                features.append(self._normalized(self.model.get_image_features(**inputs)))
-        self.progress(len(crops), len(crops), "image")
-        features = np.concatenate(features) if features else np.empty((0, EMBEDDING_DIM))
-        owners, weights = np.asarray(owners), np.asarray(weights)
-        ids, vectors = [], []
-        for number, instance in enumerate(instances):
-            mine = owners == number
-            vector = np.average(features[mine], axis=0, weights=weights[mine])
-            norm = np.linalg.norm(vector)
-            if not np.isfinite(norm) or norm <= 0:
-                raise SceneError("INVALID_MODEL_OUTPUT", "Object embedding has zero norm")
-            ids.append(instance["id"])
-            vectors.append(vector / norm)
-        array = np.asarray(vectors, dtype=np.float32).reshape(-1, EMBEDDING_DIM)
-        np.savez_compressed(
-            workspace.dir("embeddings") / "objects.npz",
-            ids=np.asarray(ids, dtype=str),
-            vectors=array,
-        )
-        return EmbedManifest(
-            model_id=self.model_id, dim=EMBEDDING_DIM, embeddings_file="embeddings/objects.npz"
-        )

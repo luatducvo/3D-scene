@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-STAGES = ("ingest", "recon", "align", "mesh", "segment", "lift", "embed", "objects")
+STAGES = ("ingest", "recon", "align", "mesh", "segment", "lift", "objects", "embed")
 OUTPUTS = {
     "ingest": ["keyframes"],
     "recon": ["recon"],
@@ -10,8 +10,8 @@ OUTPUTS = {
     "mesh": ["mesh"],
     "segment": ["segment"],
     "lift": ["instances"],
-    "embed": ["embeddings"],
     "objects": ["objects"],
+    "embed": ["embeddings"],
 }
 
 
@@ -75,9 +75,13 @@ class LiftManifest(BaseModel):
 
 
 class EmbedManifest(BaseModel):
+    # The sentence model that embedded the Object Descriptions and embeds Search queries.
     model_id: str
+    vlm_model_id: str
+    reranker_model_id: str
     dim: int
     embeddings_file: str
+    descriptions_file: str
 
 
 class ObjectsManifest(BaseModel):

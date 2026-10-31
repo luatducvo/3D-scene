@@ -6,6 +6,9 @@ from .registry import Registry
 
 
 class Executor:
+    # The optional capabilities an embed Algorithm offers beyond run(), and the key of each result.
+    CAPABILITIES = {"embed_text": "vectors", "rerank": "scores"}
+
     def __init__(self, data_dir: Path, registry: Registry | None = None):
         self.data_dir = Path(data_dir)
         self.registry = registry or Registry()
@@ -35,10 +38,13 @@ class Executor:
             return result.model_dump(mode="json")
 
     def invoke(self, algorithm: str, method: str, payload: dict) -> dict:
-        if method != "embed_text":
+        if method not in self.CAPABILITIES:
             raise ValueError("Unsupported invoke method")
         with self._lock:
-            # SOLID review (ISP/DIP): embed_text is an optional capability absent from StageAlgorithm.
-            # Give embedding Algorithms a narrow capability interface instead of adding it to every Stage.
-            value = self.algorithm(algorithm).embed_text(**payload)
-            return {"vectors": value.tolist() if hasattr(value, "tolist") else value}
+            # SOLID review (ISP/DIP): embed_text and rerank are optional capabilities absent from
+            # StageAlgorithm. Give embedding Algorithms a narrow capability interface instead of
+            # adding them to every Stage.
+            value = getattr(self.algorithm(algorithm), method)(**payload)
+            return {
+                self.CAPABILITIES[method]: value.tolist() if hasattr(value, "tolist") else value
+            }

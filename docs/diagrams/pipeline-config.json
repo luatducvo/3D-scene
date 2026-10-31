@@ -182,7 +182,7 @@
       "id": "embed",
       "type": "backend",
       "label": "7 · embed",
-      "sublabel": "embed.metaclip2",
+      "sublabel": "embed.mg3d_doc",
       "tag": "GPU model",
       "stage": 3,
       "row": 4,
@@ -356,7 +356,7 @@
         "ingest: 10–200 keyframes, 3 fps from video, long side 1600 px",
         "recon: Depth Anything 3 Nested Giant at 504 px; align: RANSAC floor at 2 cm",
         "mesh: TSDF voxel 2 cm, up to 3M points; segment: SAM 3 with indoor-en.txt, score ≥ 0.5",
-        "lift: seen in ≥ 2 views; embed: MetaCLIP 2, batch 64",
+        "lift: seen in ≥ 2 views; embed: Qwen3-VL Object Descriptions, bge-m3, reranker",
         "objects: membership radius 2 cm"
       ]
     },

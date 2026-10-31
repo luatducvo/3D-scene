@@ -50,8 +50,13 @@ class InProcessAdapter:
                 shutil.copytree(source.path(directory), staging.path(directory))
         staging.root.mkdir(parents=True, exist_ok=True)
 
-    def embed(self, algorithm, texts):
-        return self.executor.invoke(algorithm, "embed_text", {"texts": texts})["vectors"]
+    def embed(self, algorithm, texts, params):
+        payload = {"texts": texts, "params": params}
+        return self.executor.invoke(algorithm, "embed_text", payload)["vectors"]
+
+    def rerank(self, algorithm, query, descriptions, params):
+        payload = {"query": query, "descriptions": descriptions, "params": params}
+        return self.executor.invoke(algorithm, "rerank", payload)["scores"]
 
     def delete(self, scene_id):
         shutil.rmtree(self._workspace(scene_id).root, ignore_errors=True)

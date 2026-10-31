@@ -12,8 +12,8 @@ Every Job runs all eight Stages in this order. A Stage reads earlier Stages' fol
 | mesh | `align`, `recon` | `mesh` | `mesh.tsdf` | `mesh/points.ply` coloured point cloud and `mesh/mesh.glb` TSDF mesh |
 | segment | `recon` | `segment` | `segment.sam3` | SAM 3 masks per Frame for the concepts of a Vocabulary (`segment/masks/*.npz`) |
 | lift | `segment`, `align`, `recon` | `instances` | `lift.maskclustering` | Instances from masks that agree across views: `instances.json`, 3D points, crops of Best Views |
-| embed | `instances` | `embeddings` | `embed.metaclip2` | one 1024-d MetaCLIP 2 vector per Instance (`embeddings/objects.npz`) |
 | objects | `instances`, `mesh` | `objects` | `objects.geometric` | `objects.json` (Objects with oriented boxes) and `membership.bin` |
+| embed | `objects`, `instances`, `mesh` | `embeddings` | `embed.mg3d_doc` | one Object Description per Object, written by Qwen3-VL from its Best Views, label and placement facts (`embeddings/descriptions.json`), and its 1024-d bge-m3 vector (`embeddings/objects.npz`); see [ADR 0001](../adr/0001-object-descriptions-replace-image-embeddings.md) |
 
 `STAGES` and `OUTPUTS` in `scene_core/contracts.py` define this table's first three columns. Each Stage's Manifest model is in the same file; the Executor validates the Algorithm's return value against it and writes it as `<folder>/manifest.json`.
 

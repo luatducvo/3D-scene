@@ -306,7 +306,7 @@ export interface components {
             score: number;
             /**
              * Raw Similarity
-             * @description Unbonused cosine similarity; distinct from the label-boosted ranking score.
+             * @description Unbonused relevance in 0..1 of the Object's Description to the query, from the reranker; distinct from the label-boosted ranking score.
              */
             raw_similarity: number;
         };
@@ -325,7 +325,7 @@ export interface components {
              * Stage
              * @enum {string}
              */
-            stage: "ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "objects";
+            stage: "ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "objects" | "embed";
             /** Algorithm */
             algorithm: string;
             /**
@@ -380,7 +380,7 @@ export interface components {
              * Stage
              * @default null
              */
-            stage: ("ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "embed" | "objects") | null;
+            stage: ("ingest" | "recon" | "align" | "mesh" | "segment" | "lift" | "objects" | "embed") | null;
             /**
              * Status
              * @default null

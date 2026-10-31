@@ -193,7 +193,7 @@
       "type": "backend",
       "label": "scene-compute",
       "sublabel": "GPU image · Executor",
-      "tag": "DA3 · SAM 3 · MetaCLIP 2",
+      "tag": "DA3 · SAM 3 · Qwen3-VL · bge-m3",
       "pos": [
         710,
         400

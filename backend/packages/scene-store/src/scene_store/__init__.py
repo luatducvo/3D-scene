@@ -215,7 +215,7 @@ class SceneStore:
             conn.execute("DELETE FROM objects WHERE scene_id=%s", (scene_id,))
             for obj in published.objects:
                 conn.execute(
-                    "INSERT INTO objects(scene_id,id,label,box,best_views,embedding) VALUES(%s,%s,%s,%s,%s,%s::vector)",
+                    "INSERT INTO objects(scene_id,id,label,box,best_views,embedding,description) VALUES(%s,%s,%s,%s,%s,%s::vector,%s)",
                     (
                         scene_id,
                         obj.id,
@@ -223,6 +223,7 @@ class SceneStore:
                         Jsonb(obj.box.model_dump()),
                         Jsonb([v.model_dump() for v in obj.best_views]),
                         str(published.embeddings[obj.id].tolist()),
+                        published.descriptions[obj.id],
                     ),
                 )
             conn.execute(

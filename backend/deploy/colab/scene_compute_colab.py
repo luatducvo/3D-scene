@@ -57,9 +57,14 @@ def copy_to_drive(snapshot):
     (drive_repo / "refs" / "main").write_text(snapshot.name)
 
 
-# Mirrors download_weights() in backend/packages/scene-stages/src/scene_stages/gpu.py;
+# Mirrors download_weights() in backend/packages/scene-stages/src/scene_stages/gpu.py and mg3d_doc.py;
 # keep the model ids in sync with backend/config/pipeline.yaml.
-for repo_id in ["depth-anything/DA3NESTED-GIANT-LARGE-1.1", "facebook/metaclip-2-worldwide-huge-quickgelu"]:
+for repo_id in [
+    "depth-anything/DA3NESTED-GIANT-LARGE-1.1",
+    "Qwen/Qwen3-VL-8B-Instruct",
+    "BAAI/bge-m3",
+    "BAAI/bge-reranker-v2-m3",
+]:
     print(f"download {repo_id}", flush=True)
     copy_to_drive(Path(snapshot_download(repo_id, cache_dir=LOCAL_CACHE, token=HF_TOKEN)))
 print("download facebook/sam3 sam3.pt", flush=True)
@@ -113,7 +118,7 @@ if not os.path.exists("/content/3D-scene"):
 # ==================================================================================================
 # CELL 4 - Step 4: Install `scene-compute` dependencies
 # ==================================================================================================
-# Use `--extra gpu` for Depth Anything 3, SAM 3, GeoCalib and MetaCLIP 2.
+# Use `--extra gpu` for Depth Anything 3, SAM 3, GeoCalib, Qwen3-VL, bge-m3 and bge-reranker-v2-m3.
 #
 # Paste everything below, up to the next CELL banner, into one code cell.
 
@@ -150,7 +155,7 @@ os.environ["MODELS_PIPELINE_CONFIG"] = "/content/3D-scene/backend/config/pipelin
 os.environ["HF_TOKEN"] = userdata.get("HF_TOKEN")
 
 # Check that every weight Step 0 downloads is complete on Drive; never download here.
-# Mirrors download_weights() in backend/packages/scene-stages/src/scene_stages/gpu.py.
+# Mirrors download_weights() in backend/packages/scene-stages/src/scene_stages/gpu.py and mg3d_doc.py.
 hf_api = HfApi(token=os.environ["HF_TOKEN"])
 missing = []
 
@@ -176,7 +181,8 @@ def check_hf(repo_id, filenames=None):
 stages = yaml.safe_load(Path(os.environ["MODELS_PIPELINE_CONFIG"]).read_text())["stages"]
 check_hf(stages["recon"]["params"]["model_id"])
 check_hf("facebook/sam3", ["sam3.pt"])
-check_hf(stages["embed"]["params"]["model_id"])
+for key in ("vlm_model_id", "embedder_model_id", "reranker_model_id"):
+    check_hf(stages["embed"]["params"][key])
 geocalib = Path(os.environ["TORCH_HOME"]) / "hub" / "geocalib" / "pinhole.tar"
 if geocalib.is_file():
     print(f"cached   GeoCalib pinhole: {geocalib}")

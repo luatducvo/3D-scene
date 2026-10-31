@@ -8,5 +8,5 @@ stages:
   mesh: {algorithm: mesh.fake}
   segment: {algorithm: segment.fake}
   lift: {algorithm: lift.fake}
-  embed: {algorithm: embed.fake}
   objects: {algorithm: objects.fake}
+  embed: {algorithm: embed.fake}

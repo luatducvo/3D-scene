@@ -18,9 +18,9 @@ stages:
   lift:
     algorithm: lift.fake
     params: {}
-  embed:
-    algorithm: embed.fake
-    params: {}
   objects:
     algorithm: objects.fake
+    params: {}
+  embed:
+    algorithm: embed.fake
     params: {}

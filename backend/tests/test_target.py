@@ -164,6 +164,34 @@ def test_queries_are_embedded_by_the_embed_algorithm(target):
     assert len(vector) == EMBEDDING_DIM
 
 
+def test_descriptions_are_reranked_by_the_embed_algorithm(target):
+    workspace, _ = target
+    scores = workspace.rerank("chair", ["A chair to sit on.", "A table and a chair.", "A lamp."])
+    assert scores == pytest.approx([1.0, 0.5**0.5, 0.0])
+    assert workspace.rerank("chair", []) == []
+
+
+def test_a_rerank_failure_carries_the_algorithms_code(target):
+    workspace, _ = target
+    with pytest.raises(SceneError) as error:
+        workspace.rerank(" ", ["A chair."])
+    assert error.value.code == "INVALID_PARAMETERS"
+
+
+def test_reranking_uses_the_embed_stages_configured_params(target):
+    workspace, _ = target
+    workspace.pipeline.stages["embed"].params.update(
+        fail="Reranker unavailable", fail_code="RERANKER_DOWN", fail_details={"model": "x"}
+    )
+    with pytest.raises(SceneError) as error:
+        workspace.rerank("chair", ["A chair."])
+    assert (error.value.code, error.value.message, error.value.details) == (
+        "RERANKER_DOWN",
+        "Reranker unavailable",
+        {"model": "x"},
+    )
+
+
 def test_delete_removes_the_target_workspace(target):
     workspace, root = target
     processed(workspace)

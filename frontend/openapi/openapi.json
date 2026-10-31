@@ -830,7 +830,7 @@
           "raw_similarity": {
             "type": "number",
             "title": "Raw Similarity",
-            "description": "Unbonused cosine similarity; distinct from the label-boosted ranking score."
+            "description": "Unbonused relevance in 0..1 of the Object's Description to the query, from the reranker; distinct from the label-boosted ranking score."
           }
         },
         "type": "object",
@@ -875,8 +875,8 @@
               "mesh",
               "segment",
               "lift",
-              "embed",
-              "objects"
+              "objects",
+              "embed"
             ],
             "title": "Stage"
           },
@@ -1038,8 +1038,8 @@
                   "mesh",
                   "segment",
                   "lift",
-                  "embed",
-                  "objects"
+                  "objects",
+                  "embed"
                 ],
                 "type": "string"
               },

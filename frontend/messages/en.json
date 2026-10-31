@@ -44,8 +44,8 @@
     "mesh": "Build the mesh",
     "segment": "Find objects in photos",
     "lift": "Locate objects in 3D",
-    "embed": "Index objects for search",
-    "objects": "Fit object boxes"
+    "objects": "Fit object boxes",
+    "embed": "Index objects for search"
   },
   "stagesCompleted": "{done} of {total} stages",
   "etaSoon": "less than a minute left",

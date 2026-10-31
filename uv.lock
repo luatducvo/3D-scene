@@ -2305,7 +2305,7 @@ dependencies = [
 
 [package.optional-dependencies]
 gpu = [
-    { name = "scene-stages", extra = ["align-geocalib", "embed-metaclip2", "gpu-arrays", "mesh-tsdf", "recon-da3", "segment-sam3"] },
+    { name = "scene-stages", extra = ["align-geocalib", "embed-mg3d-doc", "gpu-arrays", "mesh-tsdf", "recon-da3", "segment-sam3"] },
     { name = "torch" },
     { name = "torchvision" },
     { name = "xformers" },
@@ -2317,7 +2317,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "scene-core", editable = "backend/packages/scene-core" },
     { name = "scene-stages", editable = "backend/packages/scene-stages" },
-    { name = "scene-stages", extras = ["recon-da3", "align-geocalib", "mesh-tsdf", "gpu-arrays", "segment-sam3", "embed-metaclip2"], marker = "extra == 'gpu'", editable = "backend/packages/scene-stages" },
+    { name = "scene-stages", extras = ["recon-da3", "align-geocalib", "mesh-tsdf", "gpu-arrays", "segment-sam3", "embed-mg3d-doc"], marker = "extra == 'gpu'", editable = "backend/packages/scene-stages" },
     { name = "torch", marker = "extra == 'gpu'", specifier = "==2.10.*" },
     { name = "torchvision", marker = "extra == 'gpu'", specifier = "==0.25.*" },
     { name = "uvicorn", specifier = ">=0.34" },
@@ -2356,7 +2356,7 @@ align-geocalib = [
     { name = "geocalib" },
     { name = "torch" },
 ]
-embed-metaclip2 = [
+embed-mg3d-doc = [
     { name = "huggingface-hub" },
     { name = "torch" },
     { name = "transformers" },
@@ -2390,7 +2390,7 @@ requires-dist = [
     { name = "cupy-cuda12x", marker = "extra == 'gpu-arrays'", specifier = ">=13.4" },
     { name = "depth-anything-3", marker = "extra == 'recon-da3'", git = "https://github.com/ByteDance-Seed/Depth-Anything-3.git" },
     { name = "geocalib", marker = "extra == 'align-geocalib'", git = "https://github.com/cvg/GeoCalib.git" },
-    { name = "huggingface-hub", marker = "extra == 'embed-metaclip2'" },
+    { name = "huggingface-hub", marker = "extra == 'embed-mg3d-doc'" },
     { name = "huggingface-hub", marker = "extra == 'recon-da3'" },
     { name = "huggingface-hub", marker = "extra == 'segment-sam3'" },
     { name = "pillow", specifier = ">=11" },
@@ -2398,15 +2398,15 @@ requires-dist = [
     { name = "scikit-image", marker = "extra == 'mesh-tsdf'", specifier = ">=0.24" },
     { name = "timm", marker = "extra == 'segment-sam3'" },
     { name = "torch", marker = "extra == 'align-geocalib'" },
-    { name = "torch", marker = "extra == 'embed-metaclip2'" },
+    { name = "torch", marker = "extra == 'embed-mg3d-doc'" },
     { name = "torch", marker = "extra == 'recon-da3'" },
     { name = "torch", marker = "extra == 'segment-sam3'", specifier = ">=2.7" },
     { name = "torchvision", marker = "extra == 'recon-da3'" },
-    { name = "transformers", marker = "extra == 'embed-metaclip2'", specifier = ">=4.56,<5" },
+    { name = "transformers", marker = "extra == 'embed-mg3d-doc'", specifier = ">=4.57,<5" },
     { name = "trimesh", marker = "extra == 'mesh-tsdf'", specifier = ">=4" },
     { name = "ultralytics", marker = "extra == 'segment-sam3'", specifier = ">=8.4.19" },
 ]
-provides-extras = ["mesh-tsdf", "gpu-arrays", "recon-da3", "align-geocalib", "segment-sam3", "embed-metaclip2"]
+provides-extras = ["mesh-tsdf", "gpu-arrays", "recon-da3", "align-geocalib", "segment-sam3", "embed-mg3d-doc"]
 
 [[package]]
 name = "scene-store"

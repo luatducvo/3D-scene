@@ -47,9 +47,9 @@ Only live events carry an SSE `id`.
 
 ## Search
 
-The query is embedded on the Target with the embed Stage's Algorithm and compared with each Object's embedding by cosine similarity in pgvector. A label match is the query containing the Object's label, or the reverse.
+The query is embedded on the Target with the embed Stage's Algorithm and compared with each Object's embedding by cosine similarity in pgvector. The `SEARCH_CANDIDATES` (default 20) most similar Objects and every label match are then reranked on the Target, by the same Algorithm, against their Object Descriptions (`objects.description`), each getting a relevance in 0..1. A label match is the query containing the Object's label, or the reverse.
 
-- `GET /search` returns every label match (score = similarity + 1), then the other Objects within `SEARCH_MARGIN` (default 0.05) of the best similarity, at most 10 hits in all. Each hit carries `score` and `raw_similarity`.
+- `GET /search` returns every reranked label match (score = relevance + 1), then the other reranked Objects within `SEARCH_MARGIN` (default 0.05) of the best relevance, at most 10 hits in all; an Object that was not reranked is never a hit. Each hit carries `score` and `raw_similarity`, the relevance without the label bonus.
 
 ## Database
 
@@ -60,7 +60,7 @@ The query is embedded on the Target with the embed Stage's Algorithm and compare
 | `scenes` | name, status, `failure`, `publication` (Job id) |
 | `jobs` | status `queued`, `running`, `done`, `failed`; at most one queued or running per Scene |
 | `stage_runs` | one row per Stage of the latest Job: Algorithm, status, Manifest, error, progress, times |
-| `objects` | the current Publication's Objects with a `vector(1024)` embedding (HNSW cosine index) |
+| `objects` | the current Publication's Objects with a `vector(1024)` embedding (HNSW cosine index) and their Object Description |
 | `scene_events` | the progress outbox read by `GET /events` |
 
 ## Object membership file

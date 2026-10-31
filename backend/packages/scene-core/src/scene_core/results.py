@@ -7,7 +7,7 @@ import numpy as np
 from pydantic import ValidationError
 
 from .contracts import SceneWorkspace
-from .domain import OBJECT_LIST, SceneObject
+from .domain import DESCRIPTIONS, OBJECT_LIST, SceneObject
 from .errors import SceneError
 from .membership import ObjectMembership
 
@@ -19,6 +19,8 @@ EMBEDDING_DIM = 1024
 class PublishedScene:
     objects: list[SceneObject]
     embeddings: dict[str, np.ndarray]
+    # Each Object's Description as the text that is embedded and reranked.
+    descriptions: dict[str, str]
 
 
 class SceneResults:
@@ -29,6 +31,7 @@ class SceneResults:
     DIRECTORIES = ("objects", "embeddings", "mesh")
     OBJECTS = "objects/objects.json"
     EMBEDDINGS = "embeddings/objects.npz"
+    DESCRIPTIONS = "embeddings/descriptions.json"
     # Which points and mesh vertices belong to each Object (scene_core.membership); written by objects.
     MEMBERSHIP = "objects/membership.bin"
     # Served to browsers on every Target: a trailing slash names a whole directory, anything else one
@@ -44,7 +47,7 @@ class SceneResults:
         self.workspace = workspace
 
     def load(self) -> PublishedScene:
-        """Read the Objects and their embeddings, check they agree and that every viewer asset exists, before any transaction opens."""
+        """Read the Objects, their embeddings and Descriptions, check they agree and that every viewer asset exists, before any transaction opens."""
         try:
             objects = OBJECT_LIST.validate_json(
                 self.workspace.path(self.OBJECTS).read_text(encoding="utf-8")
@@ -52,6 +55,9 @@ class SceneResults:
             with np.load(self.workspace.path(self.EMBEDDINGS), allow_pickle=False) as data:
                 ids = [str(key) for key in data["ids"]]
                 vectors = np.asarray(data["vectors"])
+            descriptions = DESCRIPTIONS.validate_json(
+                self.workspace.path(self.DESCRIPTIONS).read_text(encoding="utf-8")
+            )
         except (OSError, KeyError, ValueError, ValidationError) as exc:
             raise SceneError(
                 "RESULTS_INVALID", f"Published results are missing or unreadable: {exc}"
@@ -63,6 +69,8 @@ class SceneResults:
             or set(ids) != set(object_ids)
         ):
             raise SceneError("RESULTS_INVALID", "Objects and embeddings have different ids")
+        if set(descriptions) != set(object_ids):
+            raise SceneError("RESULTS_INVALID", "Objects and Descriptions have different ids")
         if vectors.shape != (len(ids), EMBEDDING_DIM):
             raise SceneError(
                 "RESULTS_INVALID",
@@ -76,7 +84,11 @@ class SceneResults:
                 "RESULTS_INVALID", f"Published results are missing {', '.join(missing)}"
             )
         self._check_membership(object_ids)
-        return PublishedScene(objects, dict(zip(ids, vectors, strict=True)))
+        return PublishedScene(
+            objects,
+            dict(zip(ids, vectors, strict=True)),
+            {key: description.text() for key, description in descriptions.items()},
+        )
 
     def _check_membership(self, object_ids: list[str]) -> None:
         """The membership file must decode and list the Objects in order."""

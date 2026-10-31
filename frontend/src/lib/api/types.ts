@@ -13,8 +13,8 @@ export const STAGES = [
   "mesh",
   "segment",
   "lift",
-  "embed",
   "objects",
+  "embed",
 ] as const satisfies readonly Stage[];
 // Type-checking fails here when STAGES misses a Stage of the backend's enum.
 const stagesComplete: [Exclude<Stage, (typeof STAGES)[number]>] extends [never]

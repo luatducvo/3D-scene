@@ -13,7 +13,8 @@ recon-da3=["torch", "torchvision", "huggingface_hub", "addict", "depth-anything-
 align-geocalib=["torch", "geocalib @ git+https://github.com/cvg/GeoCalib.git"]
 # timm and clip: required by Ultralytics' SAM 3 but not declared, so Ultralytics would install them at runtime.
 segment-sam3=["torch>=2.7", "huggingface_hub", "ultralytics>=8.4.19", "timm", "clip @ git+https://github.com/ultralytics/CLIP.git"]
-embed-metaclip2=["torch", "transformers>=4.56,<5", "huggingface_hub"]
+# Qwen3-VL needs transformers 4.57.
+embed-mg3d-doc=["torch", "transformers>=4.57,<5", "huggingface_hub"]
 [build-system]
 requires=["hatchling"]
 build-backend="hatchling.build"
@@ -35,7 +36,7 @@ scene-core={workspace=true}
 "mesh.tsdf"="scene_stages.mesh:TSDFMesh"
 "segment.sam3"="scene_stages.gpu:Sam3Segmentation"
 "lift.maskclustering"="scene_stages.lift:MaskClustering"
-"embed.metaclip2"="scene_stages.gpu:MetaClipEmbeddings"
+"embed.mg3d_doc"="scene_stages.mg3d_doc:MG3DDocEmbeddings"
 "objects.geometric"="scene_stages.objects:GeometricObjects"
 [tool.hatch.metadata]
 allow-direct-references=true

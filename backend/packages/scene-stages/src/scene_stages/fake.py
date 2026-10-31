@@ -15,10 +15,10 @@ from scene_core.contracts import (
     ReconManifest,
     SegmentManifest,
 )
-from scene_core.domain import OBJECT_LIST
+from scene_core.domain import DESCRIPTIONS, OBJECT_LIST, ObjectDescription
 from scene_core.errors import SceneError
 from scene_core.ports import StageAlgorithm
-from scene_core.results import EMBEDDING_DIM
+from scene_core.results import EMBEDDING_DIM, SceneResults
 
 from .mesh import GLTF_FLOAT, GLTF_UNSIGNED_SHORT, pack_glb, write_ply
 from .objects import write_membership, write_objects
@@ -38,23 +38,40 @@ OBJECTS = [
     },
 ]
 
+# Each fake Object's Object Description; only the chair's mentions sitting.
+FAKE_DESCRIPTIONS = {
+    "chair-1": ObjectDescription(
+        appearance="A brown wooden chair with four legs and a straight back.",
+        use="It is used for sitting.",
+        placement="It is about 1 m tall and stands on the floor in the open.",
+    ),
+    "table-1": ObjectDescription(
+        appearance="A square brown wooden table.",
+        use="It holds plates, books and cups.",
+        placement="It is about 0.8 m tall and stands on the floor in the open.",
+    ),
+}
+
 
 class Fake(StageAlgorithm):
     def run(self, w, p):
         if p.get("delay"):
             time.sleep(p["delay"])
-        if p.get("fail"):
-            raise SceneError(
-                p.get("fail_code", "FAKE_STAGE_FAILED"),
-                str(p["fail"]),
-                details=p.get("fail_details"),
-            )
+        self.fail_if_scripted(p)
         steps = int(p.get("progress_steps", 1))
         self.progress(0, steps, "step")
         result = self.transform(w, p)
         for done in range(1, steps + 1):
             self.progress(done, steps, "step")
         return result
+
+    def fail_if_scripted(self, p):
+        if p.get("fail"):
+            raise SceneError(
+                p.get("fail_code", "FAKE_STAGE_FAILED"),
+                str(p["fail"]),
+                details=p.get("fail_details"),
+            )
 
 
 class IngestFake(Fake):
@@ -244,10 +261,10 @@ class EmbedFake(Fake):
     name = "embed.fake"
     stage = "embed"
     manifest_type = EmbedManifest
-    reads = ["instances"]
+    reads = ["objects", "instances", "mesh"]
     writes = ["embeddings"]
 
-    def embed_text(self, texts):
+    def embed_text(self, texts, params=None):
         vectors = np.zeros((len(texts), EMBEDDING_DIM), dtype=np.float32)
         for i, text in enumerate(texts):
             if any(word in text.lower() for word in ("chair", "ghế", "sit")):
@@ -256,14 +273,36 @@ class EmbedFake(Fake):
                 vectors[i, 1] = 1
         return vectors
 
+    def rerank(self, query, descriptions, params=None):
+        """The cosine of the fake embeddings: 1 for a Description about only what was asked. The
+        Stage's fail params fail it as they fail a run."""
+        self.fail_if_scripted(params or {})
+        if not query.strip():
+            raise SceneError("INVALID_PARAMETERS", "The query must not be empty")
+        vectors = self.embed_text([query, *descriptions])
+        norms = np.linalg.norm(vectors, axis=1)
+        if not norms[0]:
+            return [0.0] * len(descriptions)
+        return [
+            float(vector @ vectors[0] / (norm * norms[0])) if norm else 0.0
+            for vector, norm in zip(vectors[1:], norms[1:], strict=True)
+        ]
+
     def transform(self, w, p):
+        w.dir("embeddings")
         np.savez(
-            w.dir("embeddings") / "objects.npz",
+            w.path(SceneResults.EMBEDDINGS),
             ids=np.array([o["id"] for o in OBJECTS]),
             vectors=self.embed_text([o["label"] for o in OBJECTS]),
         )
+        w.path(SceneResults.DESCRIPTIONS).write_bytes(DESCRIPTIONS.dump_json(FAKE_DESCRIPTIONS))
         return EmbedManifest(
-            model_id="synthetic", dim=EMBEDDING_DIM, embeddings_file="embeddings/objects.npz"
+            model_id="synthetic",
+            vlm_model_id="synthetic",
+            reranker_model_id="synthetic",
+            dim=EMBEDDING_DIM,
+            embeddings_file=SceneResults.EMBEDDINGS,
+            descriptions_file=SceneResults.DESCRIPTIONS,
         )
 
 

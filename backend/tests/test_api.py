@@ -82,7 +82,7 @@ def test_pipeline_publish_and_rerun(client):
     assert detail["status"] == "ready", detail
     assert [(s["stage"], s["status"]) for s in detail["stage_runs"]] == [
         (stage, "done")
-        for stage in ("ingest", "recon", "align", "mesh", "segment", "lift", "embed", "objects")
+        for stage in ("ingest", "recon", "align", "mesh", "segment", "lift", "objects", "embed")
     ]
     objects = client.get(prefix + "/objects").json()
     assert [o["id"] for o in objects] == ["chair-1", "table-1"]
@@ -141,7 +141,7 @@ def test_progress_replay_and_search(client):
     assert client.get(prefix + "/search", params={"q": ""}).json() == []
 
 
-def test_search_keeps_hits_near_the_best_score_and_every_label_match(client):
+def test_search_reranks_the_nearest_objects_and_every_label_match(client):
     import math
 
     from psycopg.types.json import Jsonb
@@ -157,38 +157,48 @@ def test_search_keeps_hits_near_the_best_score_and_every_label_match(client):
         vector[0], vector[2] = similarity, math.sqrt(1 - similarity**2)
         return str(vector)
 
-    near = {f"near-{i}": s for i, s in enumerate((0.98, 0.97, 0.96))}
-    far = {f"far-{i}": round(0.9 - 0.01 * i, 2) for i in range(10)}
+    # The fake reranker scores 1 for a Description about chairs only, 0.71 for one that also
+    # mentions a table, and 0 for one about neither.
     with client.app.state.store.connect() as conn:
-        for object_id, similarity, label in (
-            *((k, s, "stool") for k, s in {**near, **far}.items()),
-            ("armchair-1", 0.0, "armchair"),
+        for object_id, label, similarity, description in (
+            ("near-a", "stool", 0.9, "A stool next to a table, used as a chair."),
+            ("near-b", "stool", 0.8, "A stool to sit on."),
+            ("near-c", "stool", 0.7, "A low wooden stool."),
+            ("far", "stool", 0.5, "A stool shaped like a chair."),
+            ("armchair-1", "armchair", 0.0, "A soft armchair beside a table."),
         ):
             conn.execute(
-                "INSERT INTO objects(scene_id,id,label,box,embedding) VALUES(%s,%s,%s,%s,%s::vector)",
+                "INSERT INTO objects(scene_id,id,label,box,embedding,description)"
+                " VALUES(%s,%s,%s,%s,%s::vector,%s)",
                 (
                     scene,
                     object_id,
                     label,
                     Jsonb({"center": [0, 0, 0], "size": [1, 1, 1], "yaw": 0}),
                     embedding(similarity),
+                    description,
                 ),
             )
+    client.app.state.search_candidates = 3
 
     def search():
-        return [
-            hit["object"]["id"]
-            for hit in client.get(prefix + "/search", params={"q": "chair"}).json()
-        ]
+        return client.get(prefix + "/search", params={"q": "chair"}).json()
 
-    # chair-1 matches by label and scores best; armchair-1 matches by label despite no similarity.
-    assert search() == ["chair-1", "armchair-1", "near-0", "near-1", "near-2"]
-    hits = client.get(prefix + "/search", params={"q": "chair"}).json()
-    assert hits[1]["score"] == pytest.approx(1.0)
-    assert hits[1]["raw_similarity"] == pytest.approx(0.0)
-    assert hits[2]["raw_similarity"] == pytest.approx(0.98)
+    # The 3 nearest are chair-1, near-a and near-b; armchair-1 joins them by label. near-b's
+    # Description outranks near-a's, and far is never judged although its Description fits.
+    hits = search()
+    assert [hit["object"]["id"] for hit in hits] == ["chair-1", "armchair-1", "near-b"]
+    assert hits[0]["score"] == pytest.approx(2.0)
+    assert hits[1]["score"] == pytest.approx(1 + math.sqrt(0.5))
+    assert hits[1]["raw_similarity"] == pytest.approx(math.sqrt(0.5))
+    assert hits[2]["score"] == hits[2]["raw_similarity"] == pytest.approx(1.0)
     client.app.state.search_margin = 1.0
-    assert search() == ["chair-1", "armchair-1", *near, *list(far)[:5]]
+    assert [hit["object"]["id"] for hit in search()] == [
+        "chair-1",
+        "armchair-1",
+        "near-b",
+        "near-a",
+    ]
 
 
 def remote(tmp_path, compute_client, **overrides):
@@ -345,12 +355,15 @@ def test_a_failed_reprocess_keeps_results_on_the_in_process_target(client):
     detail = client.get(prefix).json()
     assert detail["status"] == "ready"
     assert_failed_reprocess_keeps_results(client, runner, prefix, detail)
+    # Search still reranks the earlier Objects by their Descriptions.
+    hits = client.get(prefix + "/search", params={"q": "chair"}).json()
+    assert hits[0]["object"]["id"] == "chair-1" and hits[0]["raw_similarity"] == pytest.approx(1.0)
 
 
 def assert_failed_reprocess_keeps_results(client, runner, prefix, detail):
     """A Job failing at its last Stage leaves the earlier mesh and Objects in place."""
     mesh = client.get(detail["assets"]["mesh_url"]).content
-    runner.target.pipeline.stages["objects"].params = {"fail": "deliberate failure"}
+    runner.target.pipeline.stages["embed"].params = {"fail": "deliberate failure"}
     client.post(prefix + "/process", json={})
     runner.run_once()
     failed = client.get(prefix).json()
@@ -358,7 +371,7 @@ def assert_failed_reprocess_keeps_results(client, runner, prefix, detail):
     assert failed["assets"]["mesh_url"] and client.get(failed["assets"]["mesh_url"]).content == mesh
     objects = client.get(prefix + "/objects").json()
     assert len(objects) == 2
-    runner.target.pipeline.stages["objects"].params = {}
+    runner.target.pipeline.stages["embed"].params = {}
 
 
 def test_search_reports_unavailable_compute_target(client, monkeypatch):
